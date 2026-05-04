@@ -311,11 +311,11 @@ def credit_loyalty_points(customer, restaurant, coins, reason, ref_doctype=None,
 	else:
 		return redeem_loyalty_coins(customer, restaurant, coins, reason, ref_doctype, ref_name)
 
-@frappe.whitelist()
+@frappe.whitelist(allow_guest=True)
 def get_loyalty_config(restaurant_id):
-	"""Get loyalty configurations for admin"""
+	"""Get loyalty configurations for admin and cart"""
 	try:
-		restaurant = validate_restaurant_for_api(restaurant_id, frappe.session.user)
+		restaurant = validate_restaurant_for_api(restaurant_id)
 		if not frappe.db.exists("Restaurant Loyalty Config", {"restaurant": restaurant}):
 			return {"success": True, "data": None}
 			

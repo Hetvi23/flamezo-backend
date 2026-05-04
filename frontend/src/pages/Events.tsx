@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useFrappePostCall, useFrappeUpdateDoc, useFrappeDeleteDoc } from '@/lib/frappe'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+// Removed unused Table imports
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -24,12 +24,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { Plus, Edit, Trash2, Calendar, AlertCircle, Search, Zap } from 'lucide-react'
+import { Plus, Edit, Trash2, Calendar, Search, Zap, MapPin, Clock, ExternalLink } from 'lucide-react'
 import { LockedFeature } from '@/components/FeatureGate/LockedFeature'
 import { useRestaurant } from '@/contexts/RestaurantContext'
 import { toast } from 'sonner'
 import { cn, getFrappeError } from '@/lib/utils'
 import { useDataTable } from '@/hooks/useDataTable'
+import { FilterCondition } from '@/components/ListFilters'
 import { DataPagination } from '@/components/ui/DataPagination'
 import { Switch } from '@/components/ui/switch'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -51,12 +52,12 @@ export default function Events() {
 
   const initialFilters = useMemo(() => {
     if (!selectedRestaurant) return []
-    const f: any[] = [['restaurant', '=', selectedRestaurant]]
+    const f: FilterCondition[] = [{ fieldname: 'restaurant', operator: '=', value: selectedRestaurant }]
 
     if (filterType === 'active') {
-      f.push(['is_active', '=', 1])
+      f.push({ fieldname: 'is_active', operator: '=', value: 1 })
     } else if (filterType === 'inactive') {
-      f.push(['is_active', '=', 0])
+      f.push({ fieldname: 'is_active', operator: '=', value: 0 })
     }
 
     return f
@@ -77,6 +78,7 @@ export default function Events() {
     doctype: 'Event',
     fields: ['name', 'title', 'description', 'category', 'is_active', 'date', 'time', 'location', 'image_src', 'repeat_this_event', 'repeat_till', 'google_maps_link', 'registration_link', 'featured', 'display_order', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'],
     initialFilters,
+    searchFields: ['title', 'category', 'description', 'location'],
     orderBy: { field: 'creation', order: 'desc' },
     initialPageSize: 12,
     debugId: `events-${selectedRestaurant}-${filterType}`
@@ -112,7 +114,12 @@ export default function Events() {
           restaurant: selectedRestaurant,
         }
       })
-      toast.success('Event launched successfully')
+      toast.success('Event created successfully')
+      
+      // Clear filters and search to show the new event instantly
+      setSearchQuery('')
+      setFilterType('all')
+      
       mutate()
       setIsCreateDialogOpen(false)
     } catch (error: any) {
@@ -136,12 +143,12 @@ export default function Events() {
     if (!eventToDelete) return
     try {
       await deleteEvent('Event', eventToDelete.name)
-      toast.success('Event eradicated')
+      toast.success('Event deleted successfully')
       mutate()
       setDeleteDialogOpen(false)
       setEventToDelete(null)
     } catch (error: any) {
-      toast.error('Eradication failed', { description: getFrappeError(error) })
+      toast.error('Deletion failed', { description: getFrappeError(error) })
     }
   }
 
@@ -172,15 +179,15 @@ export default function Events() {
     <div className="p-4 sm:p-6 space-y-6">
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
         <div className="space-y-1">
-          <h2 className="text-2xl font-bold tracking-tight">Event Horizon</h2>
+          <h2 className="text-2xl font-bold tracking-tight">Events</h2>
           <p className="text-muted-foreground text-sm flex items-center gap-2">
-            <Zap className="h-3.5 w-3.5" />
-            Manage your Events here
+            <Calendar className="h-3.5 w-3.5" />
+            Manage your restaurant events and special occasions
           </p>
         </div>
         <Button onClick={() => setIsCreateDialogOpen(true)} className="rounded-xl h-11 px-6 shadow-lg shadow-primary/20 bg-black text-white hover:bg-black/90">
           <Plus className="h-4 w-4 mr-2" />
-          Establish Event
+          Create Event
         </Button>
       </div>
 
@@ -222,70 +229,171 @@ export default function Events() {
               <div className="animate-spin h-6 w-6 border-2 border-primary border-t-transparent rounded-full" />
             </div>
           ) : !events || events.length === 0 ? (
-            <div className="py-20 text-center text-muted-foreground">No events found</div>
+            <div className="py-20 text-center text-muted-foreground flex flex-col items-center gap-4">
+              <Calendar className="h-12 w-12 text-muted-foreground/20" />
+              <div>
+                <p className="font-medium text-foreground">No events found</p>
+                <p className="text-sm">Try adjusting your search or filters</p>
+              </div>
+            </div>
           ) : (
             <>
-              <div className="rounded-md border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Title</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {events.map((event: any) => (
-                      <TableRow key={event.name}>
-                        <TableCell className="font-bold">{event.title}</TableCell>
-                        <TableCell className="capitalize">{event.category || 'Standard'}</TableCell>
-                        <TableCell>
-                          {new Date(event.date).toLocaleDateString()}
-                          {event.repeat_this_event ? <Badge variant="secondary" className="ml-2 text-[10px]">Recurring</Badge> : null}
-                        </TableCell>
-                        <TableCell>
-                          {event.is_active ? (
-                            <Badge variant="outline" className="bg-green-50 text-green-600 border-green-200">Active</Badge>
-                          ) : (
-                            <Badge variant="secondary">Inactive</Badge>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-1">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => setEditingEvent(event)}
-                              className="h-8 w-8"
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-destructive"
-                              onClick={(e) => openDeleteDialog(event.name, event.title, e)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {events.map((event: any) => {
+                  const eventDate = new Date(event.date)
+                  const isRecurring = !!event.repeat_this_event
+                  
+                  return (
+                    <div
+                      key={event.name}
+                      className={cn(
+                        "group relative flex flex-col rounded-2xl border bg-card shadow-sm transition-all hover:shadow-md overflow-hidden",
+                        !event.is_active && "opacity-75 grayscale-[0.5]"
+                      )}
+                    >
+                      {/* Thumbnail Image */}
+                      <div className="aspect-[16/9] w-full overflow-hidden bg-muted relative">
+                        {event.image_src ? (
+                          <img
+                            src={event.image_src}
+                            alt={event.title}
+                            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                          />
+                        ) : (
+                          <div className="h-full w-full flex items-center justify-center text-muted-foreground/20">
+                            <Calendar className="h-12 w-12" />
                           </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                        )}
+                        
+                        {/* Category Badge */}
+                        <div className="absolute top-3 left-3">
+                          <Badge className="bg-black/60 backdrop-blur-md text-white border-none hover:bg-black/70">
+                            {event.category || 'Event'}
+                          </Badge>
+                        </div>
+
+                        {/* Recurring Indicator */}
+                        {isRecurring && (
+                          <div className="absolute top-3 right-3">
+                            <Badge variant="secondary" className="bg-primary/90 text-primary-foreground shadow-sm">
+                              <Zap className="h-3 w-3 mr-1" /> Recurring
+                            </Badge>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex flex-col flex-1 p-5 gap-4">
+                        {/* Title + Toggle */}
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="space-y-1 min-w-0">
+                            <h3 className="font-bold text-lg leading-tight truncate group-hover:text-primary transition-colors">
+                              {event.title}
+                            </h3>
+                            <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-medium">
+                              <Calendar className="h-3.5 w-3.5" />
+                              {eventDate.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                            </div>
+                          </div>
+                          
+                          <div className="flex flex-col items-end gap-1 shrink-0">
+                            <Switch
+                              checked={!!event.is_active}
+                              onCheckedChange={async (checked) => {
+                                try {
+                                  await updateEvent('Event', event.name, { is_active: checked ? 1 : 0 })
+                                  toast.success(`Event ${checked ? 'activated' : 'paused'}`)
+                                  mutate()
+                                } catch (e) {
+                                  toast.error('Failed to update status')
+                                }
+                              }}
+                              className="data-[state=checked]:bg-green-500"
+                            />
+                            <span className={cn(
+                              "text-[10px] font-bold uppercase tracking-wider",
+                              event.is_active ? "text-green-600" : "text-muted-foreground"
+                            )}>
+                              {event.is_active ? 'Active' : 'Inactive'}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Description */}
+                        {event.description && (
+                          <p className="text-sm text-muted-foreground line-clamp-2 leading-relaxed">
+                            {event.description}
+                          </p>
+                        )}
+
+                        {/* Info Grid */}
+                        <div className="grid grid-cols-1 gap-2 mt-auto">
+                          <div className="flex items-center gap-2 text-sm text-foreground/80">
+                            <Clock className="h-4 w-4 text-muted-foreground" />
+                            <span className="font-medium">{event.time.split(':').slice(0, 2).join(':')}</span>
+                          </div>
+                          {event.location && (
+                            <div className="flex items-center gap-2 text-sm text-foreground/80">
+                              <MapPin className="h-4 w-4 text-muted-foreground" />
+                              <span className="truncate">{event.location}</span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Links if available */}
+                        {(event.google_maps_link || event.registration_link) && (
+                          <div className="flex gap-2">
+                            {event.google_maps_link && (
+                              <Button variant="outline" size="sm" className="h-8 px-2 text-[11px] rounded-lg" asChild>
+                                <a href={event.google_maps_link} target="_blank" rel="noopener noreferrer">
+                                  <MapPin className="h-3 w-3 mr-1" /> Maps
+                                </a>
+                              </Button>
+                            )}
+                            {event.registration_link && (
+                              <Button variant="outline" size="sm" className="h-8 px-2 text-[11px] rounded-lg" asChild>
+                                <a href={event.registration_link} target="_blank" rel="noopener noreferrer">
+                                  <ExternalLink className="h-3 w-3 mr-1" /> Register
+                                </a>
+                              </Button>
+                            )}
+                          </div>
+                        )}
+
+                        <div className="pt-4 border-t flex items-center justify-between gap-2">
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => setEditingEvent(event)}
+                            className="flex-1 h-9 rounded-xl font-semibold"
+                          >
+                            <Edit className="h-3.5 w-3.5 mr-2" />
+                            Manage
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-9 w-9 rounded-xl text-destructive hover:bg-destructive/10"
+                            onClick={(e) => openDeleteDialog(event.name, event.title, e)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
 
-              <DataPagination
-                currentPage={page}
-                totalCount={totalCount}
-                pageSize={pageSize}
-                onPageChange={setPage}
-                onPageSizeChange={setPageSize}
-                isLoading={isLoading}
-              />
+              <div className="mt-8">
+                <DataPagination
+                  currentPage={page}
+                  totalCount={totalCount}
+                  pageSize={pageSize}
+                  onPageChange={setPage}
+                  onPageSizeChange={setPageSize}
+                  isLoading={isLoading}
+                />
+              </div>
             </>
           )}
         </CardContent>
@@ -305,26 +413,21 @@ export default function Events() {
       />
 
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent className="rounded-3xl border-none shadow-2xl p-0 overflow-hidden">
-          <div className="p-8 pb-0">
-            <AlertDialogHeader className="space-y-3">
-              <div className="h-14 w-14 bg-red-100 rounded-2xl flex items-center justify-center mb-2">
-                <AlertCircle className="h-8 w-8 text-red-600" />
-              </div>
-              <AlertDialogTitle className="text-2xl font-black tracking-tight text-red-600 uppercase italic">Terminate Stream?</AlertDialogTitle>
-              <AlertDialogDescription className="text-base font-semibold leading-relaxed">
-                You are about to permanently purge <strong>{eventToDelete?.title}</strong> from the global shard cluster.
-                This action is irreversible and will deactivate associated floor controls.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-          </div>
-          <AlertDialogFooter className="p-6 bg-muted/20 mt-4 flex justify-between sm:justify-start gap-4">
-            <AlertDialogCancel onClick={() => setEventToDelete(null)} className="flex-1 rounded-xl h-11 font-black uppercase text-xs border-none shadow-none bg-card">Abort Command</AlertDialogCancel>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Event?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete <span className="font-bold text-foreground">"{eventToDelete?.title}"</span>? 
+              This action is permanent and cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setEventToDelete(null)}>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDeleteEvent}
-              className="flex-1 rounded-xl h-11 font-black uppercase text-xs bg-red-600 text-white hover:bg-red-700 shadow-xl shadow-red-200"
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Execute Purge
+              Delete Event
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
