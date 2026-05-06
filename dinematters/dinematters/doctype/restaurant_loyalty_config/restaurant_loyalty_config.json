@@ -26,7 +26,13 @@
   "referral_order_reward_coins",
   "new_user_welcome_reward_coins",
   "column_break_welcome",
-  "welcome_coupon_discount"
+  "welcome_coupon_discount",
+  "section_break_tiers",
+  "tier_silver_threshold",
+  "tier_gold_threshold",
+  "tier_platinum_threshold",
+  "section_break_birthday",
+  "birthday_bonus_coins"
  ],
  "fields": [
   {
@@ -159,6 +165,44 @@
    "fieldname": "welcome_coupon_discount",
    "fieldtype": "Float",
    "label": "Welcome Coupon Discount (\u20b9)"
+  },
+  {
+   "fieldname": "section_break_tiers",
+   "fieldtype": "Section Break",
+   "label": "Loyalty Tiers"
+  },
+  {
+   "default": "500",
+   "description": "Lifetime coins earned to reach Silver tier",
+   "fieldname": "tier_silver_threshold",
+   "fieldtype": "Int",
+   "label": "Silver Tier Threshold (Lifetime Coins)"
+  },
+  {
+   "default": "2000",
+   "description": "Lifetime coins earned to reach Gold tier",
+   "fieldname": "tier_gold_threshold",
+   "fieldtype": "Int",
+   "label": "Gold Tier Threshold (Lifetime Coins)"
+  },
+  {
+   "default": "5000",
+   "description": "Lifetime coins earned to reach Platinum tier",
+   "fieldname": "tier_platinum_threshold",
+   "fieldtype": "Int",
+   "label": "Platinum Tier Threshold (Lifetime Coins)"
+  },
+  {
+   "fieldname": "section_break_birthday",
+   "fieldtype": "Section Break",
+   "label": "Birthday Rewards"
+  },
+  {
+   "default": "100",
+   "description": "Coins gifted to customers on their birthday (only for customers with order history)",
+   "fieldname": "birthday_bonus_coins",
+   "fieldtype": "Int",
+   "label": "Birthday Bonus Coins"
   }
  ],
  "index_web_pages_for_search": 1,
