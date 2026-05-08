@@ -135,7 +135,7 @@ def get_all_restaurants(page=1, page_size=20, search=None, filters=None):
         for restaurant in restaurants:
             restaurant['is_active'] = int(restaurant['is_active'] or 0)
             # Ensure plan_type is valid
-            if restaurant['plan_type'] not in ['SILVER', 'GOLD', 'DIAMOND']:
+            if restaurant['plan_type'] not in ['SILVER', 'GOLD']:
                 restaurant['plan_type'] = 'SILVER'
         
         return {
@@ -211,10 +211,10 @@ def update_restaurant_plan(restaurant_id, plan_type):
             }
         
         # Validate plan_type
-        if plan_type not in ['SILVER', 'GOLD', 'DIAMOND']:
+        if plan_type not in ['SILVER', 'GOLD']:
             return {
                 'success': False,
-                'error': 'Invalid plan type. Must be SILVER, GOLD or DIAMOND'
+                'error': 'Invalid plan type. Must be SILVER or GOLD'
             }
         
         # Get restaurant record
@@ -267,8 +267,8 @@ def update_restaurant_plan(restaurant_id, plan_type):
         config.subscription_plan = plan_type
         
         # Update subscription features based on plan
-        if plan_type == 'DIAMOND':
-             config.subscription_features = {
+        if plan_type == 'GOLD':
+            config.subscription_features = {
                 'ordering': True,
                 'videoUpload': True,
                 'analytics': True,
@@ -279,19 +279,6 @@ def update_restaurant_plan(restaurant_id, plan_type):
                 'pos_integration': True,
                 'table_booking': True,
                 'experience_lounge': True
-            }
-        elif plan_type == 'GOLD':
-            config.subscription_features = {
-                'ordering': True,
-                'videoUpload': True,
-                'analytics': True,
-                'aiRecommendations': True,
-                'loyalty': True,
-                'coupons': True,
-                'games': True,
-                'pos_integration': False,
-                'table_booking': True,
-                'experience_lounge': False
             }
         else:  # SILVER
             config.subscription_features = {
@@ -849,7 +836,7 @@ def send_onboarding_email(recipient, name, link):
 def admin_create_wallet_payment_link(restaurant_id, tier):
     """
     Create a Razorpay Payment Link for wallet top-up based on subscription tier.
-    GOLD = ₹999, DIAMOND = ₹1299 (Silver is free — no link).
+    GOLD = ₹999 (Silver is free — no link).
     On payment, the webhook (payment_link.paid) auto-credits the wallet.
 
     Returns:
@@ -866,7 +853,7 @@ def admin_create_wallet_payment_link(restaurant_id, tier):
             return {'success': False, 'error': 'Admin access required'}
 
         # Tier → amount mapping (Silver is free — caller should not invoke for Silver)
-        TIER_AMOUNTS = {'GOLD': 999, 'DIAMOND': 1299}
+        TIER_AMOUNTS = {'GOLD': 999}
         base_amount = TIER_AMOUNTS.get(tier)
         if not base_amount:
             return {

@@ -9,103 +9,63 @@ from dinematters.dinematters.api.coin_billing import deduct_coins
 
 def process_daily_subscription_floors():
     """
-    Nightly task (23:59) to ensure GOLD (₹33.30 flat) and DIAMOND (₹13.30 floor) restaurants are billed correctly.
+    Nightly task (23:59) — GOLD plan monthly floor recovery.
+    GOLD restaurants pay ₹999/mo minimum; if commissions don't cover it, the
+    shortfall is deducted from their coin wallet every 30 days.
     """
     today = getdate()
-    
-    # 1. Fetch all paid restaurants (GOLD and DIAMOND)
-    gold_diamond_restaurants = frappe.get_all("Restaurant", 
-        filters={"plan_type": ["in", ["GOLD", "DIAMOND"]], "is_active": 1, "enable_floor_recovery": 1}, 
+
+    # Fetch all active GOLD restaurants with floor recovery enabled
+    gold_restaurants = frappe.get_all("Restaurant",
+        filters={"plan_type": "GOLD", "is_active": 1, "enable_floor_recovery": 1},
         fields=["name", "plan_type", "coins_balance", "timezone", "monthly_minimum", "floor_recovery_activated_on", "last_floor_recovery_date", "creation"]
     )
-    
-    for res in gold_diamond_restaurants:
+
+    for res in gold_restaurants:
         try:
             from datetime import datetime, time, timedelta
             import pytz
             from frappe.utils import date_diff
-            
+
             res_tz = pytz.timezone(res.timezone or "UTC")
             local_now = datetime.now(res_tz)
             local_today_date = local_now.date()
- 
-            # 2. Handle DIAMOND Monthly Floor vs GOLD Daily Floor
-            start_of_day_local = res_tz.localize(datetime.combine(local_today_date, time.min))
-            end_of_day_local = start_of_day_local + timedelta(days=1)
-            
-            start_utc = start_of_day_local.astimezone(pytz.utc)
-            end_utc = end_of_day_local.astimezone(pytz.utc)
- 
-            if res.plan_type == "DIAMOND":
-                # Diamond Monthly Floor Check
-                last_check = res.last_floor_recovery_date or res.floor_recovery_activated_on or res.creation
-                if date_diff(today, last_check) < 30:
-                    continue # Not time yet for the monthly guarantee check
-                
-                # It's time! Check total commissions for the last 30 days (including today)
-                total_commissions = frappe.db.sql("""
-                    SELECT SUM(amount) 
-                    FROM `tabCoin Transaction` 
-                    WHERE restaurant = %s 
-                    AND transaction_type = 'Commission Deduction'
-                    AND creation >= %s AND creation < %s
-                """, (res.name, last_check, end_utc))[0][0] or 0.0
-                
-                floor_target = float(res.monthly_minimum or 399.0)
-                shortfall = max(0, floor_target - abs(float(total_commissions)))
-                
-                if shortfall > 0:
-                    deduct_coins(
-                        restaurant=res.name,
-                        amount=shortfall,
-                        type="Monthly DIAMOND Floor",
-                        description=f"Monthly DIAMOND Floor Recovery (Min Guarantee: ₹{floor_target:.2f}, Commissions Paid: ₹{abs(float(total_commissions)):.2f}, Period: {last_check} to {today})"
-                    )
-                
-                # Update last_floor_recovery_date to today to start the next 30-day cycle
-                frappe.db.set_value("Restaurant", res.name, "last_floor_recovery_date", today)
-                continue
 
-            # 3. GOLD Logic (Remains Daily)
             start_of_day_local = res_tz.localize(datetime.combine(local_today_date, time.min))
             end_of_day_local = start_of_day_local + timedelta(days=1)
-            
             start_utc = start_of_day_local.astimezone(pytz.utc)
             end_utc = end_of_day_local.astimezone(pytz.utc)
 
-            # 3.1 Idempotency check for daily floor
-            already_processed = frappe.db.exists("Coin Transaction", [
-                ["restaurant", "=", res.name],
-                ["transaction_type", "in", ["Daily GOLD Floor", "Daily GOLD Subscription"]],
-                ["creation", ">=", start_utc.strftime("%Y-%m-%d %H:%M:%S")],
-                ["creation", "<", end_utc.strftime("%Y-%m-%d %H:%M:%S")]
-            ])
-            
-            if already_processed:
-                continue
+            # GOLD Monthly Floor Check (every 30 days)
+            last_check = res.last_floor_recovery_date or res.floor_recovery_activated_on or res.creation
+            if date_diff(today, last_check) < 30:
+                continue  # Not time yet for the monthly guarantee check
 
-            # 3.2 Calculate commissions already paid today
-            daily_commissions = frappe.db.sql("""
-                SELECT SUM(amount) 
-                FROM `tabCoin Transaction` 
-                WHERE restaurant = %s 
+            # Check total commissions for the last 30 days
+            total_commissions = frappe.db.sql("""
+                SELECT SUM(amount)
+                FROM `tabCoin Transaction`
+                WHERE restaurant = %s
                 AND transaction_type = 'Commission Deduction'
                 AND creation >= %s AND creation < %s
-            """, (res.name, start_utc, end_utc))[0][0] or 0.0
-            
-            # 3.3 Determine Daily Floor Target (₹999 / 30)
-            floor_target = float(res.monthly_minimum or 999.0) / 30.0
-            shortfall = max(0, floor_target - abs(float(daily_commissions)))
-            
+            """, (res.name, last_check, end_utc))[0][0] or 0.0
+
+            floor_target = float(res.monthly_minimum or 999.0)
+            shortfall = max(0, floor_target - abs(float(total_commissions)))
+
             if shortfall > 0:
                 deduct_coins(
                     restaurant=res.name,
                     amount=shortfall,
-                    type=f"Daily GOLD {'Subscription' if res.plan_type == 'GOLD' else 'Floor'}",
-                    description=f"Daily GOLD Fee (Target: ₹{floor_target:.2f}, Commissions Paid: ₹{abs(float(daily_commissions)):.2f})"
+                    type="Monthly GOLD Floor",
+                    description=f"Monthly GOLD Floor Recovery (Min Guarantee: ₹{floor_target:.2f}, Commissions Paid: ₹{abs(float(total_commissions)):.2f}, Period: {last_check} to {today})"
                 )
+
+            # Update last_floor_recovery_date to today to start the next 30-day cycle
+            frappe.db.set_value("Restaurant", res.name, "last_floor_recovery_date", today)
+
         except Exception as e:
-            _err_msg = f"Daily floor recovery failed for {res.name}: {str(e)}"
+            _err_msg = f"Monthly floor recovery failed for {res.name}: {str(e)}"
             frappe.log_error(_err_msg[:140], "Billing Task Error")
 
 def sync_restaurant_subscription(restaurant):

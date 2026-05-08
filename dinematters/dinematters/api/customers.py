@@ -17,7 +17,7 @@ from dinematters.dinematters.utils.feature_gate import require_plan
 from dinematters.dinematters.utils.roles import is_supervisor, is_global_admin
 
 @frappe.whitelist(allow_guest=True)
-@require_plan('DIAMOND')
+@require_plan('GOLD')
 def get_customer_by_phone(phone, restaurant_id):
 	"""
 	Fetch customer details by phone and restaurant.
@@ -156,7 +156,7 @@ def normalize_order_phone_on_save(doc, event=None):
 
 
 @frappe.whitelist()
-@require_plan('DIAMOND')
+@require_plan('GOLD')
 def get_customer_profile(customer_id, restaurant_id=None):
 	"""
 	Admin: Get customer profile. If restaurant_id is provided, limit to that restaurant.
@@ -258,7 +258,7 @@ def get_customer_profile(customer_id, restaurant_id=None):
 
 
 @frappe.whitelist()
-@require_plan('DIAMOND')
+@require_plan('GOLD')
 def get_restaurant_customers(restaurant_id, search=None, page=1, page_size=20):
 	"""
 	Restaurant: Get customers who have orders/bookings at this restaurant only. Supports search (name, phone), pagination.
@@ -441,7 +441,7 @@ def _link_customer_to_restaurant(customer_id: str, restaurant: str, updates: dic
 
 
 @frappe.whitelist()
-@require_plan('DIAMOND')
+@require_plan('GOLD')
 def import_customers(restaurant_id, rows):
 	"""
 	Bulk import customers for a restaurant.
@@ -458,7 +458,7 @@ def import_customers(restaurant_id, rows):
 	Returns per-row results plus aggregate counts so the UI can show a summary
 	and a downloadable error list.
 
-	Permissions: supervisor or user with access to restaurant_id. DIAMOND plan required.
+	Permissions: supervisor or user with access to restaurant_id. GOLD plan required.
 	"""
 	import json
 	import re

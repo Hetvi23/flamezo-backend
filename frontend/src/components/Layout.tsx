@@ -111,8 +111,11 @@ type NavGroup = {
 }
 type NavItem = NavLink | NavGroup
 
-const DIAMOND_ONLY_FEATURES = ['ordering', 'order_settings', 'loyalty', 'coupons', 'pos_integration', 'customer', 'customer_pay_and_usage', 'marketing_studio', 'google_growth_sync', 'google_growth_ai']
-const GOLD_FEATURES = ['analytics', 'ai_recommendations', 'custom_branding', 'table_booking', 'games', 'events', 'offers', 'experience_lounge', 'video_upload', 'branding', 'whatsapp_orders', 'google_growth']
+// GOLD-only: full ordering system, CRM, marketing, POS
+const GOLD_ONLY_FEATURES = ['ordering', 'loyalty_insights', 'coupons', 'pos_integration', 'customer', 'customer_pay_and_usage', 'marketing_studio', 'google_growth_sync', 'google_growth_ai']
+// SILVER gets: WhatsApp orders, basic loyalty settings, order settings
+const SILVER_FEATURES = ['whatsapp_orders', 'loyalty', 'order_settings']
+const GOLD_FEATURES = ['analytics', 'ai_recommendations', 'custom_branding', 'table_booking', 'games', 'events', 'offers', 'experience_lounge', 'video_upload', 'branding', 'google_growth']
 
 const navigation: NavItem[] = [
   { type: 'link', name: 'Dashboard', href: '/dashboard', icon: Home },
@@ -128,7 +131,7 @@ const navigation: NavItem[] = [
       { name: 'Manage Offer and Coupons', href: '/coupons', icon: Tag, feature: 'coupons' },
       { name: 'Manage QR Code', href: '/qr-codes', icon: QrCode },
       { name: 'Home Features', href: '/home-features', icon: Grid3x3 },
-      { name: 'Order settings', href: '/frontend-ordering', icon: Package, feature: 'ordering' },
+      { name: 'Order settings', href: '/frontend-ordering', icon: Package, feature: 'order_settings' },
       { name: 'Logistics Hub', href: '/logistics-hub', icon: Truck, feature: 'ordering' },
       { name: 'AI Menu Background', href: '/ai-menu-theme-background', icon: Sparkles },
       { name: 'Gallery Management', href: '/gallery-management', icon: Star },
@@ -159,7 +162,7 @@ const navigation: NavItem[] = [
     feature: 'loyalty',
     children: [
       { name: 'Loyalty Settings', href: '/loyalty-settings', icon: Settings, feature: 'loyalty' },
-      { name: 'Customer Insights', href: '/loyalty-insights', icon: Users, feature: 'loyalty' },
+      { name: 'Customer Insights', href: '/loyalty-insights', icon: Users, feature: 'loyalty_insights' },
     ],
   },
   {
@@ -209,7 +212,7 @@ export default function Layout({ children }: LayoutProps) {
   const location = useLocation()
   const navigate = useNavigate()
   const { theme, toggleTheme } = useTheme()
-  const { selectedRestaurant, setSelectedRestaurant, restaurants, isGold, isDiamond, planType, coinsBalance, billingStatus, isActive, refreshConfig, billingInfo, isAdmin: isRestaurantAdmin } = useRestaurant()
+  const { selectedRestaurant, setSelectedRestaurant, restaurants, isGold, planType, coinsBalance, billingStatus, isActive, refreshConfig, billingInfo, isAdmin: isRestaurantAdmin } = useRestaurant()
   const { formatAmountNoDecimals } = useCurrency()
   const [sidebarOpen, setSidebarOpen] = useState(false) // Mobile sidebar
   const [sidebarExpanded, setSidebarExpanded] = useState(true) // Desktop sidebar expanded/collapsed
@@ -287,10 +290,15 @@ export default function Layout({ children }: LayoutProps) {
   // Helper to determine feature locking and required plan
   const getFeatureStatus = (feature?: string) => {
     if (!feature) return { isLocked: false, requiredTier: null }
-    if (isDiamond) return { isLocked: false, requiredTier: null }
+    if (isGold) return { isLocked: false, requiredTier: null }
 
-    if (DIAMOND_ONLY_FEATURES.includes(feature)) {
-      return { isLocked: true, requiredTier: 'DIAMOND' }
+    // Silver has explicit access to these features
+    if (SILVER_FEATURES.includes(feature)) {
+      return { isLocked: false, requiredTier: null }
+    }
+
+    if (GOLD_ONLY_FEATURES.includes(feature)) {
+      return { isLocked: true, requiredTier: 'GOLD' }
     }
 
     if (GOLD_FEATURES.includes(feature)) {
@@ -324,7 +332,7 @@ export default function Layout({ children }: LayoutProps) {
   const [isCreating, setIsCreating] = useState(false)
   const [sendOnboarding, setSendOnboarding] = useState(false)
   const [sendPaymentInfo, setSendPaymentInfo] = useState(false)
-  const [paymentTier, setPaymentTier] = useState<'SILVER' | 'GOLD' | 'DIAMOND'>('SILVER')
+  const [paymentTier, setPaymentTier] = useState<'SILVER' | 'GOLD'>('SILVER')
 
   // API calls
   const { call: createRestaurant } = useFrappePostCall('frappe.client.insert')
@@ -724,18 +732,21 @@ export default function Layout({ children }: LayoutProps) {
                           <span className="text-sm font-semibold text-sidebar-foreground truncate whitespace-nowrap overflow-hidden max-w-[100px]">
                             {restaurantDoc?.restaurant_name || currentRestaurant?.restaurant_name || restaurants[0]?.restaurant_name || 'Select Restaurant'}
                           </span>
-                          {isDiamond ? (
-                            <span className="inline-flex items-center px-1.5 py-0 text-[10px] font-black bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-white shadow-md border border-white/20 rounded-full flex-shrink-0 animate-pulse-subtle">
-                              <Crown className="h-2.5 w-2.5 mr-1 text-white" />
-                              DIAMOND
-                            </span>
-                          ) : isGold ? (
-                            <span className="inline-flex items-center px-1.5 py-0 text-[9px] font-bold bg-gradient-to-r from-amber-400 to-orange-500 text-white shadow-sm rounded-full flex-shrink-0">
-                              <Crown className="h-2.5 w-2.5 mr-1" />
+                          {isGold ? (
+                            <span className="inline-flex items-center gap-0.5 px-2 py-0.5 text-[10px] font-black rounded-full flex-shrink-0 border"
+                              style={{
+                                background: 'linear-gradient(135deg, #F59E0B 0%, #D97706 40%, #B45309 100%)',
+                                borderColor: '#FCD34D',
+                                color: '#FFF8E7',
+                                boxShadow: '0 0 0 1px rgba(253,211,77,0.3), 0 2px 6px rgba(180,83,9,0.4)',
+                                letterSpacing: '0.05em'
+                              }}
+                            >
+                              <Crown className="h-2.5 w-2.5" style={{ color: '#FEF3C7', fill: '#FEF3C7', opacity: 0.9 }} />
                               GOLD
                             </span>
                           ) : (
-                            <span className="inline-flex items-center px-1.5 py-0 text-[9px] font-bold bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400 rounded-full flex-shrink-0">
+                            <span className="inline-flex items-center px-1.5 py-0.5 text-[9px] font-bold bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400 rounded-full flex-shrink-0 border border-slate-200 dark:border-slate-700">
                               SILVER
                             </span>
                           )}
@@ -868,8 +879,8 @@ export default function Layout({ children }: LayoutProps) {
                 if (item.adminOnly && !isAdmin) {
                   return false
                 }
-                // WhatsApp Orders visibility: only GOLD (Active) and SILVER (Locked), hidden for DIAMOND
-                if (item.feature === 'whatsapp_orders' && isDiamond) {
+                // WhatsApp Orders visibility: only GOLD (Active) and SILVER (Locked), hidden for GOLD
+                if (item.feature === 'whatsapp_orders' && isGold) {
                   return false
                 }
                 if (item.type === 'group') {
@@ -895,7 +906,7 @@ export default function Layout({ children }: LayoutProps) {
                   const featureStatus = getFeatureStatus(item.feature)
                   const isLocked = featureStatus.isLocked
 
-                  const LockIcon = (item.feature && DIAMOND_ONLY_FEATURES.includes(item.feature))
+                  const LockIcon = (item.feature && GOLD_ONLY_FEATURES.includes(item.feature))
                     ? (
                       <div className="flex items-center gap-0.5 flex-shrink-0">
                         <Lock className="h-3 w-3 text-muted-foreground/60" />
@@ -978,7 +989,7 @@ export default function Layout({ children }: LayoutProps) {
                 const allChildrenLocked = filteredChildren.length > 0 && filteredChildren.every(child => getFeatureStatus(child.feature).isLocked)
                 const isGroupFullyLocked = isGroupLocked || allChildrenLocked
 
-                const GroupLockIcon = (group.feature && DIAMOND_ONLY_FEATURES.includes(group.feature))
+                const GroupLockIcon = (group.feature && GOLD_ONLY_FEATURES.includes(group.feature))
                   ? (
                     <div className="flex items-center gap-0.5 flex-shrink-0">
                       <Lock className="h-3 w-3 text-muted-foreground/60" />
@@ -1024,7 +1035,7 @@ export default function Layout({ children }: LayoutProps) {
                             const childStatus = getFeatureStatus(child.feature)
                             const isChildLocked = childStatus.isLocked
 
-                            const ChildLockIcon = (child.feature && DIAMOND_ONLY_FEATURES.includes(child.feature))
+                            const ChildLockIcon = (child.feature && GOLD_ONLY_FEATURES.includes(child.feature))
                               ? <Star className="h-3 w-3 text-amber-500 flex-shrink-0 ml-auto" />
                               : <Lock className="h-3 w-3 text-muted-foreground/60 flex-shrink-0 ml-auto" />
                             return (
@@ -1134,7 +1145,7 @@ export default function Layout({ children }: LayoutProps) {
                             const childStatus = getFeatureStatus(child.feature)
                             const isChildLocked = childStatus.isLocked
 
-                            const ChildLockIcon = (child.feature && DIAMOND_ONLY_FEATURES.includes(child.feature))
+                            const ChildLockIcon = (child.feature && GOLD_ONLY_FEATURES.includes(child.feature))
                               ? (
                                 <div className="flex items-center gap-0.5 flex-shrink-0">
                                   <Lock className="h-3 w-3 text-muted-foreground/60" />
@@ -1481,7 +1492,7 @@ export default function Layout({ children }: LayoutProps) {
             {(!isActive && location.pathname !== '/account') ? (
                <div className="flex flex-col items-center justify-center min-h-[60vh] h-full text-center space-y-6">
                  {/* Billing Notification Banner inside deactivation overlay */}
-                 {billingInfo && (planType === 'GOLD' || planType === 'DIAMOND') && !billingInfo.mandate_active && (
+                 {billingInfo && planType === 'GOLD' && !billingInfo.mandate_active && (
                    <div className="w-full max-w-lg animate-in slide-in-from-top-4 duration-500">
                      <div className="w-full py-3 px-4 flex items-center justify-center gap-4 text-xs font-semibold rounded-xl shadow-inner bg-gradient-to-r from-amber-500 via-orange-500 to-red-500 text-white">
                        <div className="flex items-center gap-2 w-full">
@@ -1777,7 +1788,7 @@ export default function Layout({ children }: LayoutProps) {
                     <div className="mt-3" onClick={(e) => e.stopPropagation()}>
                       <RadioGroup
                         value={paymentTier}
-                        onValueChange={(v: string) => setPaymentTier(v as 'SILVER' | 'GOLD' | 'DIAMOND')}
+                        onValueChange={(v: string) => setPaymentTier(v as 'SILVER' | 'GOLD')}
                         className="flex flex-col gap-2"
                         disabled={isCreating}
                       >
@@ -1817,23 +1828,6 @@ export default function Layout({ children }: LayoutProps) {
                           </div>
                         </label>
 
-                        {/* Diamond */}
-                        <label
-                          htmlFor="tier_diamond"
-                          className={cn(
-                            "flex items-center gap-3 rounded-lg border px-3 py-2 cursor-pointer transition-all",
-                            paymentTier === 'DIAMOND'
-                              ? "bg-indigo-50 dark:bg-indigo-950/30 border-indigo-400"
-                              : "border-border hover:bg-muted/50"
-                          )}
-                        >
-                          <RadioGroupItem value="DIAMOND" id="tier_diamond" />
-                          <div className="flex items-center gap-2 flex-1">
-                            <Zap className="h-3.5 w-3.5 text-indigo-500" />
-                            <span className="text-sm font-medium">Diamond</span>
-                            <span className="ml-auto text-xs font-semibold text-indigo-600">₹1,532.82 inkl. GST</span>
-                          </div>
-                        </label>
                       </RadioGroup>
 
                       {paymentTier !== 'SILVER' && (

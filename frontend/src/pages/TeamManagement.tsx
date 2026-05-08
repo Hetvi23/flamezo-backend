@@ -1,11 +1,11 @@
 import { useRestaurant } from '@/contexts/RestaurantContext'
 import StaffMembersList from '@/components/StaffMembersList'
 import { Badge } from '@/components/ui/badge'
-import { Crown, Zap, Star, Users, Lock } from 'lucide-react'
+import { Crown, Star, Users, Lock } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 export default function TeamManagement() {
-  const { selectedRestaurant, isDiamond, isGold, isSilver, isAdmin } = useRestaurant()
+  const { selectedRestaurant, isGold, isSilver, isAdmin } = useRestaurant()
 
   if (!isAdmin) {
     return (
@@ -23,26 +23,19 @@ export default function TeamManagement() {
     )
   }
 
-  const planColor = isDiamond
-    ? 'from-fuchsia-600 to-purple-600'
-    : isGold
-    ? 'from-amber-500 to-orange-500'
-    : 'from-slate-500 to-slate-600'
+  const planColor = isGold
+    ? 'from-amber-500 to-yellow-600'
+    : 'from-slate-400 to-slate-500'
 
   const PlanBadge = () => {
-    if (isDiamond) return (
-      <Badge className="bg-gradient-to-r from-fuchsia-600 to-purple-600 text-white border-none gap-1">
-        <Crown className="w-3 h-3" /> DIAMOND · 6 Staff Seats
-      </Badge>
-    )
     if (isGold) return (
-      <Badge className="bg-gradient-to-r from-amber-500 to-orange-500 text-white border-none gap-1">
-        <Zap className="w-3 h-3" /> GOLD · 3 Staff Seats
+      <Badge className="text-white border-none gap-1" style={{ background: 'linear-gradient(135deg, #F59E0B, #B45309)', boxShadow: '0 1px 4px rgba(180,83,9,0.3)' }}>
+        <Crown className="w-3 h-3" /> GOLD · 6 Staff Seats
       </Badge>
     )
     return (
       <Badge className="bg-gradient-to-r from-slate-500 to-slate-600 text-white border-none gap-1">
-        <Star className="w-3 h-3" /> SILVER · Upgrade to Add Staff
+        <Star className="w-3 h-3" /> SILVER · 2 Staff Seats
       </Badge>
     )
   }

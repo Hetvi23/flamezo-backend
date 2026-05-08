@@ -11,7 +11,7 @@ import { toast } from 'sonner'
 import { Link } from 'react-router-dom'
 
 export default function GoogleGrowthSync() {
-  const { selectedRestaurant, isDiamond } = useRestaurant()
+  const { selectedRestaurant, isGold } = useRestaurant()
   const [syncing, setSyncing] = useState(false)
   const [search, setSearch] = useState('')
 
@@ -24,8 +24,8 @@ export default function GoogleGrowthSync() {
   const { call: syncMenu } = useFrappePostCall('dinematters.dinematters.api.google_business.sync_menu_to_google')
 
   const handleSync = async () => {
-    if (!isDiamond) {
-      toast.error("Automated Google Sync requires a Diamond plan.")
+    if (!isGold) {
+      toast.error("Automated Google Sync requires a Gold plan.")
       return
     }
     
@@ -99,10 +99,10 @@ export default function GoogleGrowthSync() {
             </div>
             
             <div className="pt-4 border-t border-slate-200 dark:border-slate-800">
-               {!isDiamond && (
+               {!isGold && (
                  <div className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-100 dark:border-amber-800/50">
                     <p className="text-xs text-amber-800 dark:text-amber-200 leading-relaxed font-medium">
-                      <RefreshCw className="h-3 w-3 inline mr-1" /> Automated real-time sync is a <strong>Diamond</strong> feature. Upgrade to enable auto-sync on every update.
+                      <RefreshCw className="h-3 w-3 inline mr-1" /> Automated real-time sync is a <strong>Gold</strong> feature. Upgrade to enable auto-sync on every update.
                     </p>
                  </div>
                )}

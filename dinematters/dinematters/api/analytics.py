@@ -317,7 +317,7 @@ def get_dashboard_summary(restaurant_id):
 		# Validate restaurant & check subscription tier
 		restaurant = frappe.get_doc("Restaurant", restaurant_id)
 		from dinematters.dinematters.utils.feature_gate import get_restaurant_plan
-		plan = get_restaurant_plan(restaurant_id)  # 'SILVER', 'GOLD', or 'DIAMOND'
+		plan = get_restaurant_plan(restaurant_id)  # 'SILVER' or 'GOLD'
 
 		end_date = add_days(today(), 1)
 		start_date_7d = add_days(today(), -7)
@@ -403,8 +403,8 @@ def get_dashboard_summary(restaurant_id):
 			GROUP BY event_value ORDER BY count DESC LIMIT 1
 		""", (restaurant_id,), as_dict=True)
 
-		# ── 2. GOLD/DIAMOND Features ──────────────────────────────────────────
-		if plan in ['GOLD', 'DIAMOND']:
+		# ── 2. GOLD Features ──────────────────────────────────────────
+		if plan == 'GOLD':
 			# Order revenue stats
 			order_stats = frappe.db.sql("""
 				SELECT 

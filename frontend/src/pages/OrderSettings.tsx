@@ -156,7 +156,7 @@ export default function OrderSettings() {
           </div>
               {settings.no_ordering === 1 && (
                 <div className="mt-4 p-3 rounded-lg bg-orange-500/10 border border-orange-500/20 text-orange-600 text-sm font-medium">
-                  Note: A fixed daily fee (₹{((billingInfo?.plan_defaults?.pro_monthly || 999) / 30).toFixed(2)} for GOLD, ₹45.00 for DIAMOND) will be applied as revenue-based commission cannot be calculated.
+                  Note: GOLD plan 1.5% commission applies per order. When ordering is disabled, the ₹{billingInfo?.plan_defaults?.gold_floor || 399} monthly floor still applies.
                 </div>
               )}
         </CardContent>

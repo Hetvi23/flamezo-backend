@@ -22,7 +22,7 @@ import { useDataTable } from '@/hooks/useDataTable'
 import { DataPagination } from '@/components/ui/DataPagination'
 
 export default function PastOrders() {
-  const { selectedRestaurant, isDiamond } = useRestaurant()
+  const { selectedRestaurant, isGold } = useRestaurant()
   
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
@@ -114,8 +114,8 @@ export default function PastOrders() {
     return 'bg-muted text-muted-foreground border-border'
   }
 
-  if (!isDiamond) {
-    return <LockedFeature feature="ordering" requiredPlan={['DIAMOND']} />
+  if (!isGold) {
+    return <LockedFeature feature="ordering" requiredPlan={['GOLD']} />
   }
 
   return (

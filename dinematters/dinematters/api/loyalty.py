@@ -7,58 +7,30 @@ from frappe.utils import flt, cint, now_datetime, get_datetime_str
 from dinematters.dinematters.utils.api_helpers import validate_restaurant_for_api
 from dinematters.dinematters.utils.feature_gate import require_plan
 from dinematters.dinematters.utils.customer_helpers import (
-	normalize_phone, 
+	normalize_phone,
 	get_or_create_customer,
 	get_customer_token,
 	validate_customer_session
+)
+from dinematters.dinematters.utils.platform_config import (
+	PLATFORM_LOYALTY,
+	get_welcome_reward_coins,
+	get_referral_share_coins,
+	get_max_opens_rewarded_per_share,
 )
 import json
 import random
 import string
 
-# ── Platform-level guardrails — restaurants cannot exceed these bounds ─────────
-# These are the absolute min/max DineMatters allows for any loyalty configuration.
-# Any value outside these ranges will be rejected before saving.
-LOYALTY_GUARDRAILS = {
-	"earn_percentage":              {"min": 1.0,   "max": 15.0,  "default": 5.0, "label": "Earn Percentage"},
-	"earn_flat_coins":              {"min": 5,     "max": 500,   "default": 50,  "label": "Flat Cash per Order"},
-	"min_order_to_earn":            {"min": 0,     "max": 2000,  "default": 0,   "label": "Minimum Order to Earn"},
-	"max_coins_per_order":          {"min": 10,    "max": 1000,  "default": 500, "label": "Maximum Cash per Order"},
-	"min_billing_for_redemption":   {"min": 0,     "max": 5000,  "default": 200, "label": "Min Bill for Redemption"},
-	"min_redemption_threshold":     {"min": 0,     "max": 5000,  "default": 100, "label": "Min Cash Redemption Threshold"},
-	"loyalty_expiry_months":        {"min": 3,     "max": 36,    "default": 12,  "label": "Cash Expiry Months"},
-	"share_reward_coins":           {"min": 0,     "max": 500,   "default": 20,  "label": "Share Reward Cash"},
-	"referral_order_reward_coins":  {"min": 0,     "max": 1000,  "default": 100, "label": "Referral Order Cash"},
-	"new_user_welcome_reward_coins":{"min": 0,     "max": 500,   "default": 50,  "label": "Welcome Reward Cash"},
-	"max_opens_rewarded_per_share": {"min": 1,     "max": 50,    "default": 7,   "label": "Max Rewarded Shares"},
-	"coins_per_unique_open":        {"min": 1,     "max": 100,   "default": 30,  "label": "Cash per Unique Open"},
-}
-
-def validate_loyalty_config(config: dict) -> list:
-	"""
-	Validates a loyalty config dict against LOYALTY_GUARDRAILS.
-	Returns a list of error strings (empty list = valid).
-	"""
-	errors = []
-	for field, rules in LOYALTY_GUARDRAILS.items():
-		if field not in config:
-			continue
-		value = config[field]
-		try:
-			value = float(value)
-		except (TypeError, ValueError):
-			errors.append(f"'{rules.get('label', field)}' must be a number.")
-			continue
-		if value < rules["min"] or value > rules["max"]:
-			errors.append(
-				f"'{rules.get('label', field)}' must be between {rules['min']} and {rules['max']} "
-				f"(got {value}). Contact DineMatters if you need a different range."
-			)
-	return errors
+# ── Per-restaurant guardrails removed ────────────────────────────────────────
+# DineMatters now operates a fully centralized loyalty model.
+# All earn/redeem rates are fixed platform-wide in utils/platform_config.py.
+# Restaurants only control whether loyalty is enabled or disabled.
+# LOYALTY_GUARDRAILS and validate_loyalty_config() are no longer needed.
 
 
 @frappe.whitelist(allow_guest=True)
-@require_plan('DIAMOND')
+@require_plan('SILVER', 'GOLD')
 def get_loyalty_summary(restaurant_id, phone):
 	"""
 	GET /api/method/dinematters.dinematters.api.loyalty.get_loyalty_summary
@@ -124,32 +96,48 @@ def get_loyalty_summary(restaurant_id, phone):
 
 @frappe.whitelist(allow_guest=True)
 def get_loyalty_config(restaurant_id):
-	"""Get loyalty configurations for admin and cart — only exposes safe frontend fields."""
+	"""
+	Get loyalty configuration for the cart and admin.
+	All earn/redeem rates are now DineMatters platform constants — uniform across
+	the entire network. Only enable_loyalty and program metadata come from the
+	per-restaurant doc.
+	"""
 	try:
 		restaurant = validate_restaurant_for_api(restaurant_id)
 		if not frappe.db.exists("Restaurant Loyalty Config", {"restaurant": restaurant}):
 			return {"success": True, "data": None}
 
 		prog_name = frappe.db.get_value("Restaurant Loyalty Config", {"restaurant": restaurant}, "name")
-		config = frappe.db.get_value(
+		# Only fetch non-rate fields from the restaurant doc
+		restaurant_doc_config = frappe.db.get_value(
 			"Restaurant Loyalty Config",
 			prog_name,
-			[
-				"program_name", "points_per_inr", "coin_value_in_inr",
-				"earn_type", "earn_percentage", "earn_flat_coins",
-				"min_order_to_earn", "max_coins_per_order",
-				"min_redemption_threshold", "min_billing_for_redemption",
-				"loyalty_expiry_months", "earn_on_status",
-				"share_reward_coins", "min_unique_opens_for_reward",
-				"coins_per_unique_open", "max_opens_rewarded_per_share",
-				"referral_order_reward_coins", "new_user_welcome_reward_coins",
-				"welcome_coupon_discount",
-				"tier_silver_threshold", "tier_gold_threshold",
-				"tier_platinum_threshold", "birthday_bonus_coins"
-			],
+			["program_name", "earn_on_status", "birthday_bonus_coins"],
 			as_dict=True
 		)
-		
+
+		# Build config: platform constants override everything
+		config = {
+			"program_name":                 restaurant_doc_config.get("program_name") or "DineMatters Rewards",
+			"earn_on_status":               restaurant_doc_config.get("earn_on_status") or "Completed",
+			"birthday_bonus_coins":         restaurant_doc_config.get("birthday_bonus_coins") or 0,
+			# ── Platform-fixed rates (from utils/platform_config.py) ──────────────
+			"earn_type":                    PLATFORM_LOYALTY["earn_type"],
+			"earn_percentage":              PLATFORM_LOYALTY["earn_percentage"],
+			"coin_value_in_inr":            PLATFORM_LOYALTY["coin_value_in_inr"],
+			"min_order_to_earn":            PLATFORM_LOYALTY["min_order_to_earn"],
+			"max_coins_per_order":          PLATFORM_LOYALTY["max_coins_per_order"],
+			"min_redemption_threshold":     PLATFORM_LOYALTY["min_redemption_threshold"],
+			"min_billing_for_redemption":   PLATFORM_LOYALTY["min_billing_for_redemption"],
+			"loyalty_expiry_months":        PLATFORM_LOYALTY["loyalty_expiry_months"],
+			"new_user_welcome_reward_coins":PLATFORM_LOYALTY["welcome_reward_coins"],
+			"coins_per_unique_open":        PLATFORM_LOYALTY["referral_share_coins"],
+			"max_opens_rewarded_per_share": PLATFORM_LOYALTY["max_opens_rewarded_per_share"],
+			"tier_silver_threshold":        PLATFORM_LOYALTY["tier"]["silver"],
+			"tier_gold_threshold":          PLATFORM_LOYALTY["tier"]["gold"],
+			"tier_platinum_threshold":      PLATFORM_LOYALTY["tier"]["platinum"],
+		}
+
 		# Add current restaurant's city
 		restaurant_info = frappe.db.get_value("Restaurant", restaurant, ["city", "address", "company"], as_dict=True)
 		config["city"] = restaurant_info.city or "Surat"
@@ -256,7 +244,7 @@ def get_loyalty_config(restaurant_id):
 		return {"success": False, "error": str(e)}
 
 @frappe.whitelist(allow_guest=True)
-@require_plan('DIAMOND')
+@require_plan('SILVER', 'GOLD')
 def generate_referral_link(restaurant_id, phone, platform="WhatsApp"):
 	"""
 	POST /api/method/dinematters.dinematters.api.loyalty.generate_referral_link
@@ -400,7 +388,7 @@ def track_referral_visit(identifier, ip_address=None, user_agent=None):
 
 
 @frappe.whitelist(allow_guest=True)
-@require_plan('DIAMOND')
+@require_plan('SILVER', 'GOLD')
 def claim_referral_reward(restaurant_id, referral_id, phone):
 	"""
 	POST /api/method/dinematters.dinematters.api.loyalty.claim_referral_reward
@@ -449,19 +437,10 @@ def claim_referral_reward(restaurant_id, referral_id, phone):
 		if link_info.referrer == referee.name:
 			return {"success": False, "error": {"code": "SELF_REFERRAL", "message": "Cannot use your own referral link"}}
 
-		# 5. Get loyalty config
-		loyalty_prog = frappe.db.get_value(
-			"Restaurant Loyalty Config",
-			{"restaurant": restaurant, "is_active": 1},
-			["new_user_welcome_reward_coins", "coins_per_unique_open", "max_opens_rewarded_per_share"],
-			as_dict=True
-		)
-		if not loyalty_prog:
-			return {"success": False, "error": {"code": "CONFIG_NOT_FOUND", "message": "Loyalty not configured"}}
-
-		welcome_coins = int(loyalty_prog.new_user_welcome_reward_coins or 50)
-		referral_share_coins = int(loyalty_prog.coins_per_unique_open or 2)
-		max_limit = int(loyalty_prog.max_opens_rewarded_per_share or 7)
+		# 5. Use platform-fixed reward values (no per-restaurant config needed)
+		welcome_coins        = get_welcome_reward_coins()           # ₹50 platform standard
+		referral_share_coins = get_referral_share_coins()           # ₹30 per verified open
+		max_limit            = get_max_opens_rewarded_per_share()   # 10 per cycle
 		current_cycle = int(frappe.db.get_value("Referral Link", link_info.name, "rewarded_opens_in_cycle") or 0)
 
 		# 6. Award Welcome Bonus to referee
@@ -631,67 +610,68 @@ def credit_loyalty_points(customer, restaurant, coins, reason, ref_doctype=None,
 
 
 @frappe.whitelist()
-@require_plan('DIAMOND')
+@require_plan('SILVER', 'GOLD')
 def update_loyalty_config(restaurant_id, config, enable_loyalty=None):
-	"""Update loyalty configurations for admin. Validates against guardrails before saving."""
+	"""
+	Update loyalty settings for a restaurant.
+	In the centralized model, restaurants can ONLY toggle loyalty on/off.
+	All earn/redeem rates are platform-fixed and ignored if passed.
+	"""
 	try:
 		restaurant = validate_restaurant_for_api(restaurant_id, frappe.session.user)
 		if isinstance(config, str):
 			config = json.loads(config)
 
-		# ── 1. Guardrail Validation ──────────────────────────────────────────────
-		validation_errors = validate_loyalty_config(config)
-		if validation_errors:
-			return {
-				"success": False,
-				"error": {"code": "GUARDRAIL_VIOLATION", "messages": validation_errors}
-			}
+		# ── Strip all earn/redeem fields — platform owns these now ───────────────
+		# Even if a restaurant somehow passes these fields, they are ignored.
+		_LOCKED_FIELDS = {
+			"earn_type", "earn_percentage", "earn_flat_coins", "points_per_inr",
+			"min_order_to_earn", "max_coins_per_order", "coin_value_in_inr",
+			"min_billing_for_redemption", "min_redemption_threshold",
+			"loyalty_expiry_months", "share_reward_coins",
+			"referral_order_reward_coins", "new_user_welcome_reward_coins",
+			"coins_per_unique_open", "max_opens_rewarded_per_share",
+			"welcome_coupon_discount",
+			"tier_silver_threshold", "tier_gold_threshold", "tier_platinum_threshold",
+		}
+		for field in _LOCKED_FIELDS:
+			config.pop(field, None)
 
-		# ── 2. Backward Compat Migration ─────────────────────────────────────────
-		# If restaurant is saving for the first time with new fields, or
-		# if earn_type is not set but we have legacy points_per_inr, migrate.
-		if not config.get("earn_type"):
-			legacy_ppi = flt(config.get("points_per_inr", 0))
-			if legacy_ppi > 0:
-				# Convert: points_per_inr=0.1 => earn_percentage=10%
-				config["earn_type"] = "Percentage of Bill"
-				config["earn_percentage"] = round(legacy_ppi * 100, 2)
-				# Clamp to guardrail
-				config["earn_percentage"] = max(1.0, min(15.0, config["earn_percentage"]))
-			else:
-				config["earn_type"] = "Percentage of Bill"
-				config["earn_percentage"] = LOYALTY_GUARDRAILS["earn_percentage"]["default"]
+		# ── Ensure platform constants are stored in the doc (for reference) ──────
+		config["earn_type"]      = PLATFORM_LOYALTY["earn_type"]
+		config["earn_percentage"]= PLATFORM_LOYALTY["earn_percentage"]
+		config["points_per_inr"] = round(PLATFORM_LOYALTY["earn_percentage"] / 100, 4)
+		config["coin_value_in_inr"] = PLATFORM_LOYALTY["coin_value_in_inr"]
 
-		# ── 3. Sync legacy points_per_inr from earn_percentage ───────────────────
-		# earn_loyalty_coins() still uses points_per_inr internally, so we keep
-		# it in sync automatically. coin_value_in_inr stays platform-constant = 1.
-		if config.get("earn_type") == "Percentage of Bill":
-			config["points_per_inr"] = round(flt(config.get("earn_percentage", 5)) / 100, 4)
-		else:
-			# For flat mode, points_per_inr is not meaningful — set to 0 to prevent double-earning
-			config["points_per_inr"] = 0
-
-		config["coin_value_in_inr"] = 1  # Platform-constant, non-negotiable
-
-		# ── 4. Save the config document ──────────────────────────────────────────
+		# ── Save the config document ─────────────────────────────────────────────
 		if frappe.db.exists("Restaurant Loyalty Config", {"restaurant": restaurant}):
 			prog_name = frappe.db.get_value("Restaurant Loyalty Config", {"restaurant": restaurant}, "name")
 			prog_doc = frappe.get_doc("Restaurant Loyalty Config", prog_name)
 			prog_doc.update(config)
 			prog_doc.save(ignore_permissions=True)
 		else:
-			config["doctype"] = "Restaurant Loyalty Config"
-			config["restaurant"] = restaurant
+			config["doctype"]   = "Restaurant Loyalty Config"
+			config["restaurant"]= restaurant
 			if not config.get("program_name"):
-				config["program_name"] = f"DineMatters Rewards - {restaurant}"
+				config["program_name"] = "DineMatters Rewards"
 			prog_doc = frappe.get_doc(config)
 			prog_doc.insert(ignore_permissions=True)
 
-		# ── 5. Update master enable_loyalty toggle ───────────────────────────────
+		# ── Update master enable_loyalty toggle ──────────────────────────────────
 		if enable_loyalty is not None:
 			enabled = 1 if enable_loyalty else 0
+			plan_type = frappe.db.get_value("Restaurant", restaurant, "plan_type") or "SILVER"
+
 			frappe.db.set_value("Restaurant", restaurant, "enable_loyalty", enabled)
 			frappe.db.set_value("Restaurant Config", {"restaurant": restaurant}, "enable_loyalty", enabled)
+
+			# For Silver restaurants: loyalty and ordering are tied together.
+			# Disabling loyalty also disables ordering and Club listing.
+			# Gold restaurants always have ordering regardless of loyalty toggle.
+			if plan_type == "SILVER":
+				frappe.db.set_value("Restaurant", restaurant, {
+					"no_ordering": 0 if enabled else 1,
+				})
 
 		frappe.db.commit()
 		return {"success": True}
@@ -700,7 +680,7 @@ def update_loyalty_config(restaurant_id, config, enable_loyalty=None):
 		return {"success": False, "error": str(e)}
 
 @frappe.whitelist()
-@require_plan('DIAMOND')
+@require_plan('GOLD')
 def get_customer_insights(restaurant_id, search_query=None):
 	"""
 	Get list of customers with their points for a restaurant.
@@ -855,7 +835,7 @@ def get_customer_insights(restaurant_id, search_query=None):
 		return {"success": False, "error": str(e)}
 
 @frappe.whitelist()
-@require_plan('DIAMOND')
+@require_plan('GOLD')
 def get_customer_transactions(restaurant_id, customer_id):
 	"""
 	Get all loyalty transactions for a specific customer and restaurant
@@ -877,7 +857,7 @@ def get_customer_transactions(restaurant_id, customer_id):
 		return {"success": False, "error": str(e)}
 
 @frappe.whitelist()
-@require_plan('DIAMOND')
+@require_plan('GOLD')
 def adjust_customer_points(restaurant_id, customer_id, coins, reason, transaction_type="Earn"):
 	"""
 	Manually adjust customer points (for admin use).

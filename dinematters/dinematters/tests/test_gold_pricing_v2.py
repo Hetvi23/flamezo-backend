@@ -15,9 +15,9 @@ from dinematters.dinematters.tests.utils import (
 
 _PREFIX = "TEST-PRICE-V2"
 
-class TestDiamondMonthlyFloor(unittest.TestCase):
+class TestGoldMonthlyFloor(unittest.TestCase):
     """
-    Production-grade tests for the new Diamond Monthly Floor logic (₹399 guarantee).
+    Production-grade tests for the GOLD Monthly Floor logic (₹399 guarantee).
     """
 
     @classmethod
@@ -34,25 +34,21 @@ class TestDiamondMonthlyFloor(unittest.TestCase):
         from dinematters.dinematters.tasks.subscription_tasks import process_daily_subscription_floors
         self.run_billing = process_daily_subscription_floors
 
-    def _diamond_name(self):
-        return f"{_PREFIX}-DIAMOND-{self._sfx}"
-
     def _gold_name(self):
         return f"{_PREFIX}-GOLD-{self._sfx}"
 
     def tearDown(self):
-        cleanup_restaurant(self._diamond_name())
         cleanup_restaurant(self._gold_name())
 
-    def test_diamond_monthly_floor_trigger_at_30_days(self):
+    def test_gold_monthly_floor_trigger_at_30_days(self):
         """
-        DIAMOND: After 30 days, if commission is ₹100 and floor is ₹399,
+        GOLD: After 30 days, if commission is ₹100 and floor is ₹399,
         system must deduct ₹299 shortfall.
         """
-        d = self._diamond_name()
+        d = self._gold_name()
         # Create restaurant with 30-day old activation
         activation_date = add_days(today(), -30)
-        make_restaurant(d, plan="DIAMOND", balance=1000.0, monthly_minimum=399.0, 
+        make_restaurant(d, plan="GOLD", balance=1000.0, monthly_minimum=399.0, 
                         enable_floor_recovery=1, floor_recovery_activated_on=activation_date,
                         last_floor_recovery_date=activation_date)
         
@@ -62,7 +58,7 @@ class TestDiamondMonthlyFloor(unittest.TestCase):
         
         self.run_billing()
         
-        txn = get_latest_transaction(d, "Monthly DIAMOND Floor")
+        txn = get_latest_transaction(d, "Monthly GOLD Floor")
         self.assertIsNotNone(txn, "Monthly floor recovery must be triggered")
         self.assertAlmostEqual(abs(txn.amount), 299.0, places=2)
         
@@ -70,29 +66,29 @@ class TestDiamondMonthlyFloor(unittest.TestCase):
         new_last_date = frappe.db.get_value("Restaurant", d, "last_floor_recovery_date")
         self.assertEqual(getdate(new_last_date), getdate(today()), "Last recovery date must be updated to today")
 
-    def test_diamond_monthly_floor_skips_before_30_days(self):
+    def test_gold_monthly_floor_skips_before_30_days(self):
         """
-        DIAMOND: On day 29, no charge should be applied.
+        GOLD: On day 29, no charge should be applied.
         """
-        d = self._diamond_name()
+        d = self._gold_name()
         activation_date = add_days(today(), -29)
-        make_restaurant(d, plan="DIAMOND", balance=1000.0, monthly_minimum=399.0, 
+        make_restaurant(d, plan="GOLD", balance=1000.0, monthly_minimum=399.0, 
                         enable_floor_recovery=1, floor_recovery_activated_on=activation_date,
                         last_floor_recovery_date=activation_date)
         
         clear_transactions(d)
         self.run_billing()
         
-        txn = get_latest_transaction(d, "Monthly DIAMOND Floor")
+        txn = get_latest_transaction(d, "Monthly GOLD Floor")
         self.assertIsNone(txn, "No monthly floor should be charged before 30 days")
 
-    def test_diamond_zero_charge_if_commission_exceeds_floor(self):
+    def test_gold_zero_charge_if_commission_exceeds_floor(self):
         """
-        DIAMOND: If commission is ₹500 and floor is ₹399, charge must be ₹0.
+        GOLD: If commission is ₹500 and floor is ₹399, charge must be ₹0.
         """
-        d = self._diamond_name()
+        d = self._gold_name()
         activation_date = add_days(today(), -30)
-        make_restaurant(d, plan="DIAMOND", balance=1000.0, monthly_minimum=399.0, 
+        make_restaurant(d, plan="GOLD", balance=1000.0, monthly_minimum=399.0, 
                         enable_floor_recovery=1, floor_recovery_activated_on=activation_date,
                         last_floor_recovery_date=activation_date)
         
@@ -102,41 +98,41 @@ class TestDiamondMonthlyFloor(unittest.TestCase):
         
         self.run_billing()
         
-        txn = get_latest_transaction(d, "Monthly DIAMOND Floor")
+        txn = get_latest_transaction(d, "Monthly GOLD Floor")
         self.assertIsNone(txn, "No floor charge if commissions already cover the minimum guarantee")
         
         # Date should still update because the 30-day window is over
         new_last_date = frappe.db.get_value("Restaurant", d, "last_floor_recovery_date")
         self.assertEqual(getdate(new_last_date), getdate(today()), "Cycle must still reset after 30 days")
 
-    def test_gold_still_bills_daily(self):
+    def test_gold_mid_cycle_no_charge(self):
         """
-        GOLD: Must continue to bill daily regardless of the Diamond monthly changes.
+        GOLD on day 1 (just activated): process_daily_subscription_floors must not
+        charge anything — the 30-day window has not elapsed.
         """
         g = self._gold_name()
-        # Create restaurant activated today
+        # Restaurant activated today — date_diff will be 0, skipped by < 30 check
         make_restaurant(g, plan="GOLD", balance=1000.0, monthly_minimum=999.0, enable_floor_recovery=1)
         clear_transactions(g)
-        
-        self.run_billing()
-        
-        txn = get_latest_transaction(g, "Daily GOLD Subscription")
-        self.assertIsNotNone(txn, "GOLD must still receive daily billing")
-        self.assertAlmostEqual(abs(txn.amount), 33.30, places=2)
 
-    def test_diamond_skips_if_toggle_off(self):
+        self.run_billing()
+
+        txn = get_latest_transaction(g, "Monthly GOLD Floor")
+        self.assertIsNone(txn, "GOLD must not be billed in the first 30 days")
+
+    def test_gold_skips_if_toggle_off(self):
         """
-        DIAMOND: Even at day 30, no charge if enable_floor_recovery=0.
+        GOLD: Even at day 30, no charge if enable_floor_recovery=0.
         """
-        d = self._diamond_name()
+        d = self._gold_name()
         activation_date = add_days(today(), -35)
-        make_restaurant(d, plan="DIAMOND", balance=1000.0, monthly_minimum=399.0, 
+        make_restaurant(d, plan="GOLD", balance=1000.0, monthly_minimum=399.0, 
                         enable_floor_recovery=0, floor_recovery_activated_on=activation_date)
         
         clear_transactions(d)
         self.run_billing()
         
-        txn = get_latest_transaction(d, "Monthly DIAMOND Floor")
+        txn = get_latest_transaction(d, "Monthly GOLD Floor")
         self.assertIsNone(txn, "Disabled floor recovery must not bill")
 
 if __name__ == "__main__":

@@ -24,7 +24,7 @@ import json
 # ========== TABLE BOOKING APIs ==========
 
 @frappe.whitelist(allow_guest=True)
-@require_plan('GOLD', 'DIAMOND')
+@require_plan('GOLD')
 def create_table_booking(restaurant_id, number_of_diners, date, time_slot, customer_info=None, session_id=None):
 	"""
 	POST /api/method/dinematters.dinematters.api.bookings.create_table_booking
@@ -117,7 +117,7 @@ def create_table_booking(restaurant_id, number_of_diners, date, time_slot, custo
 
 
 @frappe.whitelist(allow_guest=True)
-@require_plan('GOLD', 'DIAMOND')
+@require_plan('GOLD')
 def get_table_bookings(restaurant_id, status=None, date_from=None, date_to=None, page=1, limit=20, session_id=None, admin_mode=False):
 	"""
 	GET /api/method/dinematters.dinematters.api.bookings.get_table_bookings
@@ -251,7 +251,7 @@ def get_table_bookings(restaurant_id, status=None, date_from=None, date_to=None,
 
 
 @frappe.whitelist(allow_guest=True)
-@require_plan('GOLD', 'DIAMOND')
+@require_plan('GOLD')
 def get_available_time_slots(restaurant_id, date, number_of_diners=None):
 	"""
 	GET /api/method/dinematters.dinematters.api.bookings.get_available_time_slots
@@ -304,7 +304,7 @@ def get_available_time_slots(restaurant_id, date, number_of_diners=None):
 # ========== BANQUET BOOKING APIs ==========
 
 @frappe.whitelist(allow_guest=True)
-@require_plan('GOLD', 'DIAMOND')
+@require_plan('GOLD')
 def create_banquet_booking(restaurant_id, number_of_guests, event_type, date, time_slot, customer_info=None, session_id=None):
 	"""
 	POST /api/method/dinematters.dinematters.api.bookings.create_banquet_booking
@@ -399,7 +399,7 @@ def create_banquet_booking(restaurant_id, number_of_guests, event_type, date, ti
 
 
 @frappe.whitelist(allow_guest=True)
-@require_plan('GOLD', 'DIAMOND')  # This is for public/client checking their own banquet bookings
+@require_plan('GOLD')  # This is for public/client checking their own banquet bookings
 def get_banquet_bookings(restaurant_id, status=None, event_type=None, date_from=None, date_to=None, page=1, limit=20, session_id=None):
 	"""
 	GET /api/method/dinematters.dinematters.api.bookings.get_banquet_bookings
@@ -551,7 +551,7 @@ def get_banquet_available_time_slots(restaurant_id, date, number_of_guests=None,
 # ========== STAFF MANAGEMENT APIs ==========
 
 @frappe.whitelist()
-@require_plan('GOLD', 'DIAMOND')
+@require_plan('GOLD')
 def confirm_booking(booking_id, restaurant_id, assigned_table=None):
 	"""
 	POST /api/method/dinematters.dinematters.api.bookings.confirm_booking
@@ -608,7 +608,7 @@ def confirm_booking(booking_id, restaurant_id, assigned_table=None):
 
 
 @frappe.whitelist()
-@require_plan('GOLD', 'DIAMOND')
+@require_plan('GOLD')
 def reject_booking(booking_id, restaurant_id, reason=None):
 	"""
 	POST /api/method/dinematters.dinematters.api.bookings.reject_booking
@@ -791,7 +791,7 @@ def mark_completed(booking_id, restaurant_id):
 
 
 @frappe.whitelist()
-@require_plan('GOLD', 'DIAMOND')
+@require_plan('GOLD')
 def get_admin_bookings(restaurant_id, date_from=None, date_to=None, status=None, page=1, limit=50, search_query=None):
 	"""
 	GET /api/method/dinematters.dinematters.api.bookings.get_admin_bookings

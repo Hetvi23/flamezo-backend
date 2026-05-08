@@ -798,15 +798,15 @@ def _send_email(recipient_phone, message, settings, subject=None):
 def generate_daily_seo_blog():
     """
     Scheduled task to generate a unique SEO blog post daily at 9:00 AM IST.
-    Uses 'Dynamic Entity Injection' for Gold/Diamond restaurants.
+    Uses 'Dynamic Entity Injection' for Gold restaurants.
     """
     from dinematters.dinematters.services.ai.seo_blog import ContentGenerator
     import random
-    
+
     try:
-        # 1. Target Selection: Filter for premium restaurants (Gold/Diamond)
-        restaurants = frappe.get_all("Restaurant", 
-            filters={"plan_type": ["in", ["Gold", "Diamond"]], "is_active": 1},
+        # 1. Target Selection: Filter for Gold restaurants
+        restaurants = frappe.get_all("Restaurant",
+            filters={"plan_type": "GOLD", "is_active": 1},
             fields=["name", "restaurant_name", "description", "city", "subdomain"]
         )
         
@@ -842,7 +842,7 @@ def generate_daily_seo_blog():
         else:
             dish_names_list = []
 
-        # 3. Image Strategy: Fetch real random food images from ALL Diamond/Gold restaurants for variety
+        # 3. Image Strategy: Fetch real random food images from ALL Gold restaurants for variety
         image_url = None
         media_pool = []
         

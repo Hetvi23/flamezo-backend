@@ -196,7 +196,7 @@ def get_restaurant_config(restaurant_id):
 		plan_type = restaurant_doc.plan_type or "SILVER"
 		menu_theme_background_enabled = bool(config.get("menu_theme_background_enabled", 1))
 		
-		# Premium themes/backgrounds allowed for GOLD and DIAMOND
+		# Premium themes/backgrounds are coin-purchased for SILVER; free for GOLD
 		if plan_type == "SILVER" and menu_theme_background_enabled:
 			from frappe.utils import getdate, today
 			paid_until = getdate(config.get("menu_theme_paid_until")) if config.get("menu_theme_paid_until") else None
@@ -298,23 +298,23 @@ def get_restaurant_config(restaurant_id):
 				# Current user's role for this restaurant (Admin vs Staff)
 				"userRole": _get_user_role_for_restaurant(frappe.session.user, restaurant),
 				"features": {
-					# Transactional (DIAMOND only)
-					"ordering": restaurant_doc.plan_type in ["GOLD", "DIAMOND"],
-					"loyalty": restaurant_doc.plan_type == "DIAMOND",
-					"coupons": restaurant_doc.plan_type == "DIAMOND",
-					"games": restaurant_doc.plan_type in ["GOLD", "DIAMOND"],
-					"tableBooking": restaurant_doc.plan_type in ["GOLD", "DIAMOND"],
-					"events": restaurant_doc.plan_type in ["GOLD", "DIAMOND"],
-					"offers": restaurant_doc.plan_type in ["GOLD", "DIAMOND"],
-					"experience_lounge": restaurant_doc.plan_type in ["GOLD", "DIAMOND"],
-					"google_growth": restaurant_doc.plan_type in ["GOLD", "DIAMOND"],
-					"whatsapp_orders": restaurant_doc.plan_type in ["GOLD", "DIAMOND"],
-					"marketing_studio": restaurant_doc.plan_type == "DIAMOND",
-					# Digital/Branding (GOLD and DIAMOND)
-					"videoUpload": restaurant_doc.plan_type in ["GOLD", "DIAMOND"],
-					"analytics": restaurant_doc.plan_type in ["GOLD", "DIAMOND"],
-					"aiRecommendations": restaurant_doc.plan_type in ["GOLD", "DIAMOND"],
-					"customBranding": restaurant_doc.plan_type in ["GOLD", "DIAMOND"],
+					# SILVER + GOLD: ordering and loyalty are tied together on Silver
+					# (Silver loyalty OFF = ordering OFF; Gold always has both)
+					"ordering": plan_type in ["SILVER", "GOLD"],
+					"loyalty": plan_type in ["SILVER", "GOLD"],
+					"order_settings": plan_type in ["SILVER", "GOLD"],
+					"whatsapp_orders": plan_type in ["SILVER", "GOLD"],
+					"games": plan_type == "GOLD",
+					"tableBooking": plan_type == "GOLD",
+					"events": plan_type == "GOLD",
+					"offers": plan_type == "GOLD",
+					"experience_lounge": plan_type == "GOLD",
+					"google_growth": plan_type == "GOLD",
+					"marketing_studio": plan_type == "GOLD",
+					"videoUpload": plan_type == "GOLD",
+					"analytics": plan_type == "GOLD",
+					"aiRecommendations": plan_type == "GOLD",
+					"customBranding": plan_type == "GOLD",
 				}
 			},
 			# placeholder for feature cards (will be populated below)
@@ -501,9 +501,9 @@ def get_home_features(restaurant_id):
 		# Filter features based on subscription plan
 		plan_type = frappe.db.get_value("Restaurant", restaurant, "plan_type") or "SILVER"
 		if plan_type == "SILVER":
-			# Only GOLD and DIAMOND get: offers-events, dine-play
-			# Only DIAMOND gets: book-table (usually, but let's follow feature_gate.py which says GOLD gets table_booking)
-			# Re-evaluating based on system-wide GOLD tier expansion:
+			# Only GOLD gets: offers-events, dine-play, book-table
+
+
 			restricted_ids = ["book-table", "offers-events", "dine-play"]
 			formatted_features = [f for f in formatted_features if f["id"] not in restricted_ids]
 

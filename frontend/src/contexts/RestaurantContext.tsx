@@ -17,8 +17,7 @@ interface RestaurantContextType {
   restaurantConfig?: any | null
   setRestaurantConfig?: (cfg: any | null) => void
   refreshConfig: () => Promise<void>
-  planType: 'SILVER' | 'GOLD' | 'DIAMOND'
-  isDiamond: boolean
+  planType: 'SILVER' | 'GOLD'
   isGold: boolean
   isSilver: boolean
   coinsBalance: number
@@ -231,14 +230,12 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
   }, [selectedRestaurant])
 
   // Extract subscription data from config
-  const rawPlanType = String(restaurantConfig?.subscription?.planType || 'SILVER').toUpperCase()
-  const planType = rawPlanType as 'SILVER' | 'GOLD' | 'DIAMOND'
-  
+  const planType = String(restaurantConfig?.subscription?.planType || 'SILVER').toUpperCase() as 'SILVER' | 'GOLD'
+
   const billingStatus = restaurantConfig?.subscription?.billingStatus || 'active'
   const coinsBalance = restaurantConfig?.subscription?.coinsBalance || 0
   const isActive = restaurantConfig?.subscription?.isActive ?? true
-  
-  const isDiamond = planType === 'DIAMOND'
+
   const isGold = planType === 'GOLD'
   const isSilver = planType === 'SILVER'
 
@@ -307,7 +304,6 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
         setRestaurantConfig,
         refreshConfig: fetchConfig,
         planType,
-        isDiamond,
         isGold,
         isSilver,
         coinsBalance,

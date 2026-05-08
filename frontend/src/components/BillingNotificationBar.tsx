@@ -19,14 +19,13 @@ interface BillingNotificationBarProps {
     onboarding_date?: string | null
     last_auto_recharge_date?: string | null
   } | null
-  planType: 'SILVER' | 'GOLD' | 'DIAMOND'
+  planType: 'SILVER' | 'GOLD'
   isActive?: boolean
 }
 
 export const BillingNotificationBar: React.FC<BillingNotificationBarProps> = ({ billingInfo, planType, isActive = true }) => {
   const isGold = planType === 'GOLD'
-  const isDiamond = planType === 'DIAMOND'
-  const isPremium = isGold || isDiamond
+  const isPremium = isGold
   const navigate = useNavigate()
   const [isDismissed, setIsDismissed] = useState(false)
 

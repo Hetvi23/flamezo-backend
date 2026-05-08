@@ -181,7 +181,7 @@ def get_restaurant_setup_progress(restaurant_id):
 @frappe.whitelist()
 def get_setup_wizard_steps(restaurant=None):
 	"""Get steps for restaurant setup wizard - tier-aware filtering"""
-	plan_type = 'DIAMOND' # Default to DIAMOND to see all steps for admin/system
+	plan_type = 'GOLD' # Default to GOLD to see all steps for admin/system
 	if restaurant:
 		plan_type = frappe.db.get_value('Restaurant', restaurant, 'plan_type') or 'SILVER'
 
@@ -302,7 +302,7 @@ def get_setup_wizard_steps(restaurant=None):
 			filtered_steps.append(step)
 			continue
 			
-		required_plans = FEATURE_PLAN_MAP.get(feature, ['SILVER', 'GOLD', 'DIAMOND'])
+		required_plans = FEATURE_PLAN_MAP.get(feature, ['SILVER', 'GOLD'])
 		if plan_type in required_plans:
 			step_copy = step.copy()
 			step_copy['required_plans'] = required_plans

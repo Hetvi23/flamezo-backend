@@ -68,6 +68,12 @@ def create_payment_order(restaurant_id, order_items, total_amount, subtotal=None
 		_restaurant_name = validate_restaurant_for_api(restaurant_id)
 		restaurant = frappe.get_doc("Restaurant", _restaurant_name)
 
+		if restaurant.plan_type == "SILVER":
+			return {
+				"success": False,
+				"error": "Online payments are not available for SILVER plan. Please use pay at counter."
+			}
+
 		# Parse delivery info if string
 		if isinstance(delivery_info, str):
 			delivery_info = json.loads(delivery_info)

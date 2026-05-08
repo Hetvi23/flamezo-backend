@@ -6,7 +6,7 @@
 
 export interface FeatureAccess {
   hasAccess: boolean;
-  currentPlan: 'SILVER' | 'GOLD' | 'DIAMOND';
+  currentPlan: 'SILVER' | 'GOLD';
   requiredPlans: string[];
   feature: string;
 }
@@ -63,7 +63,7 @@ export async function checkFeatureAccess(
     return {
       hasAccess: false,
       currentPlan: 'SILVER',
-      requiredPlans: ['GOLD', 'DIAMOND'],
+      requiredPlans: ['GOLD', 'GOLD'],
       feature,
     };
   }

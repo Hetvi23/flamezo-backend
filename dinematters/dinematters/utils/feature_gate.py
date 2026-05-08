@@ -6,6 +6,15 @@ Feature Gate System for Subscription-based Access Control
 
 This module provides decorators and utilities to restrict feature access
 based on restaurant subscription plans (SILVER vs GOLD).
+
+Plan model:
+  SILVER (Free): QR menu, WhatsApp orders, order settings, loyalty earn/redeem
+                 (platform-managed), listed on DineMatters Club.
+                 Loyalty is ON by default; toggling it OFF also disables Club listing.
+  GOLD (₹1299 unlock · ₹399/mo floor · 1.5% commission):
+                 All SILVER features + full dine-in ordering (real-time, accept, logistics),
+                 CRM, marketing studio, coupons, analytics, POS integration,
+                 custom branding, data export, and more.
 """
 
 import frappe
@@ -17,31 +26,31 @@ import inspect
 
 
 # Feature to Plan Mapping
-# Features listed here require specific plan types
+# Features listed here require specific plan types.
+#
+# SILVER: ordering + loyalty are available but tied together —
+#         toggling loyalty OFF also disables ordering and Club listing.
+# GOLD:   everything, plus CRM, marketing, analytics, POS, custom branding, etc.
 FEATURE_PLAN_MAP = {
-    # DIAMOND Only features (Transactional/Full Automation)
-    'ordering': ['DIAMOND'],
-    'loyalty': ['DIAMOND'],
-    'pos_integration': ['DIAMOND'],
-    'coupons': ['DIAMOND'],
-    'data_export': ['DIAMOND'],
-    'customer': ['DIAMOND'],
-    'order_settings': ['DIAMOND'],
-    'customer_pay_and_usage': ['DIAMOND'],
-    
-    # Marketing Studio (Campaigns, Automation, Segments) - DIAMOND only
-    'marketing_studio': ['DIAMOND'],
+    # GOLD-only features (full dine-in ordering system, CRM, marketing, POS)
+    'pos_integration': ['GOLD'],
+    'coupons': ['GOLD'],
+    'data_export': ['GOLD'],
+    'customer': ['GOLD'],
+    'customer_pay_and_usage': ['GOLD'],
+    'marketing_studio': ['GOLD'],
+    'games': ['GOLD'],
+    'video_upload': ['GOLD'],
+    'analytics': ['GOLD'],
+    'ai_recommendations': ['GOLD'],
+    'custom_branding': ['GOLD'],
+    'table_booking': ['GOLD'],
+    'ordering': ['GOLD'],  # Full dine-in ordering (real-time, accept, logistics) is GOLD
+    'order_settings': ['SILVER', 'GOLD'],
 
-    # GOLD & DIAMOND features (Digital/Branding/Analytics/Table/Games)
-    'games': ['GOLD', 'DIAMOND'],
-    'video_upload': ['GOLD', 'DIAMOND'],
-    'analytics': ['GOLD', 'DIAMOND'],
-    'ai_recommendations': ['GOLD', 'DIAMOND'],
-    'custom_branding': ['GOLD', 'DIAMOND'],
-    'table_booking': ['GOLD', 'DIAMOND'],
-    'events': ['GOLD', 'DIAMOND'],
-    'offers': ['GOLD', 'DIAMOND'],
-    'experience_lounge': ['GOLD', 'DIAMOND'],
+    # SILVER + GOLD features
+    'whatsapp_orders': ['SILVER', 'GOLD'],   # WhatsApp is the Silver ordering channel
+    'loyalty': ['SILVER', 'GOLD'],            # Loyalty is core Silver benefit
 }
 
 
@@ -85,6 +94,7 @@ def require_plan(*required_plans):
             if not identifier:
                 keys_to_check = [
                     'restaurant_id', 'restaurant', 
+                    'order_id', 'order',
                     'campaign_id', 'trigger_id', 'trigger_name', 
                     'segment_id', 'segment_name', 'target_segment'
                 ]
@@ -142,6 +152,10 @@ def require_plan(*required_plans):
                     resolved = frappe.db.get_value("Marketing Segment", identifier, "restaurant")
                     if not resolved:
                         resolved = frappe.db.get_value("Marketing Segment", {"segment_name": identifier}, "restaurant")
+                
+                # Check Order
+                if not resolved:
+                    resolved = frappe.db.get_value("Order", identifier, "restaurant")
                 
                 if resolved:
                     restaurant_id = resolved
@@ -206,7 +220,7 @@ def check_feature_access(restaurant_id, feature_name):
         frappe.throw(_('Restaurant {0} does not exist').format(restaurant_id))
     
     # Get required plans for this feature. Fallback to all plans if not mapped.
-    required_plans = FEATURE_PLAN_MAP.get(feature_name, ['SILVER', 'GOLD', 'DIAMOND'])
+    required_plans = FEATURE_PLAN_MAP.get(feature_name, ['SILVER', 'GOLD'])
     
     # Check if current plan has access
     has_access = restaurant.plan_type in required_plans
@@ -222,24 +236,20 @@ def check_feature_access(restaurant_id, feature_name):
 def get_plan_features(plan_type):
     """
     Get list of all features available for a specific plan
-    
+
     Args:
-        plan_type (str): Plan type ('SILVER', 'GOLD', or 'DIAMOND')
-    
+        plan_type (str): Plan type ('SILVER' or 'GOLD')
+
     Returns:
         list: List of feature names available for this plan
     """
-    base_features = ['basic_menu', 'qr_code', 'website']
-    
-    if plan_type == 'DIAMOND':
-        # DIAMOND has access to everything
-        return list(FEATURE_PLAN_MAP.keys()) + base_features
-    elif plan_type == 'GOLD':
-        # GOLD has access to digital/branding features but no transactional ones
-        gold_features = [f for f, plans in FEATURE_PLAN_MAP.items() if 'GOLD' in plans]
-        return gold_features + base_features
+    base_features = ['basic_menu', 'qr_code', 'website', 'ordering', 'loyalty']
+
+    if plan_type == 'GOLD':
+        # GOLD has access to everything
+        return list(FEATURE_PLAN_MAP.keys()) + ['basic_menu', 'qr_code', 'website']
     else:
-        # SILVER only has access to base features
+        # SILVER gets base features + ordering + loyalty (tied together)
         return base_features
 
 
@@ -263,8 +273,8 @@ def check_image_upload_limit(restaurant_id):
     """
     restaurant = frappe.get_doc('Restaurant', restaurant_id)
     
-    # GOLD and DIAMOND plans have unlimited images
-    if restaurant.plan_type in ['GOLD', 'DIAMOND']:
+    # GOLD plan has unlimited images
+    if restaurant.plan_type == 'GOLD':
         return {
             'can_upload': True,
             'current_count': restaurant.current_image_count or 0,
@@ -280,7 +290,7 @@ def check_image_upload_limit(restaurant_id):
     
     if not can_upload:
         frappe.throw(
-            _('Image upload limit reached ({0}/{1}). Upgrade to GOLD or DIAMOND for unlimited images.').format(
+            _('Image upload limit reached ({0}/{1}). Upgrade to GOLD for unlimited images.').format(
                 current_count,
                 max_limit
             ),

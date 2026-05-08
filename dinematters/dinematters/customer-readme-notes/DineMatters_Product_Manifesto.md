@@ -15,7 +15,7 @@ We transform your static menu into a high-conversion digital experience.
 ---
 
 ## 2. Marketing Studio: Turning Customers into Fans
-Our "Diamond" suite provides tools that were previously only available to global chains.
+Our "Gold" suite provides tools that were previously only available to global chains.
 
 - **Automated Marketing Flows**: Set up "Set & Forget" campaigns. Automatically send a "We Miss You" WhatsApp message if a customer hasn't visited in 30 days.
 - **Customer Segmentation**: Filter your audience by "High Spenders," "First Timers," or "Weekend Regulars" for laser-targeted promotions.
@@ -59,9 +59,8 @@ DineMatters grows with you.
 
 - **Unified Wallet**: A single pool of "Coins" (₹1 = 1 Coin) to pay for SMS, WhatsApp campaigns, AI generations, and logistics. No multiple invoices.
 - **Tiered Flexibility**:
-    - **SILVER**: The essentials, absolutely free.
-    - **GOLD**: Standardize your dine-in experience.
-    - **DIAMOND**: The full Growth Success Partner model—we only win when you win.
+    - **SILVER**: The essentials, absolutely free. Includes ordering and loyalty.
+    - **GOLD**: The full Growth Success Partner model—full automation, marketing, CRM. We only win when you win.
 
 ---
 

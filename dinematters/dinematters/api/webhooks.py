@@ -286,7 +286,7 @@ def handle_refund_processed(payload):
 def handle_payment_link_paid(payload):
 	"""Handle payment_link.paid event.
 	Supports two flows:
-	  1. wallet_topup_plink — Admin-created link for wallet top-up (GOLD/DIAMOND).
+	  1. wallet_topup_plink — Admin-created link for wallet top-up (GOLD).
 	     Auto-credits the restaurant wallet via record_transaction (idempotent).
 	  2. Legacy monthly revenue ledger payment links (existing behaviour).
 	"""

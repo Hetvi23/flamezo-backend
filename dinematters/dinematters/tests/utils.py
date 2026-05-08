@@ -28,7 +28,7 @@ def make_restaurant(name, plan="GOLD", balance=5000.0, **kwargs):
         "is_active": 1,
         "monthly_minimum": (
             999.0 if plan == "GOLD" else
-            399.0 if plan == "DIAMOND" else
+            399.0 if plan == "GOLD" else
             0.0
         ),
         "enable_floor_recovery": 1,
@@ -87,19 +87,22 @@ def make_loyalty_config(restaurant, **kwargs):
     defaults = {
         "program_name": f"Test Loyalty – {restaurant}",
         "is_active": 1,
-        # New dynamic earn rate fields
+        # Earn config — locked by platform in production, set here for unit-test isolation
         "earn_type": "Percentage of Bill",
-        "earn_percentage": 10.0,       # 10% of bill
+        "earn_percentage": 10.0,       # 10% of bill (platform is 5%; tests may override)
         "earn_flat_coins": 50,
         "min_order_to_earn": 0,
-        "max_coins_per_order": 500,
-        # Legacy field — kept in sync by the API, set manually here for tests
+        "max_coins_per_order": 1000,
+        # Legacy field — kept in sync with earn_percentage/100
         "points_per_inr": 0.1,
         "loyalty_expiry_months": 12,
         "coin_value_in_inr": 1.0,
         "earn_on_status": "Completed",
-        "min_redemption_threshold": 10,
-        "referral_order_reward_coins": 50,
+        "min_redemption_threshold": 250,
+        # Referral / share reward coins (platform-sourced in production via platform_config)
+        "coins_per_unique_open": 30,
+        "max_opens_rewarded_per_share": 10,
+        "new_user_welcome_reward_coins": 50,
     }
     defaults.update(kwargs)
 
@@ -171,8 +174,8 @@ def make_coin_transaction(restaurant, txn_type, amount, description="Test txn"):
     current = frappe.db.get_value("Restaurant", restaurant, "coins_balance") or 0.0
     is_deduction = txn_type in [
         "AI Deduction", "Commission Deduction",
-        "Daily SILVER Floor", "Daily GOLD Floor", "Daily DIAMOND Floor",
-        "Daily GOLD Subscription", "Daily DIAMOND Subscription",
+        "Daily SILVER Floor", "Daily GOLD Floor", "Daily GOLD Floor",
+        "Daily GOLD Floor", "Daily GOLD Floor",
         "Lead Unlock", "Delivery Fee",
     ]
     if is_deduction:

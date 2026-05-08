@@ -41,15 +41,14 @@ interface BillingInfo {
   mandate_active: boolean
   daily_limit: number
   current_daily_vol: number
-  deferred_plan_type?: 'SILVER' | 'GOLD' | 'DIAMOND' | null
+  deferred_plan_type?: 'SILVER' | 'GOLD' | null
   plan_change_date?: string | null
   monthly_minimum: number
   platform_fee_percent: number
   plan_defaults: {
-    pro_monthly: number   // GOLD monthly minimum
-    lux_monthly: number   // DIAMOND monthly minimum
-    lux_commission: number
-    lux_barrier: number   // DIAMOND upgrade entry requirement
+    gold_floor: number      // GOLD monthly floor guarantee (₹399)
+    gold_commission: number // GOLD commission % (1.5%)
+    gold_barrier: number    // Wallet balance needed to unlock GOLD (₹1299)
   }
 }
 
@@ -73,7 +72,7 @@ export default function AutopaySetupPage() {
   // Plan change state
   const [showConfirm, setShowConfirm] = useState(false)
   const [showComparison, setShowComparison] = useState(false)
-  const [newPlanSelection, setNewPlanSelection] = useState<'SILVER' | 'GOLD' | 'DIAMOND' | null>(null)
+  const [newPlanSelection, setNewPlanSelection] = useState<'SILVER' | 'GOLD' | null>(null)
 
   const { call: getInfo } = useFrappePostCall<any>(
     'dinematters.dinematters.api.coin_billing.get_coin_billing_info'
@@ -125,7 +124,7 @@ export default function AutopaySetupPage() {
     }
   }, [searchParams, setSearchParams])
 
-  const handlePlanToggle = async (newPlan: 'SILVER' | 'GOLD' | 'DIAMOND') => {
+  const handlePlanToggle = async (newPlan: 'SILVER' | 'GOLD') => {
     if (!selectedRestaurant || newPlan === planType) return
 
     // 1. Check for pending changes
@@ -134,21 +133,20 @@ export default function AutopaySetupPage() {
       return
     }
 
-    // 2. Entrance Barrier Check
-    const proMin = billingInfo?.plan_defaults?.pro_monthly || 999;
-    const luxBarrier = billingInfo?.plan_defaults?.lux_barrier || 1299;
+    // 2. Entrance Barrier Check (wallet must have ₹1299 to unlock GOLD)
+    const goldBarrier = billingInfo?.plan_defaults?.gold_barrier || 1299;
 
-    if (newPlan === 'GOLD' && (billingInfo?.coins_balance || 0) < proMin) {
+    if (newPlan === 'GOLD' && (billingInfo?.coins_balance || 0) < goldBarrier) {
       toast.error('Insufficient Balance', {
-        description: `You need at least ₹${proMin} in your wallet to upgrade to GOLD.`
+        description: `You need at least ₹${goldBarrier} in your wallet to unlock GOLD.`
       })
       setShowRecharge(true)
       return
     }
 
-    if (newPlan === 'DIAMOND' && (billingInfo?.coins_balance || 0) < luxBarrier) {
+    if (newPlan === 'GOLD' && (billingInfo?.coins_balance || 0) < luxBarrier) {
       toast.error('Insufficient Balance', {
-        description: `You need at least ₹${luxBarrier} in your wallet to upgrade to DIAMOND.`
+        description: `You need at least ₹${luxBarrier} in your wallet to upgrade to GOLD.`
       })
       setShowRecharge(true)
       return
@@ -324,7 +322,7 @@ export default function AutopaySetupPage() {
               <h4 className="text-sm font-black uppercase tracking-tight text-primary">Plan switch scheduled</h4>
               <p className="text-xs text-muted-foreground">
                 Your {billingInfo.deferred_plan_type} plan will be effective from <b>{format(new Date(billingInfo.plan_change_date!), 'do MMMM')} at 12:00 AM</b>.
-                {(billingInfo.deferred_plan_type === 'GOLD' || billingInfo.deferred_plan_type === 'DIAMOND') && " Premium features will unlock then."}
+                {(billingInfo.deferred_plan_type === 'GOLD' || billingInfo.deferred_plan_type === 'GOLD') && " Premium features will unlock then."}
               </p>
             </div>
             <Badge variant="outline" className="border-primary/30 text-primary">
@@ -338,7 +336,7 @@ export default function AutopaySetupPage() {
       <Card className="border-none shadow-xl bg-card overflow-hidden ring-1 ring-border/50 relative">
         <div className={cn(
           "absolute -top-24 -right-24 w-48 h-48 blur-[80px] opacity-15 rounded-full",
-          planType === 'DIAMOND' ? "bg-indigo-500" :
+          planType === 'GOLD' ? "bg-indigo-500" :
             planType === 'GOLD' ? "bg-primary" : "bg-muted"
         )} />
 
@@ -348,10 +346,10 @@ export default function AutopaySetupPage() {
             <div className="flex-1 p-5 flex items-center gap-4 w-full">
               <div className={cn(
                 "w-12 h-12 rounded-xl flex items-center justify-center shrink-0 shadow-md",
-                planType === 'DIAMOND' ? "bg-indigo-500 text-white" :
+                planType === 'GOLD' ? "bg-indigo-500 text-white" :
                   planType === 'GOLD' ? "bg-primary text-white" : "bg-muted text-muted-foreground"
               )}>
-                {planType === 'DIAMOND' ? <Gem className="h-6 w-6" /> :
+                {planType === 'GOLD' ? <Gem className="h-6 w-6" /> :
                   planType === 'GOLD' ? <Trophy className="h-6 w-6" /> : <Smartphone className="h-6 w-6" />}
               </div>
 
@@ -360,14 +358,14 @@ export default function AutopaySetupPage() {
                   <h3 className="text-xl font-black tracking-tight truncate">{planType} PLAN</h3>
                   <Badge className={cn(
                     "px-2 py-0 text-[9px] font-black uppercase tracking-wider rounded-full h-4 shrink-0",
-                    planType === 'DIAMOND' ? "bg-indigo-500/10 text-indigo-500 border border-indigo-500/20" :
+                    planType === 'GOLD' ? "bg-indigo-500/10 text-indigo-500 border border-indigo-500/20" :
                       planType === 'GOLD' ? "bg-primary/10 text-primary border border-primary/20" : "bg-muted text-muted-foreground"
                   )} variant="outline">
                     Active
                   </Badge>
                 </div>
                 <p className="text-xs text-muted-foreground font-medium truncate max-w-[280px]">
-                  {planType === 'DIAMOND' ? 'Elite business automation & logistics.' :
+                  {planType === 'GOLD' ? 'Elite business automation & logistics.' :
                     planType === 'GOLD' ? 'Professional digital growth tools.' :
                       'Essential digital presence.'}
                 </p>
@@ -377,12 +375,12 @@ export default function AutopaySetupPage() {
             {/* Investment Section */}
             <div className="p-5 flex flex-col justify-center min-w-[160px] w-full md:w-auto">
               <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground mb-1">
-                {planType === 'DIAMOND' ? 'Monthly Floor Guarantee' : 'Daily Floor'}
+                {planType === 'GOLD' ? 'Monthly Floor Guarantee' : 'Daily Floor'}
               </p>
               <p className="text-base font-bold">
                 {planType === 'SILVER' ? '₹0' :
-                  planType === 'GOLD' ? `₹${((billingInfo?.plan_defaults?.pro_monthly ?? 999) / 30).toFixed(0)}` :
-                    `₹${billingInfo?.plan_defaults?.lux_monthly ?? 399}`}
+                  planType === 'GOLD' ? `₹${billingInfo?.plan_defaults?.gold_floor ?? 399}/mo floor` :
+                    '₹0'}
               </p>
             </div>
 
@@ -587,13 +585,13 @@ export default function AutopaySetupPage() {
       <SubscriptionComparisonModal
         open={showComparison}
         onClose={() => setShowComparison(false)}
-        currentPlan={planType as 'SILVER' | 'GOLD' | 'DIAMOND'}
+        currentPlan={planType as 'SILVER' | 'GOLD'}
         onSelectPlan={handlePlanToggle}
         isChangingPlan={isChangingPlan}
         planDefaults={{
-          pro_monthly: billingInfo?.plan_defaults.pro_monthly || 999,
-          lux_monthly: billingInfo?.plan_defaults.lux_monthly || 399,
-          lux_commission: billingInfo?.plan_defaults.lux_commission || 1.5,
+          gold_floor: billingInfo?.plan_defaults.gold_floor || 399,
+          gold_commission: billingInfo?.plan_defaults.gold_commission || 1.5,
+          gold_barrier: billingInfo?.plan_defaults.gold_barrier || 1299,
         }}
       />
 

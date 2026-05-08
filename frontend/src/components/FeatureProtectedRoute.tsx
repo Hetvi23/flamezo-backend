@@ -8,7 +8,7 @@ interface FeatureProtectedRouteProps {
 }
 
 export default function FeatureProtectedRoute({ feature, requireGold = false }: FeatureProtectedRouteProps) {
-  const { isGold, isDiamond, features, isLoading } = useRestaurant()
+  const { isGold, features, isLoading } = useRestaurant()
   const [hasTimedOut, setHasTimedOut] = useState(false)
 
   useEffect(() => {
@@ -29,8 +29,8 @@ export default function FeatureProtectedRoute({ feature, requireGold = false }: 
 
   // Simple access determination
   const hasAccess = Boolean(
-    isDiamond || 
-    (requireGold && (isGold || isDiamond)) ||
+    
+    (requireGold && (isGold)) ||
     (feature && (features as any)?.[feature]) ||
     (!requireGold && !feature) ||
     hasTimedOut

@@ -278,7 +278,7 @@ function DroppableColumn({
 }
 
 export default function AcceptOrders() {
-  const { selectedRestaurant, isDiamond } = useRestaurant()
+  const { selectedRestaurant, isGold } = useRestaurant()
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [activeOrder, setActiveOrder] = useState<Order | null>(null)
@@ -436,8 +436,8 @@ export default function AcceptOrders() {
     )
   }
 
-  if (!isDiamond) {
-    return <LockedFeature feature="ordering" requiredPlan={['DIAMOND']} />
+  if (!isGold) {
+    return <LockedFeature feature="ordering" requiredPlan={['GOLD']} />
   }
 
   return (

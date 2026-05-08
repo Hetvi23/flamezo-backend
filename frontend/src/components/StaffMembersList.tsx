@@ -201,14 +201,14 @@ export default function StaffMembersList({ restaurantId, onAdd }: StaffMembersLi
   const getInitials = (name: string) =>
     name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) || '??'
 
-  const planColor = planType === 'DIAMOND'
+  const planColor = planType === 'GOLD'
     ? 'from-fuchsia-600 to-purple-600'
     : planType === 'GOLD'
     ? 'from-amber-500 to-orange-500'
     : 'from-slate-500 to-slate-600'
 
   const PlanIcon = () => {
-    if (planType === 'DIAMOND') return <Crown className="w-3.5 h-3.5" />
+    if (planType === 'GOLD') return <Crown className="w-3.5 h-3.5" />
     if (planType === 'GOLD') return <Zap className="w-3.5 h-3.5" />
     return <Star className="w-3.5 h-3.5" />
   }
@@ -250,10 +250,10 @@ export default function StaffMembersList({ restaurantId, onAdd }: StaffMembersLi
               style={{ width: seatLimit > 0 ? `${Math.min(100, (seatsUsed / seatLimit) * 100)}%` : '0%' }}
             />
           </div>
-          {seatsRemaining === 0 && planType !== 'DIAMOND' && (
+          {seatsRemaining === 0 && planType !== 'GOLD' && (
             <div className="mt-3 flex items-center gap-2 text-xs text-amber-600 dark:text-amber-400">
               <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
-              <span>Seat limit reached. Upgrade to {planType === 'GOLD' ? 'DIAMOND for 6' : 'GOLD for 3'} staff seats.</span>
+              <span>Seat limit reached. Upgrade to GOLD for 6 staff seats.</span>
             </div>
           )}
         </div>
@@ -407,7 +407,7 @@ export default function StaffMembersList({ restaurantId, onAdd }: StaffMembersLi
           <div>
             <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">Upgrade to Add Staff</p>
             <p className="text-xs text-amber-700 dark:text-amber-400 mt-0.5">
-              GOLD plan includes 3 staff seats · DIAMOND includes 6 staff seats.
+              GOLD plan includes 6 staff seats.
               Contact DineMatters to upgrade your plan.
             </p>
           </div>

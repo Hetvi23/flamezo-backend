@@ -37,7 +37,7 @@ interface Booking {
 const SELECTED_DATE_KEY = 'dinematters-bookings-selected-date'
 
 export default function Bookings() {
-  const { selectedRestaurant, isDiamond, isGold, isSilver } = useRestaurant()
+  const { selectedRestaurant, isGold, isSilver } = useRestaurant()
   const [bookings, setBookings] = useState<Booking[]>([])
   const [loading, setLoading] = useState(true)
   const [showPastBookings, setShowPastBookings] = useState(false)
@@ -268,7 +268,7 @@ export default function Bookings() {
   }
 
   if (isSilver) {
-    return <LockedFeature feature="table_booking" requiredPlan={['GOLD', 'DIAMOND']} />
+    return <LockedFeature feature="table_booking" requiredPlan={['GOLD', 'GOLD']} />
   }
 
   return (

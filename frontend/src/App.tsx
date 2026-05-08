@@ -100,12 +100,16 @@ function AppContent() {
 
 								<Route element={<FeatureProtectedRoute feature="ordering" />}>
 									<Route path="/pos-integration" element={<POSIntegration />} />
+								</Route>
+								<Route element={<FeatureProtectedRoute feature="order_settings" />}>
 									<Route path="/frontend-ordering" element={<OrderSettings />} />
 									<Route path="/order-settings" element={<OrderSettings />} />
 								</Route>
 
 								<Route element={<FeatureProtectedRoute feature="loyalty" />}>
 									<Route path="/loyalty-settings" element={<LoyaltySettings />} />
+								</Route>
+								<Route element={<FeatureProtectedRoute requireGold />}>
 									<Route path="/loyalty-insights" element={<CustomerInsights />} />
 								</Route>
 
@@ -125,11 +129,11 @@ function AppContent() {
 									<Route path="/recommendations-engine" element={<RecommendationsEngine />} />
 								</Route>
 
-								<Route element={<FeatureProtectedRoute requireGold />}>
+								<Route element={<FeatureProtectedRoute feature="whatsapp_orders" />}>
 									<Route path="/whatsapp-orders" element={<WhatsAppOrders />} />
 								</Route>
 
-								{/* Marketing Studio (DIAMOND only) */}
+								{/* Marketing Studio (GOLD only) */}
 								<Route element={<FeatureProtectedRoute feature="marketing_studio" />}>
 									<Route path="/marketing" element={<MarketingOverview />} />
 									<Route path="/marketing/campaigns" element={<MarketingCampaigns />} />
@@ -139,7 +143,7 @@ function AppContent() {
 									<Route path="/marketing/analytics" element={<MarketingAnalytics />} />
 								</Route>
 								
-								{/* Google Growth (GOLD/DIAMOND) */}
+								{/* Google Growth (GOLD only) */}
 								<Route element={<FeatureProtectedRoute feature="google_growth" />}>
 									<Route path="/google-growth" element={<GoogleGrowth />} />
 									<Route path="/google-growth/sync" element={<GoogleGrowthSync />} />

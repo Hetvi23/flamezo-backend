@@ -505,11 +505,11 @@
             "fieldname": "plan_type",
             "fieldtype": "Select",
             "label": "Plan Tier",
-            "options": "\nSILVER\nGOLD\nDIAMOND",
+            "options": "\nSILVER\nGOLD",
             "default": "SILVER",
             "in_list_view": 1,
             "reqd": 1,
-            "description": "Subscription plan tier (SILVER: Digital Menu, GOLD: Premium Digital + Tables \u20b9999/mo, DIAMOND: Full Automation 1.5% Commission)"
+            "description": "Subscription plan tier (SILVER: Free - QR menu + ordering + loyalty, GOLD: Full automation 1.5% commission + CRM + marketing)"
         },
         {
             "fieldname": "plan_activated_on",
@@ -566,7 +566,7 @@
             "label": "Total Orders",
             "default": "0",
             "read_only": 1,
-            "description": "Total number of orders processed (DIAMOND tier)"
+            "description": "Total number of orders processed (GOLD tier)"
         },
         {
             "fieldname": "total_revenue",
@@ -574,7 +574,7 @@
             "label": "Total Revenue",
             "default": "0",
             "read_only": 1,
-            "description": "Total revenue from orders (DIAMOND tier)"
+            "description": "Total revenue from orders (GOLD tier)"
         },
         {
             "fieldname": "commission_earned",
@@ -588,7 +588,7 @@
             "fieldname": "deferred_plan_type",
             "fieldtype": "Select",
             "label": "Deferred Plan Type",
-            "options": "\nSILVER\nGOLD\nDIAMOND",
+            "options": "\nSILVER\nGOLD",
             "description": "The plan that will be activated at midnight"
         },
         {

@@ -51,13 +51,13 @@ def test_it():
     else:
         frappe.db.set_value("Restaurant", gold_name, {"plan_type": "GOLD", "coins_balance": 5000, "monthly_minimum": 999, "tax_rate": 0.0})
     
-    diamond_name = "test-diamond-res-e2e"
-    if not frappe.db.exists("Restaurant", diamond_name):
-        diamond_res = frappe.get_doc({
+    gold_commission_name = "test-gold-commission-res-e2e"
+    if not frappe.db.exists("Restaurant", gold_commission_name):
+        frappe.get_doc({
             "doctype": "Restaurant",
-            "restaurant_id": diamond_name,
-            "restaurant_name": "Test Diamond Restaurant E2E",
-            "plan_type": "DIAMOND",
+            "restaurant_id": gold_commission_name,
+            "restaurant_name": "Test Gold Commission Restaurant E2E",
+            "plan_type": "GOLD",
             "is_active": 1,
             "coins_balance": 5000,
             "timezone": "UTC",
@@ -65,20 +65,20 @@ def test_it():
             "tax_rate": 0.0
         }).insert(ignore_permissions=True)
     else:
-        frappe.db.set_value("Restaurant", diamond_name, {"plan_type": "DIAMOND", "coins_balance": 5000, "monthly_minimum": 399, "tax_rate": 0.0})
+        frappe.db.set_value("Restaurant", gold_commission_name, {"plan_type": "GOLD", "coins_balance": 5000, "monthly_minimum": 399, "tax_rate": 0.0})
 
     # Clear today's data to start fresh
     today_start = getdate().strftime("%Y-%m-%d 00:00:00")
-    frappe.db.delete("Coin Transaction", {"restaurant": ["in", [gold_name, diamond_name]], "creation": [">=", today_start]})
-    frappe.db.delete("Order", {"restaurant": ["in", [gold_name, diamond_name]], "creation": [">=", today_start]})
+    frappe.db.delete("Coin Transaction", {"restaurant": ["in", [gold_name, gold_commission_name]], "creation": [">=", today_start]})
+    frappe.db.delete("Order", {"restaurant": ["in", [gold_name, gold_commission_name]], "creation": [">=", today_start]})
 
-    print("\n[SCENARIO 1: DIAMOND ORDER COMMISSION]")
-    # Create DIAMOND order for ₹3000. Commission should be ₹45 (1.5%)
-    diamond_order = frappe.get_doc({
+    print("\n[SCENARIO 1: GOLD ORDER COMMISSION]")
+    # Create GOLD order for ₹3000. Commission should be ₹45 (1.5%)
+    gold_commission_order = frappe.get_doc({
         "doctype": "Order",
-        "restaurant": diamond_name,
-        "order_id": f"TEST-DIAMOND-{frappe.generate_hash(length=8)}",
-        "order_number": f"DIAMOND-{frappe.generate_hash(length=4)}",
+        "restaurant": gold_commission_name,
+        "order_id": f"TEST-GOLD-COMM-{frappe.generate_hash(length=8)}",
+        "order_number": f"GOLD-COMM-{frappe.generate_hash(length=4)}",
         "total": 3000.0,
         "subtotal": 3000.0,
         "status": "Accepted",
@@ -93,17 +93,17 @@ def test_it():
     }).insert(ignore_permissions=True)
     
     # Complete/Bill it to trigger commission
-    diamond_order.status = "billed"
-    diamond_order.save() # Triggers on_update -> commission deduction
+    gold_commission_order.status = "billed"
+    gold_commission_order.save() # Triggers on_update -> commission deduction
     
     commission = frappe.db.get_value("Coin Transaction", {
-        "restaurant": diamond_name,
+        "restaurant": gold_commission_name,
         "transaction_type": "Commission Deduction",
-        "reference_name": diamond_order.name
+        "reference_name": gold_commission_order.name
     }, "amount") or 0.0
-    
-    print(f"DIAMOND Order (₹3000) Commission: ₹{abs(commission)} (Expected: 45.0)")
-    assert abs(abs(commission) - 45.0) < 0.01, f"DIAMOND Commission mismatch! Got {abs(commission)}"
+
+    print(f"GOLD Commission Order (₹3000) Commission: ₹{abs(commission)} (Expected: 45.0)")
+    assert abs(abs(commission) - 45.0) < 0.01, f"GOLD Commission mismatch! Got {abs(commission)}"
 
     print("\n[SCENARIO 2: GOLD ORDER COMMISSION]")
     # Create GOLD order for ₹1000. Commission should be ₹0 (Fixed Tier)
@@ -138,26 +138,26 @@ def test_it():
     assert abs(gold_comm) < 0.01, f"GOLD should not pay order commission! Got {abs(gold_comm)}"
 
     print("\n[SCENARIO 3: DAILY FLOOR RECOVERY]")
-    # DIAMOND has paid ₹45 commission. Daily target is ₹13.30 (399/30). 
+    # gold_commission_name has paid ₹45 commission. Daily target is ₹13.30 (399/30).
     # Floor Recovery should be 13.30 - 45.00 = 0 (No negative recovery)
-    # GOLD daily target is flat ₹33.30 (999/30). 
-    
+    # gold_name daily target is flat ₹33.30 (999/30).
+
     process_daily_subscription_floors()
-    
-    diamond_floor = frappe.db.get_value("Coin Transaction", {
-        "restaurant": diamond_name,
-        "transaction_type": "Daily DIAMOND Floor"
+
+    commission_floor = frappe.db.get_value("Coin Transaction", {
+        "restaurant": gold_commission_name,
+        "transaction_type": "Daily GOLD Floor"
     }, "amount") or 0.0
-    
+
     gold_floor = frappe.db.get_value("Coin Transaction", {
         "restaurant": gold_name,
         "transaction_type": "Daily GOLD Floor"
     }, "amount") or 0.0
-    
-    print(f"DIAMOND Floor Recovery: ₹{abs(diamond_floor)} (Expected: 0.0)")
+
+    print(f"GOLD Commission Floor Recovery: ₹{abs(commission_floor)} (Expected: 0.0)")
     print(f"GOLD Fixed Fee: ₹{abs(gold_floor)} (Expected: 33.30)")
-    
-    assert abs(diamond_floor) < 0.01, f"DIAMOND Floor calculation wrong! Got {diamond_floor}"
+
+    assert abs(commission_floor) < 0.01, f"GOLD commission floor calculation wrong! Got {commission_floor}"
     assert abs(abs(gold_floor) - 33.30) < 0.01, f"GOLD Flat fee calculation wrong! Got {gold_floor}"
 
     print("\n[SCENARIO 4: DYNAMIC SETTINGS TEST]")
