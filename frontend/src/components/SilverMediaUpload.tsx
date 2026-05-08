@@ -20,20 +20,24 @@ import { cn } from '@/lib/utils'
 
 interface SilverMediaUploadProps {
   onUpload: (files: File[]) => Promise<void>
+  onUpgrade?: () => void
   currentImageCount?: number
   maxImages?: number
   disabled?: boolean
   className?: string
+  variant?: 'default' | 'compact'
 }
 
 export default function SilverMediaUpload({ 
   onUpload, 
+  onUpgrade,
   currentImageCount = 0, 
   maxImages = 200, 
   disabled = false,
-  className 
+  className,
+  variant = 'default'
 }: SilverMediaUploadProps) {
-  const { isSilver, isGold, isDiamond, selectedRestaurant } = useRestaurant()
+  const { isSilver, isGold, selectedRestaurant } = useRestaurant()
   const [uploading, setUploading] = useState(false)
   const [dragActive, setDragActive] = useState(false)
 
@@ -58,7 +62,7 @@ export default function SilverMediaUpload({
           action: {
             label: 'Upgrade',
             onClick: () => {
-              // TODO: Navigate to upgrade page
+              onUpgrade?.()
             }
           }
         })
@@ -75,7 +79,7 @@ export default function SilverMediaUpload({
           action: {
             label: 'Upgrade to Gold',
             onClick: () => {
-              // TODO: Navigate to upgrade page
+              onUpgrade?.()
             }
           }
         })
@@ -133,7 +137,7 @@ export default function SilverMediaUpload({
   return (
     <div className={cn("space-y-4", className)}>
       {/* Usage indicator for Silver restaurants */}
-      {isSilver && (
+      {isSilver && variant !== 'compact' && (
         <Card className="border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/20">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
@@ -165,13 +169,14 @@ export default function SilverMediaUpload({
 
       {/* Upload area */}
       <Card className={cn(
-        "border-dashed transition-colors",
+        "transition-colors",
+        variant === 'compact' ? "border-none shadow-none bg-transparent" : "border-dashed",
         dragActive && "border-primary bg-primary/5",
         disabled && "opacity-50 pointer-events-none",
         className
       )}>
         <CardContent 
-          className="p-8"
+          className={cn(variant === 'compact' ? "p-0" : "p-8")}
           onDrop={handleDrop}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
@@ -186,7 +191,7 @@ export default function SilverMediaUpload({
             className="hidden"
           />
           
-          <div className="text-center space-y-4">
+          <div className={cn("text-center space-y-4", variant === 'compact' && "py-4")}>
             {/* Upload icon */}
             <div className="mx-auto w-12 h-12 rounded-full bg-muted flex items-center justify-center">
               {uploading ? (
@@ -237,10 +242,10 @@ export default function SilverMediaUpload({
                 Choose Images
               </Button>
               
-              {(isGold || isDiamond) && (
+              {(isGold) && (
                 <Button 
                   variant="outline" 
-                  size="sm"
+                  size="sm" 
                   disabled={disabled || uploading}
                   onClick={() => {
                     const input = document.getElementById('media-upload') as HTMLInputElement
@@ -258,7 +263,7 @@ export default function SilverMediaUpload({
             </div>
 
             {/* Upgrade prompt for Silver users at limit */}
-            {isSilver && currentImageCount >= maxImages && (
+            {isSilver && currentImageCount >= maxImages && variant !== 'compact' && (
               <Card className="border-orange-200 dark:border-orange-800 bg-orange-50/50 dark:bg-orange-950/20 mt-4">
                 <CardContent className="p-3">
                   <div className="flex items-center gap-3">
@@ -274,7 +279,7 @@ export default function SilverMediaUpload({
                     size="sm" 
                     className="w-full mt-2 bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700"
                     onClick={() => {
-                      // TODO: Navigate to upgrade page
+                      onUpgrade?.()
                     }}
                   >
                     <ArrowUp className="h-4 w-4 mr-2" />
@@ -288,7 +293,7 @@ export default function SilverMediaUpload({
       </Card>
 
       {/* Feature comparison */}
-      {isSilver && (
+      {isSilver && variant !== 'compact' && (
         <Card className="border-muted">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm flex items-center gap-2">
@@ -314,7 +319,7 @@ export default function SilverMediaUpload({
               size="sm" 
               className="w-full mt-3"
               onClick={() => {
-                // TODO: Navigate to upgrade page
+                onUpgrade?.()
               }}
             >
               Upgrade to Unlock All Features

@@ -49,7 +49,7 @@ interface Restaurant {
   restaurant_name: string
   owner_email?: string
   is_active: number
-  plan_type: 'SILVER' | 'GOLD' | 'DIAMOND'
+  plan_type: 'SILVER' | 'GOLD'
   coins_balance: number
   platform_fee_percent: number
   monthly_minimum: number
@@ -154,7 +154,7 @@ export default function AdminRestaurantManagement() {
     'dinematters.dinematters.api.onboarding.bulk_delete_onboarding_requests'
   )
 
-  const handlePlanChange = async (restaurantName: string, newPlan: 'SILVER' | 'GOLD' | 'DIAMOND') => {
+  const handlePlanChange = async (restaurantName: string, newPlan: 'SILVER' | 'GOLD') => {
     try {
       setUpdating(restaurantName)
       const result = await updateRestaurantPlan({ restaurant_id: restaurantName, plan_type: newPlan }) as any
@@ -498,7 +498,7 @@ export default function AdminRestaurantManagement() {
                           )}
                         </TableCell>
                         <TableCell>
-                          <Badge variant={restaurant.plan_type === 'DIAMOND' ? 'default' : 'outline'}>
+                          <Badge variant={restaurant.plan_type === 'GOLD' ? 'default' : 'outline'}>
                             {restaurant.plan_type}
                           </Badge>
                         </TableCell>
@@ -688,11 +688,11 @@ export default function AdminRestaurantManagement() {
                   <div className="flex items-center gap-2">
                     <Scale className="h-4 w-4 text-primary" />
                     <Label className="text-sm font-bold">
-                      {selectedRestaurant?.plan_type === 'DIAMOND' ? 'Monthly Floor Guarantee' : 'Daily Floor Recovery'}
+                      {selectedRestaurant?.plan_type === 'GOLD' ? 'Monthly Floor Guarantee' : 'Daily Floor Recovery'}
                     </Label>
                   </div>
                   <p className="text-[10px] text-muted-foreground font-medium">
-                    {selectedRestaurant?.plan_type === 'DIAMOND' 
+                    {selectedRestaurant?.plan_type === 'GOLD' 
                       ? 'Control automatic monthly minimum fee deductions' 
                       : 'Control automatic nightly minimum fee deductions'}
                   </p>
@@ -706,7 +706,7 @@ export default function AdminRestaurantManagement() {
                 <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg flex items-start gap-2">
                   <Zap className="h-3 w-3 text-amber-600 mt-0.5" />
                   <p className="text-[9px] text-amber-700 font-bold leading-tight uppercase">
-                    Billing Alert: {selectedRestaurant?.plan_type === 'DIAMOND' ? 'Monthly' : 'Nightly'} floor deduction is PAUSED for this restaurant.
+                    Billing Alert: {selectedRestaurant?.plan_type === 'GOLD' ? 'Monthly' : 'Nightly'} floor deduction is PAUSED for this restaurant.
                   </p>
                 </div>
               )}
@@ -730,11 +730,11 @@ export default function AdminRestaurantManagement() {
                   <div className="flex items-center gap-3">
                     <div className={cn(
                       "p-2 rounded-lg",
-                      selectedRestaurant?.plan_type === 'DIAMOND' ? "bg-blue-500/10 text-blue-600" :
+                      selectedRestaurant?.plan_type === 'GOLD' ? "bg-blue-500/10 text-blue-600" :
                       selectedRestaurant?.plan_type === 'GOLD' ? "bg-amber-500/10 text-amber-600" :
                       "bg-slate-500/10 text-slate-600"
                     )}>
-                      {selectedRestaurant?.plan_type === 'DIAMOND' ? <Gem className="h-4 w-4" /> :
+                      {selectedRestaurant?.plan_type === 'GOLD' ? <Gem className="h-4 w-4" /> :
                        selectedRestaurant?.plan_type === 'GOLD' ? <Trophy className="h-4 w-4" /> :
                        <Shield className="h-4 w-4" />}
                     </div>
@@ -747,8 +747,7 @@ export default function AdminRestaurantManagement() {
                 <SelectContent className="rounded-2xl p-1 shadow-2xl border-none">
                   {[
                     { id: 'SILVER', label: 'Silver Tier', icon: Shield, color: 'text-slate-500', desc: 'Basic Digital Menu' },
-                    { id: 'GOLD', label: 'Gold Tier', icon: Trophy, color: 'text-amber-500', desc: '₹999/mo Minimum Floor' },
-                    { id: 'DIAMOND', label: 'Diamond Tier', icon: Gem, color: 'text-blue-500', desc: '1.5% Success Share (₹399 Floor)' }
+                    { id: 'GOLD', label: 'Gold Tier', icon: Trophy, color: 'text-amber-500', desc: '₹1299 unlock · ₹399/mo floor + 1.5% Commission' },
                   ].map((tier) => (
                     <SelectItem 
                       key={tier.id} 

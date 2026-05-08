@@ -21,7 +21,7 @@ export default function HomeFeaturesManager() {
   const filteredFeatures = isSilver 
     ? features.filter(f => f.id === 'menu' || f.id === 'legacy') 
     : features.filter(f => {
-        // Shared features for GOLD and DIAMOND
+        // Shared features for GOLD
         const sharedFeatures = ['menu', 'legacy', 'dine-play', 'offers-events', 'book-table']
         return sharedFeatures.includes(f.id)
       })
@@ -262,7 +262,7 @@ export default function HomeFeaturesManager() {
         <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
           <p className="text-sm text-blue-800">
             <strong>Silver Plan:</strong> Only "Explore our Menu" and "The Place & Legacy" features are available. 
-            Upgrade to <strong>Gold</strong> or <strong>Diamond</strong> to unlock engagement features like Dine & Play and Events.
+            Upgrade to <strong>Gold</strong> to unlock engagement features like Dine & Play and Events.
           </p>
         </div>
       )}

@@ -86,7 +86,7 @@ class TestCalculateCartTotals(unittest.TestCase):
 
         cls._res = f"{_PREFIX}-CCT-{frappe.generate_hash(length=6)}"
         # tax_rate=5.0 → CGST 2.5% + SGST 2.5%
-        make_restaurant(cls._res, plan="DIAMOND", balance=5000.0)
+        make_restaurant(cls._res, plan="GOLD", balance=5000.0)
         frappe.db.set_value("Restaurant", cls._res, "tax_rate", 5.0)
         frappe.db.commit()
 
@@ -322,7 +322,7 @@ class TestProcessLoyaltyAndCouponsIdempotency(unittest.TestCase):
         cleanup_restaurants_by_prefix(_PREFIX + "-PLC-")
 
         cls._res = f"{_PREFIX}-PLC-{frappe.generate_hash(length=6)}"
-        make_restaurant(cls._res, plan="DIAMOND", balance=5000.0)
+        make_restaurant(cls._res, plan="GOLD", balance=5000.0)
         frappe.db.set_value("Restaurant", cls._res, {
             "tax_rate": 0.0,
             "enable_loyalty": 1,
@@ -431,7 +431,7 @@ class TestVerifyPaymentIdempotency(unittest.TestCase):
         cleanup_restaurants_by_prefix(_PREFIX + "-VPI-")
 
         cls._res = f"{_PREFIX}-VPI-{frappe.generate_hash(length=6)}"
-        make_restaurant(cls._res, plan="DIAMOND", balance=5000.0)
+        make_restaurant(cls._res, plan="GOLD", balance=5000.0)
         frappe.db.set_value("Restaurant", cls._res, {
             "tax_rate": 0.0,
             "enable_loyalty": 0,

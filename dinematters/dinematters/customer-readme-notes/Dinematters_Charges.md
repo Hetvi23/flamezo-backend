@@ -10,11 +10,10 @@ DineMatters offers three distinct tiers designed to grow with your restaurant.
 | Tier | Fee Structure | Best For |
 | :--- | :--- | :--- |
 | **SILVER** | **₹0 / Month** | Start-ups digitizing their menu for the first time. |
-| **PRO (GOLD)** | **₹999 / Month** | Established dine-in restaurants needing QR ordering & branding. ₹33.30/day |
-| DIAMOND | **1.5% Commission** <br> (₹399 Monthly Floor) | High-volume restaurants requiring full automation & marketing. |
+| **GOLD** | **₹999/mo + 1.5% Commission** <br> (₹399 Monthly Floor) | Established restaurants needing full automation, marketing & growth tools. |
 
-### 💎 The Diamond Pricing Model (Monthly Floor)
-The Diamond tier is a "Growth Success Partner" model. It is designed so that DineMatters only earns when you earn.
+### 💎 The Gold Pricing Model (Monthly Floor)
+The Gold tier is a "Growth Success Partner" model. It is designed so that DineMatters only earns when you earn.
 
 - **1.5% Commission**: Deducted straight from every order.
 - **₹399 Monthly Floor**: We guarantee our platform services for a minimum of ₹399 per month. 
@@ -38,14 +37,14 @@ The Diamond tier is a "Growth Success Partner" model. It is designed so that Din
 ## 2. Feature Access by Tier
 We enforce strict feature boundaries to ensure each tier provides the right tools for its level.
 
-| Feature | SILVER | PRO (GOLD) | DIAMOND |
-| :--- | :---: | :---: | :---: |
-| Digital QR Menu | ✅ | ✅ | ✅ |
-| In-Store Table Ordering | ❌ | ✅ | ✅ |
-| WhatsApp Shadow Ordering | ❌ | ✅ | ✅ |
-| **Lead Unlock (>24h)** | ❌ | **₹1 / Lead** | **FREE** |
-| Advanced Marketing Studio | ❌ | ❌ | ✅ |
-| AI Media Suite | Paid (Per Use) | Paid (Per Use) | Paid (Per Use) |
+| Feature | SILVER | GOLD |
+| :--- | :---: | :---: |
+| Digital QR Menu | ✅ | ✅ |
+| In-Store Table Ordering | ❌ | ✅ |
+| WhatsApp Shadow Ordering | ❌ | ✅ |
+| **Lead Unlock (>24h)** | ❌ | **₹1 / Lead** |
+| Advanced Marketing Studio | ❌ | ✅ |
+| AI Media Suite | Paid (Per Use) | Paid (Per Use) |
 
 ---
 
@@ -102,5 +101,5 @@ We reward committed partners with significant recharge bonuses:
 > [!IMPORTANT]
 > **Wallet Transparency**: Invoices and top-up summaries should explicitly state **"18% GST Applied Upfront"** to ensure zero confusion between payment and wallet balance.
 
-1.  **Diamond Excellence**: Position the 1.5% commission not as a "fee," but as a **"Growth Success Partner"** model.
+1.  **Gold Excellence**: Position the 1.5% commission not as a "fee," but as a **"Growth Success Partner"** model.
 2.  **Safety Buffer**: The **-₹100 Wallet Grace Period** should be marketed as "Uninterrupted Service Protection," ensuring your menu never goes offline during peak hours.

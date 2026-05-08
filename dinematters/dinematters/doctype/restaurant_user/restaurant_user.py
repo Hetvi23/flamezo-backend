@@ -8,8 +8,7 @@ from frappe.model.document import Document
 # Staff seat limits by plan (excludes the one Restaurant Admin)
 STAFF_SEAT_LIMITS = {
 	"SILVER": 0,
-	"GOLD": 3,
-	"DIAMOND": 6,
+	"GOLD": 6,
 }
 
 
@@ -44,7 +43,7 @@ class RestaurantUser(Document):
 		if limit == 0:
 			frappe.throw(
 				f"Your current {plan_type} plan does not support additional staff members. "
-				f"Upgrade to GOLD (up to 3 staff) or DIAMOND (up to 6 staff) to invite your team."
+				f"Upgrade to GOLD (up to 6 staff) to invite your team."
 			)
 
 		# Count existing active non-admin staff
@@ -58,11 +57,9 @@ class RestaurantUser(Document):
 		)
 
 		if current_count >= limit:
-			next_plan = "DIAMOND" if plan_type == "GOLD" else None
-			upgrade_msg = " Upgrade to DIAMOND for up to 6 staff seats." if next_plan else ""
 			frappe.throw(
 				f"Your {plan_type} plan supports up to {limit} staff member(s). "
-				f"You currently have {current_count} active staff.{upgrade_msg}"
+				f"You currently have {current_count} active staff."
 			)
 
 	def after_insert(self):

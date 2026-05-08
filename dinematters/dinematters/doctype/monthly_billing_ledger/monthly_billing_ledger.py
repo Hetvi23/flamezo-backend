@@ -39,10 +39,10 @@ class MonthlyBillingLedger(Document):
                 base_commission = min_amt_paise
                 self.notes = f"GOLD Plan Fixed SaaS Fee: ₹{monthly_min:.2f}"
             else:
-                # DIAMOND (or others) is transactional (max of floor vs commission)
+                # Transactional billing (max of floor vs commission)
                 calculated_fee = int(math.floor(total_gmv * (platform_fee_percent / 100.0)))
                 base_commission = max(min_amt_paise, calculated_fee)
-                self.notes = f"DIAMOND Plan Commission: ₹{calculated_fee/100:.2f} (Floor: ₹{monthly_min:.2f})"
+                self.notes = f"GOLD Plan Commission: ₹{calculated_fee/100:.2f} (Floor: ₹{monthly_min:.2f})"
             
             # 2. GST Compliance (18% SaaS tax)
             tax_rate = float(self.tax_percent or 18.0)

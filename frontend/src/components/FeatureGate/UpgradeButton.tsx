@@ -27,7 +27,7 @@ export function UpgradeButton({ size = 'md', variant = 'primary', className = ''
   return (
     <button
       onClick={() => {
-        window.location.href = '/upgrade';
+        window.location.href = '/dinematters/autopay-setup';
       }}
       className={`
         inline-flex items-center gap-2 font-semibold rounded-lg transition-all

@@ -2,7 +2,7 @@
 # For license information, please see license.txt
 
 """
-WhatsApp Shadow Ordering API — GOLD/DIAMOND Plan Feature
+WhatsApp Shadow Ordering API — GOLD Plan Feature
 
 Captures customer intent-to-order data when the customer redirects to WhatsApp.
 Creates a shadow Order record for analytics and CRM purposes.
@@ -147,11 +147,13 @@ def get_whatsapp_orders(
         )
         
         twenty_four_hours_ago = add_to_date(now_datetime(), hours=-24)
+        plan_type = frappe.db.get_value("Restaurant", restaurant_id, "plan_type")
         
         for order in orders:
             is_recent = order.creation > twenty_four_hours_ago
             is_purchased = order.customer_phone in unlocked_phone_list
-            order["is_unlocked"] = True if (is_recent or is_purchased) else False
+            is_gold = plan_type == "GOLD"
+            order["is_unlocked"] = True if (is_recent or is_purchased or is_gold) else False
         
         return {
             "success": True,
@@ -178,15 +180,13 @@ def unlock_whatsapp_lead(restaurant_id: str, customer_phone: str, order_id=None)
         if frappe.db.exists("WhatsApp Lead Unlock", {"restaurant": restaurant_id, "customer_phone": customer_phone}):
             return {"success": True, "message": "Lead already unlocked."}
             
-        # 2. Check Plan Type for Lead Unlock Fee
+        # 2. Check Plan - Gold users get it for free
         plan_type = frappe.db.get_value("Restaurant", restaurant_id, "plan_type")
+        if plan_type == "GOLD":
+            return {"success": True, "message": "Lead unlocked (GOLD Plan)."}
 
-        # DIAMOND gets lead unlocks for free.
-        # GOLD pays 1 coin per unlock.
-        if plan_type == "DIAMOND":
-            amount_to_deduct = 0
-        else:
-            amount_to_deduct = 1
+        # 3. Deduct 1 coin per lead unlock for non-GOLD (SILVER)
+        amount_to_deduct = 1
 
         # 3. Deduct Coins if applicable
         if amount_to_deduct > 0:
@@ -205,7 +205,7 @@ def unlock_whatsapp_lead(restaurant_id: str, customer_phone: str, order_id=None)
             "restaurant": restaurant_id,
             "customer_phone": customer_phone,
             "order_reference": order_id,
-            "was_free": 1 if plan_type == "DIAMOND" else 0
+            "was_free": 0
         })
         unlock.insert(ignore_permissions=True)
         frappe.db.commit()
@@ -267,12 +267,12 @@ def log_whatsapp_order(
         restaurant = validate_restaurant_for_api(restaurant_id)
         plan_type = frappe.db.get_value("Restaurant", restaurant, "plan_type")
 
-        if plan_type not in ("GOLD", "DIAMOND"):
+        if plan_type not in ["SILVER", "GOLD"]:
             return {
                 "success": False,
                 "error": {
                     "code": "PLAN_NOT_ELIGIBLE",
-                    "message": "WhatsApp ordering is available for GOLD and DIAMOND plans only.",
+                    "message": "WhatsApp ordering is available for SILVER and GOLD plans.",
                 },
             }
 

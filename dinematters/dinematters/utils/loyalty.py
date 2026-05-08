@@ -1,6 +1,13 @@
 import frappe
 from frappe import _
 from frappe.utils import flt, cint, today, add_months
+from dinematters.dinematters.utils.platform_config import (
+	get_earn_percentage,
+	get_max_coins_per_order,
+	get_min_order_to_earn,
+	get_min_redemption_threshold,
+	get_expiry_months,
+)
 
 def is_loyalty_enabled(restaurant):
 	"""Check if loyalty is enabled for a restaurant."""
@@ -89,64 +96,42 @@ def redeem_loyalty_coins(customer, restaurant, coins, reason="Redemption", ref_d
 
 def earn_loyalty_coins(customer, restaurant, amount_paid, reason="Order", ref_doctype=None, ref_name=None):
 	"""
-	Calculate and credit loyalty coins based on restaurant config.
-	Supports two earn modes:
-	  - "Percentage of Bill": coins = amount_paid * (earn_percentage / 100)
-	  - "Flat Coins per Order": coins = earn_flat_coins (fixed per qualifying order)
-	Both modes respect min_order_to_earn and max_coins_per_order guardrails.
-	Sets is_settled=0 initially if reference is an Order.
+	Calculate and credit loyalty coins using DineMatters platform-fixed rates.
+	All earn logic is centralized — restaurants cannot override these values.
+
+	Platform rules (from utils/platform_config.py):
+	  - Earn rate:        10% of bill
+	  - Min order:        ₹100
+	  - Max per order:    ₹1000
+	  - Expiry:           6 months
+
+	Sets is_settled=0 initially if reference is an Order (settled on completion).
 	"""
 	if not customer or not restaurant or not amount_paid or amount_paid <= 0:
 		return 0
-	
+
 	if not is_loyalty_enabled(restaurant):
 		return 0
-	
-	# Get loyalty config — fetch all earn-related fields in one query
-	config = frappe.db.get_value(
-		"Restaurant Loyalty Config",
-		{"restaurant": restaurant, "is_active": 1},
-		[
-			"earn_type", "earn_percentage", "earn_flat_coins",
-			"min_order_to_earn", "max_coins_per_order",
-			"points_per_inr", "loyalty_expiry_months"
-		],
-		as_dict=True
-	)
 
-	if not config:
-		return 0
-
-	expiry_months = cint(config.loyalty_expiry_months) if config.loyalty_expiry_months else 12
+	# ── Platform-Constant Rates (no DB read for earn config) ──────────────────
+	min_order    = get_min_order_to_earn()     # ₹100
+	max_cap      = get_max_coins_per_order()   # ₹1000
+	expiry_months = get_expiry_months()        # 6
 
 	# ── Minimum Order Check ───────────────────────────────────────────────────
-	min_order = flt(config.min_order_to_earn or 0)
 	if min_order > 0 and flt(amount_paid) < min_order:
-		return 0  # Order doesn't qualify for earning
+		return 0  # Order doesn't qualify
 
-	# ── Coin Calculation by Earn Mode ─────────────────────────────────────────
-	earn_type = (config.earn_type or "Percentage of Bill")
-
-	if earn_type == "Flat Coins per Order":
-		coins_earned = cint(config.earn_flat_coins or 50)
-	else:
-		# Default: Percentage of Bill
-		# Use earn_percentage if set; fallback to legacy points_per_inr for migration safety
-		if config.earn_percentage:
-			rate = flt(config.earn_percentage) / 100
-		else:
-			rate = flt(config.points_per_inr or 0.05)
-		coins_earned = int(flt(amount_paid) * rate)
-
-	# ── Max Coins Per Order Cap ───────────────────────────────────────────────
-	max_cap = cint(config.max_coins_per_order or 500)
-	coins_earned = min(coins_earned, max_cap)
+	# ── Coin Calculation: always 10% of bill (platform standard) ──────────────
+	rate = get_earn_percentage() / 100         # 0.10
+	coins_earned = int(flt(amount_paid) * rate)
+	coins_earned = min(coins_earned, max_cap)  # Hard cap
 
 	if coins_earned <= 0:
 		return 0
-		
+
 	expiry_date = add_months(today(), expiry_months)
-	
+
 	entry = frappe.get_doc({
 		"doctype": "Restaurant Loyalty Entry",
 		"customer": customer,
@@ -161,12 +146,12 @@ def earn_loyalty_coins(customer, restaurant, amount_paid, reason="Order", ref_do
 		"is_settled": 0 if ref_doctype == "Order" else 1
 	})
 	entry.insert(ignore_permissions=True)
-	
+
 	# Update Order doc if reference is an Order
 	if ref_doctype == "Order" and ref_name:
 		frappe.db.set_value("Order", ref_name, "coins_earned", coins_earned)
 
-	# Push notification — only for settled entries (pending entries aren't spendable yet)
+	# Push notification — only for settled entries (pending not yet spendable)
 	if entry.is_settled:
 		frappe.enqueue(
 			"dinematters.dinematters.utils.loyalty.send_coin_credit_push",
@@ -179,16 +164,17 @@ def earn_loyalty_coins(customer, restaurant, amount_paid, reason="Order", ref_do
 
 def add_loyalty_coins(customer, restaurant, coins, reason, ref_doctype=None, ref_name=None):
 	"""
-	General purpose function to add loyalty coins (fixed amount).
+	General purpose function to add a fixed number of loyalty coins (welcome, referral, etc.).
+	Expiry is always the platform-standard 12 months.
 	"""
 	if not customer or not restaurant or not coins or coins <= 0:
 		return 0
-		
+
 	if not is_loyalty_enabled(restaurant):
 		return 0
-	
-	config = frappe.db.get_value("Restaurant Loyalty Config", {"restaurant": restaurant, "is_active": 1}, "loyalty_expiry_months")
-	expiry_months = cint(config) if config else 12
+
+	# Always use platform-standard expiry — no per-restaurant override
+	expiry_months = get_expiry_months()  # 6
 	expiry_date = add_months(today(), expiry_months)
 		
 	entry = frappe.get_doc({

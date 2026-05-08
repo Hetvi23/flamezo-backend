@@ -8,5 +8,5 @@ from frappe import _
 class MarketingTrigger(Document):
     def validate(self):
         plan = frappe.db.get_value("Restaurant", self.restaurant, "plan_type")
-        if plan != "DIAMOND" and self.is_active:
-            frappe.throw(_("Marketing Triggers require a DIAMOND subscription."))
+        if plan != "GOLD" and self.is_active:
+            frappe.throw(_("Marketing Triggers require a GOLD subscription."))

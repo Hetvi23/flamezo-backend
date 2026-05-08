@@ -36,7 +36,7 @@ from datetime import datetime
 # Handled by customization_helpers
 
 @frappe.whitelist(allow_guest=True)
-@require_plan('GOLD', 'DIAMOND')
+@require_plan('SILVER', 'GOLD')
 def create_order(restaurant_id, items, cooking_requests=None, customer_info=None, delivery_info=None, session_id=None, table_number=None, coupon_code=None, payment_method=None, order_type=None, packaging_fee=None, delivery_fee=None, pickup_time=None, loyalty_coins_redeemed=0, referral_id=None, tax=None, cgst=None, sgst=None, tax_percent=None):
 	"""
 	POST /api/v1/orders
@@ -280,6 +280,14 @@ def create_order(restaurant_id, items, cooking_requests=None, customer_info=None
 				order_payment_method = "pay_at_counter"
 				initial_status = "pending_verification"
 			elif pm in ("pay_online", "pay online"):
+				if restaurant_doc.plan_type == "SILVER":
+					return {
+						"success": False,
+						"error": {
+							"code": "PLAN_RESTRICTED",
+							"message": "Online payments are only available for GOLD plan restaurants. Please pay at the counter."
+						}
+					}
 				order_payment_method = "pay_online"
 				initial_status = "confirmed"
 		
@@ -445,13 +453,13 @@ def create_order(restaurant_id, items, cooking_requests=None, customer_info=None
 
 
 @frappe.whitelist(allow_guest=True)
-@require_plan('DIAMOND')
+@require_plan('GOLD')
 def get_orders(restaurant_id, status=None, page=1, limit=20, session_id=None, admin_mode=False, date_from=None, date_to=None, search_query=None, recent_only=False, phone=None):
 	"""
 	GET /api/v1/orders
 	Get user's orders for restaurant
 	Requires restaurant_id for SaaS multi-tenancy
-	Optional: phone — for GOLD WhatsApp guest orders (no OTP), filter by customer_phone
+	Optional: phone — for GOLD WhatsApp guest orders (no OTP) — GOLD plan only, filter by customer_phone
 	"""
 	try:
 		# Validate restaurant
@@ -481,7 +489,7 @@ def get_orders(restaurant_id, status=None, page=1, limit=20, session_id=None, ad
 		# In admin mode, don't filter by customer
 		if not admin_mode:
 			if phone:
-				# GOLD WhatsApp guest: filter by phone number captured at checkout
+				# GOLD plan WhatsApp guest: filter by phone number captured at checkout
 				filters["customer_phone"] = phone
 			elif user:
 				filters["customer"] = user
@@ -938,7 +946,7 @@ def get_order(restaurant_id, order_id):
 
 
 @frappe.whitelist()
-@require_plan('DIAMOND')
+@require_plan('GOLD')
 def update_order_items(order_id, items, restaurant_id):
 	"""
 	PATCH /api/v1/orders/:orderId/items
@@ -1073,7 +1081,7 @@ def update_order_items(order_id, items, restaurant_id):
 
 
 @frappe.whitelist()
-@require_plan('DIAMOND')
+@require_plan('GOLD')
 def update_order_status(order_id, status):
 	"""
 	PATCH /api/v1/orders/:orderId/status

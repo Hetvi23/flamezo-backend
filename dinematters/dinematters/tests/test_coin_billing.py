@@ -162,11 +162,11 @@ class TestRecordTransaction(unittest.TestCase):
         self.assertAlmostEqual(new_bal, 955.0, places=2)
 
     def test_daily_gold_subscription_decreases_balance(self):
-        new_bal = self.record_transaction(self._res_name, "Daily GOLD Subscription", 33.30)
+        new_bal = self.record_transaction(self._res_name, "Daily GOLD Floor", 33.30)
         self.assertAlmostEqual(new_bal, 966.70, places=2)
 
-    def test_daily_diamond_floor_decreases_balance(self):
-        new_bal = self.record_transaction(self._res_name, "Daily DIAMOND Floor", 43.30)
+    def test_daily_gold_floor_large_decreases_balance(self):
+        new_bal = self.record_transaction(self._res_name, "Daily GOLD Floor", 43.30)
         self.assertAlmostEqual(new_bal, 956.70, places=2)
 
     def test_delivery_fee_decreases_balance(self):
@@ -482,7 +482,7 @@ class TestDeductCoins(unittest.TestCase):
 class TestUpdateSubscriptionPlan(unittest.TestCase):
     """
     Tests the 'Tomorrow Rule' for plan changes and the balance barrier checks
-    for GOLD and DIAMOND upgrades.
+    for GOLD upgrades.
     """
 
     @classmethod
@@ -526,18 +526,18 @@ class TestUpdateSubscriptionPlan(unittest.TestCase):
         self.assertTrue(result["deferred"])
         self.assertEqual(result["plan_type"], "GOLD")
 
-    def test_diamond_upgrade_fails_when_balance_below_barrier(self):
-        """DIAMOND requires balance >= diamond_upgrade_barrier (default 1299). Balance 500 must fail."""
+    def test_gold_upgrade_fails_when_balance_below_barrier(self):
+        """GOLD requires balance >= gold_upgrade_barrier (default 1299). Balance 500 must fail."""
         make_restaurant(self._res_name, plan="SILVER", balance=500.0)
         with self.assertRaises(frappe.ValidationError):
-            self.update_subscription_plan(self._res_name, "DIAMOND")
+            self.update_subscription_plan(self._res_name, "GOLD")
 
-    def test_diamond_upgrade_succeeds_when_balance_meets_barrier(self):
+    def test_gold_upgrade_succeeds_when_balance_meets_barrier(self):
         make_restaurant(self._res_name, plan="SILVER", balance=2000.0)
-        result = self.update_subscription_plan(self._res_name, "DIAMOND")
+        result = self.update_subscription_plan(self._res_name, "GOLD")
         self.assertTrue(result["success"])
         self.assertTrue(result["deferred"])
-        self.assertEqual(result["plan_type"], "DIAMOND")
+        self.assertEqual(result["plan_type"], "GOLD")
 
     def test_plan_change_deferred_to_tomorrow(self):
         """effective_date must be tomorrow, plan_type must NOT change immediately."""

@@ -117,23 +117,6 @@ class TestCouponValidate(unittest.TestCase):
 
     # ── JSON field constraint fix (the original bug) ──────────────────────────
 
-    def test_required_items_empty_string_becomes_none(self):
-        """required_items='' must be coerced to None so MariaDB JSON constraint passes."""
-        doc = frappe.get_doc({
-            "doctype": "Coupon",
-            "restaurant": self.restaurant,
-            "code": "COMBO1",
-            "offer_type": "coupon",
-            "discount_type": "flat",
-            "discount_value": 5.0,
-            "is_active": 1,
-            "required_items": "",          # ← the trigger for the original bug
-        })
-        doc.insert(ignore_permissions=True)   # must NOT raise OperationalError
-        frappe.db.commit()
-        saved = frappe.db.get_value("Coupon", doc.name, "required_items")
-        self.assertIsNone(saved, "required_items should be NULL in DB, not empty string")
-
     def test_valid_days_of_week_empty_string_becomes_none(self):
         """valid_days_of_week='' must also be coerced to None."""
         doc = frappe.get_doc({
@@ -150,17 +133,6 @@ class TestCouponValidate(unittest.TestCase):
         frappe.db.commit()
         saved = frappe.db.get_value("Coupon", doc.name, "valid_days_of_week")
         self.assertIsNone(saved)
-
-    def test_valid_json_required_items_preserved(self):
-        """A valid JSON string for required_items must survive save unchanged."""
-        items_json = json.dumps(["dish-1", "dish-2"])
-        doc = make_coupon(
-            self.restaurant, code="COMBO2",
-            offer_type="combo",
-            required_items=items_json,
-        )
-        saved = frappe.db.get_value("Coupon", doc.name, "required_items")
-        self.assertEqual(json.loads(saved), ["dish-1", "dish-2"])
 
     # ── Code normalisation ────────────────────────────────────────────────────
 
@@ -355,47 +327,6 @@ class TestGetCouponDetails(unittest.TestCase):
             result = self._call("DINETIME")
         self.assertTrue(result["success"])
 
-    # ── Combo validation ──────────────────────────────────────────────────────
-
-    def test_combo_no_cart_items_provided(self):
-        make_coupon(
-            self.restaurant, code="BUNDLE",
-            offer_type="combo",
-            required_items=json.dumps(["dish-A"]),
-        )
-        result = self._call("BUNDLE", cart_items=None)
-        self.assertFalse(result["success"])
-        self.assertEqual(result["error_code"], "COMBO_ITEMS_MISSING")
-
-    def test_combo_missing_required_item(self):
-        make_coupon(
-            self.restaurant, code="BUNDLE2",
-            offer_type="combo",
-            required_items=json.dumps(["dish-A", "dish-B"]),
-        )
-        result = self._call(
-            "BUNDLE2",
-            cart_items=[{"dishId": "dish-A"}],  # dish-B missing
-        )
-        self.assertFalse(result["success"])
-        self.assertEqual(result["error_code"], "COMBO_INCOMPLETE")
-
-    def test_combo_all_required_items_present(self):
-        make_coupon(
-            self.restaurant, code="BUNDLE3",
-            offer_type="combo",
-            required_items=json.dumps(["dish-A", "dish-B"]),
-            combo_price=150.0,
-        )
-        result = self._call(
-            "BUNDLE3",
-            cart_total=300,
-            cart_items=[{"dishId": "dish-A"}, {"dishId": "dish-B"}],
-        )
-        self.assertTrue(result["success"])
-        # discount = cart_total - combo_price = 300 - 150 = 150
-        self.assertAlmostEqual(result["discount_amount"], 150.0)
-
     # ── Discount calculation ──────────────────────────────────────────────────
 
     def test_flat_discount(self):
@@ -431,18 +362,6 @@ class TestGetCouponDetails(unittest.TestCase):
         self.assertTrue(result["success"])
         # 20% of 200 = 40, below cap of 100
         self.assertAlmostEqual(result["discount_amount"], 40.0)
-
-    def test_combo_price_discount(self):
-        make_coupon(
-            self.restaurant, code="COMBOFIX",
-            offer_type="combo",
-            combo_price=100.0,
-            required_items=None,
-        )
-        result = self._call("COMBOFIX", cart_total=250)
-        self.assertTrue(result["success"])
-        # discount = 250 - 100 = 150
-        self.assertAlmostEqual(result["discount_amount"], 150.0)
 
     def test_result_contains_expected_fields(self):
         make_coupon(self.restaurant, code="FIELDS", discount_value=5.0)

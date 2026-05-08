@@ -10,32 +10,12 @@
   "program_name",
   "restaurant",
   "is_active",
-  "section_break_earning",
+  "section_break_platform",
   "earn_type",
   "earn_percentage",
-  "earn_flat_coins",
-  "min_order_to_earn",
-  "max_coins_per_order",
   "points_per_inr",
   "coin_value_in_inr",
-  "min_redemption_threshold",
-  "min_billing_for_redemption",
-  "loyalty_expiry_months",
   "earn_on_status",
-  "column_break_referral",
-  "share_reward_coins",
-  "min_unique_opens_for_reward",
-  "coins_per_unique_open",
-  "max_opens_rewarded_per_share",
-  "section_break_conversion",
-  "referral_order_reward_coins",
-  "new_user_welcome_reward_coins",
-  "column_break_welcome",
-  "welcome_coupon_discount",
-  "section_break_tiers",
-  "tier_silver_threshold",
-  "tier_gold_threshold",
-  "tier_platinum_threshold",
   "section_break_birthday",
   "birthday_bonus_coins"
  ],
@@ -64,174 +44,50 @@
    "label": "Is Active"
   },
   {
-   "fieldname": "section_break_earning",
+   "fieldname": "section_break_platform",
    "fieldtype": "Section Break",
-   "label": "Earning & Redemption"
+   "label": "Platform-Fixed Rates (Read-Only — Managed by DineMatters)"
   },
   {
    "default": "Percentage of Bill",
-   "description": "How earn cash are calculated — as a % of bill or a flat amount per order",
+   "description": "DineMatters platform standard — not configurable by restaurants.",
    "fieldname": "earn_type",
    "fieldtype": "Select",
    "label": "Earn Mode",
-   "options": "Percentage of Bill\nFlat Cash per Order"
+   "options": "Percentage of Bill\nFlat Cash per Order",
+   "read_only": 1
   },
   {
    "default": "5",
-   "description": "% of bill awarded as cash. DineMatters limits: 1%\u201315%. Applies when Earn Mode is Percentage.",
+   "description": "Platform-fixed at 5% of bill. Enforced by backend — changing this has no effect.",
    "fieldname": "earn_percentage",
    "fieldtype": "Float",
-   "label": "Earn Percentage (%)"
+   "label": "Earn Percentage (%)",
+   "read_only": 1
   },
   {
-   "default": "50",
-   "description": "Fixed cash awarded per qualifying order. DineMatters limits: 5\u2013500. Applies when Earn Mode is Flat.",
-   "fieldname": "earn_flat_coins",
-   "fieldtype": "Int",
-   "label": "Flat Cash per Order"
-  },
-  {
-   "default": "0",
-   "description": "Minimum order value (₹) required for customer to earn any cash. 0 means no minimum.",
-   "fieldname": "min_order_to_earn",
-   "fieldtype": "Float",
-   "label": "Minimum Order to Earn (₹)"
-  },
-  {
-   "default": "500",
-   "description": "Maximum cash a customer can earn in a single order. DineMatters limits: 10\u20131000.",
-   "fieldname": "max_coins_per_order",
-   "fieldtype": "Int",
-   "label": "Max Cash per Order"
-  },
-  {
-   "default": "1",
-   "description": "How much cash is earned per 1 \u20b9 spent (auto-computed from Earn Percentage, kept for compatibility)",
+   "default": "0.05",
+   "description": "Auto-computed from earn_percentage. Kept for backend compatibility.",
    "fieldname": "points_per_inr",
    "fieldtype": "Float",
-   "label": "Cash per \u20b9 (Legacy)"
+   "label": "Cash per \u20b9 (Computed)",
+   "read_only": 1
   },
   {
    "default": "1",
-   "description": "Value of 1 cash unit in \u20b9 during redemption",
+   "description": "Platform-constant: 1 Cash = \u20b91. Non-negotiable.",
    "fieldname": "coin_value_in_inr",
    "fieldtype": "Float",
-   "label": "Cash Value in \u20b9"
-  },
-  {
-   "default": "0",
-   "fieldname": "min_redemption_threshold",
-   "fieldtype": "Int",
-   "label": "Min Redemption Threshold (Cash)"
-  },
-  {
-   "default": "0",
-   "fieldname": "min_billing_for_redemption",
-   "fieldtype": "Float",
-   "label": "Min Billing for Redemption (\u20b9)"
-  },
-  {
-   "default": "12",
-   "description": "Months after which earned cash expires",
-   "fieldname": "loyalty_expiry_months",
-   "fieldtype": "Int",
-   "label": "Loyalty Expiry (Months)"
+   "label": "Cash Value in \u20b9",
+   "read_only": 1
   },
   {
    "default": "Completed",
-   "description": "Cash will be spendable only after order reaches this status",
+   "description": "Cash is spendable only after order reaches this status",
    "fieldname": "earn_on_status",
    "fieldtype": "Select",
    "label": "Settle Cash on Status",
    "options": "Confirmed\nCompleted\nBilled"
-  },
-  {
-   "fieldname": "column_break_referral",
-   "fieldtype": "Column Break"
-  },
-  {
-   "default": "20",
-   "description": "Cash rewarded to referrer for sharing",
-   "fieldname": "share_reward_coins",
-   "fieldtype": "Int",
-   "label": "Share Reward Cash"
-  },
-  {
-   "default": "2",
-   "description": "Minimum unique opens required to trigger share reward",
-   "fieldname": "min_unique_opens_for_reward",
-   "fieldtype": "Int",
-   "label": "Min Unique Opens"
-  },
-  {
-   "default": "2",
-   "description": "Cash rewarded for each unique open after the initial threshold",
-   "fieldname": "coins_per_unique_open",
-   "fieldtype": "Int",
-   "label": "Cash per Unique Open"
-  },
-  {
-   "default": "5",
-   "description": "Maximum opens per share that generate rewards",
-   "fieldname": "max_opens_rewarded_per_share",
-   "fieldtype": "Int",
-   "label": "Max Opens Rewarded"
-  },
-  {
-   "fieldname": "section_break_conversion",
-   "fieldtype": "Section Break",
-   "label": "Conversion Rewards"
-  },
-  {
-   "default": "100",
-   "description": "Cash rewarded to referrer when friend matches first order",
-   "fieldname": "referral_order_reward_coins",
-   "fieldtype": "Int",
-   "label": "Referral Order Reward Cash"
-  },
-  {
-   "default": "50",
-   "description": "Cash rewarded to new user on signup via referral",
-   "fieldname": "new_user_welcome_reward_coins",
-   "fieldtype": "Int",
-   "label": "New User Welcome Cash"
-  },
-  {
-   "fieldname": "column_break_welcome",
-   "fieldtype": "Column Break"
-  },
-  {
-   "default": "0",
-   "description": "Instant discount amount (\u20b9) for new users via referral",
-   "fieldname": "welcome_coupon_discount",
-   "fieldtype": "Float",
-   "label": "Welcome Coupon Discount (\u20b9)"
-  },
-  {
-   "fieldname": "section_break_tiers",
-   "fieldtype": "Section Break",
-   "label": "Loyalty Tiers"
-  },
-  {
-   "default": "500",
-   "description": "Lifetime cash earned to reach Silver tier",
-   "fieldname": "tier_silver_threshold",
-   "fieldtype": "Int",
-   "label": "Silver Tier Threshold (Lifetime Cash)"
-  },
-  {
-   "default": "2000",
-   "description": "Lifetime cash earned to reach Gold tier",
-   "fieldname": "tier_gold_threshold",
-   "fieldtype": "Int",
-   "label": "Gold Tier Threshold (Lifetime Cash)"
-  },
-  {
-   "default": "5000",
-   "description": "Lifetime cash earned to reach Platinum tier",
-   "fieldname": "tier_platinum_threshold",
-   "fieldtype": "Int",
-   "label": "Platinum Tier Threshold (Lifetime Cash)"
   },
   {
    "fieldname": "section_break_birthday",
@@ -248,7 +104,7 @@
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-03-20 19:30:00.000000",
+ "modified": "2026-05-07 07:00:00.000000",
  "modified_by": "Administrator",
  "module": "Dinematters",
  "name": "Restaurant Loyalty Config",
@@ -268,10 +124,8 @@
    "write": 1
   },
   {
-   "create": 1,
    "read": 1,
-   "role": "Restaurant Admin",
-   "write": 1
+   "role": "Restaurant Admin"
   }
  ],
  "sort_field": "modified",

@@ -102,7 +102,7 @@ def notify_cart_update(doc, method=None):
 	except Exception as e:
 		frappe.log_error(f"Error in notify_cart_update: {str(e)}", "Realtime Update Error")
 
-def notify_new_order_to_merchant(doc):
+def notify_new_order_to_merchant(doc, method=None):
 	"""
 	Fires when a new Order is inserted.
 	Sends a free FCM push to all logged-in merchant devices so they never

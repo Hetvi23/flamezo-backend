@@ -257,7 +257,7 @@ const TEMPLATES: CouponTemplate[] = [
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function Coupons() {
-  const { selectedRestaurant, isDiamond } = useRestaurant()
+  const { selectedRestaurant, isGold } = useRestaurant()
   const { formatAmountNoDecimals } = useCurrency()
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [editingCoupon, setEditingCoupon] = useState<any>(null)
@@ -389,7 +389,7 @@ export default function Coupons() {
     )
   }
 
-  if (!isDiamond) return <LockedFeature feature="coupons" requiredPlan={['DIAMOND']} />
+  if (!isGold) return <LockedFeature feature="coupons" requiredPlan={['GOLD']} />
 
   // ── Render ────────────────────────────────────────────────────────────────
 

@@ -67,7 +67,7 @@ interface CustomerProfileData {
 }
 
 export default function Customers() {
-  const { selectedRestaurant, isDiamond } = useRestaurant()
+  const { selectedRestaurant, isGold } = useRestaurant()
   const { formatAmountNoDecimals } = useCurrency()
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [profileCustomerId, setProfileCustomerId] = useState<string | null>(null)
@@ -104,7 +104,7 @@ export default function Customers() {
     return fetchedCustomers || []
   }, [fetchedCustomers])
 
-  if (!isDiamond) {
+  if (!isGold) {
     return <LockedFeature feature="customer" />
   }
 

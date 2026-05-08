@@ -18,9 +18,9 @@
   "google_maps_api_key",
   "section_subscription_defaults",
   "gold_monthly_fee",
-  "diamond_monthly_floor",
-  "diamond_commission_percent",
-  "diamond_upgrade_barrier",
+  "gold_monthly_floor_legacy",
+  "gold_commission_percent",
+  "gold_upgrade_barrier",
   "section_evolution_api",
   "evolution_api_url",
   "evolution_api_key",
@@ -128,25 +128,25 @@
    "default": "999",
    "fieldname": "gold_monthly_fee",
    "fieldtype": "Float",
-   "label": "GOLD Monthly Fee"
+   "label": "GOLD Monthly Floor"
   },
   {
    "default": "399",
-   "fieldname": "diamond_monthly_floor",
+   "fieldname": "gold_monthly_floor_legacy",
    "fieldtype": "Float",
-   "label": "DIAMOND Monthly Floor"
+   "label": "GOLD Monthly Floor (Legacy)"
   },
   {
    "default": "1.5",
-   "fieldname": "diamond_commission_percent",
+   "fieldname": "gold_commission_percent",
    "fieldtype": "Percent",
-   "label": "DIAMOND Commission Percent"
+   "label": "GOLD Commission Percent"
   },
   {
    "default": "1299",
-   "fieldname": "diamond_upgrade_barrier",
+   "fieldname": "gold_upgrade_barrier",
    "fieldtype": "Float",
-   "label": "DIAMOND Upgrade Barrier (₹)"
+   "label": "GOLD Upgrade Barrier (₹)"
   },
   {
    "fieldname": "section_evolution_api",

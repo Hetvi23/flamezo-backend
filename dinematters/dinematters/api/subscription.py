@@ -38,14 +38,14 @@ def get_restaurant_plan(restaurant_id):
         'limits': {
             'max_images': restaurant.max_images_silver if restaurant.plan_type == 'SILVER' else -1,
             'current_images': restaurant.current_image_count or 0,
-            'video_upload': restaurant.plan_type in ['GOLD', 'DIAMOND'],
-            'ordering': restaurant.plan_type == 'DIAMOND',
+            'video_upload': restaurant.plan_type == 'GOLD',
+            'ordering': True,  # Both plans support ordering (Silver tied to loyalty)
         },
         'metrics': {
             'total_orders': restaurant.total_orders or 0,
             'total_revenue': restaurant.total_revenue or 0,
             'commission_earned': restaurant.commission_earned or 0,
-        } if restaurant.plan_type == 'DIAMOND' else None
+        } if restaurant.plan_type == 'GOLD' else None
     }
 
 
@@ -68,10 +68,10 @@ def check_access(restaurant_id, feature_name):
 def get_plan_comparison(restaurant_id=None):
     """
     Get feature comparison between SILVER and GOLD plans
-    
+
     Args:
         restaurant_id (str, optional): Restaurant ID to show personalized rates
-        
+
     Returns:
         dict: Plan comparison data
     """
@@ -91,74 +91,58 @@ def get_plan_comparison(restaurant_id=None):
             'commission': '0%',
             'features': {
                 'included': [
-                    'Digital QR menu (photo-only)',
+                    'Digital QR menu',
                     'Basic restaurant website',
                     'Menu management (unlimited items)',
                     'Photo uploads (max 200 images)',
-                    'Restaurant logo upload',
-                    'Custom colors & theme',
+                    'Dine-in ordering via QR',
+                    'DineMatters loyalty cash (earn & redeem)',
+                    'Listed on DineMatters Club app',
                     'Contact & location display',
                     'Social media links',
-                    'Mobile-responsive design',
                 ],
                 'excluded': [
-                    'Online ordering',
-                    'Video content',
-                    'AI recommendations',
+                    'Customer CRM & data',
+                    'Marketing campaigns (SMS/WhatsApp/Email)',
+                    'Coupons & targeted offers',
                     'Analytics dashboard',
-                    'Loyalty programs',
-                    'Coupons/discounts',
+                    'Video content',
                     'POS integration',
+                    'Custom branding (no DM logo removal)',
+                    'Table & banquet booking',
                     'Data export',
                 ],
                 'branding': 'Mandatory "Powered by DineMatters" branding',
-                'qr_logo': 'DineMatters logo watermark on QR codes'
+                'qr_logo': 'DineMatters logo watermark on QR codes',
+                'note': 'Loyalty and ordering are linked — disabling loyalty also disables ordering and Club listing.'
             }
         },
         'GOLD': {
-            'name': 'DineMatters Gold (Digital)',
-            'price': '₹999 / mo',
-            'commission': '0%',
-            'features': {
-                'included': [
-                    'All SILVER features',
-                    'Video content support',
-                    'AI-powered recommendations',
-                    'Analytics dashboard',
-                    'Unlimited photo uploads',
-                    'Custom logo on QR codes',
-                    'Priority support',
-                    'Gamification (spin/scratch)',
-                    'Custom branding (subtle footer)',
-                    'No transaction fees',
-                ],
-                'excluded': [
-                    'Online ordering',
-                    'Loyalty programs',
-                    'Coupons & discounts',
-                    'POS integration',
-                    'Customer CRM Data',
-                ],
-                'branding': 'Subtle "Powered by DineMatters" footer',
-                'qr_logo': 'Your custom restaurant logo on QR codes'
-            }
-        },
-        'DIAMOND': {
-            'name': 'DineMatters Diamond (Automation)',
-            'price': '₹999 Floor / mo',
+            'name': 'DineMatters Gold',
+            'price': f'₹999 floor / mo + {commission_rate} on orders',
             'commission': commission_rate,
             'features': {
                 'included': [
-                    'All GOLD features',
-                    'Online ordering & payments',
-                    'Loyalty programs',
-                    'Coupons & discounts',
-                    'POS integration',
-                    'Customer CRM Data access',
-                    'Table & Banquet booking',
+                    'All SILVER features',
+                    'Customer CRM — own your customer data',
+                    'Marketing campaigns (SMS, WhatsApp, Email)',
+                    'Event-based automation triggers',
+                    'Coupons & targeted discount offers',
+                    'Analytics dashboard',
+                    'Video content support',
+                    'AI-powered menu recommendations',
+                    'Custom branding (remove DineMatters logo)',
+                    'Custom logo on QR codes',
+                    'Table & banquet booking',
+                    'POS integration (PetPooja, UrbanPiper, RestroWorks)',
+                    'Google Business Profile sync & AI review replies',
+                    'AI SEO blog auto-generation',
                     'Data export (CSV/PDF)',
+                    'Unlimited photo uploads',
+                    'Gamification (spin/scratch)',
+                    'Staff management & roles',
                 ],
-                'branding': 'Minimal branding footer',
+                'branding': 'Minimal "Powered by DineMatters" footer',
                 'qr_logo': 'Your custom restaurant logo on QR codes'
             }
         }
@@ -178,36 +162,47 @@ def get_upgrade_benefits(restaurant_id):
     """
     restaurant = frappe.get_doc('Restaurant', restaurant_id)
     
+    already_gold = restaurant.plan_type == 'GOLD'
     return {
-        'already_diamond': False,
+        'already_gold': already_gold,
         'current_plan': restaurant.plan_type,
         'benefits': [
             {
-                'category': 'Revenue Generation (DIAMOND Only)',
+                'category': 'Own Your Customers',
                 'items': [
-                    'Accept online orders and payments',
-                    'Loyalty programs to retain customers',
-                    'Coupons & automatic discounts',
-                    f'Just {float(restaurant.platform_fee_percent or 1.5)}% commission on growth',
+                    'CRM — see who ordered, how often, contact details',
+                    'Customer segmentation (loyal, lapsed, high-spenders)',
+                    'Import existing customer list',
                 ]
             },
             {
-                'category': 'Digital Excellence (GOLD & DIAMOND)',
+                'category': 'Bring Them Back',
                 'items': [
-                    'AI-powered menu recommendations',
-                    'Unlimited high-quality image uploads',
-                    'Professional video content support',
-                    'Custom branding & logo on QR codes',
+                    'Marketing campaigns via SMS, WhatsApp, Email',
+                    'Event-based automation (e.g. 7 days no visit → send offer)',
+                    'Coupons & targeted discount offers',
+                    f'Just {float(restaurant.platform_fee_percent or 1.5)}% commission — only pay when you earn',
                 ]
             },
             {
-                'category': 'Business Intelligence',
+                'category': 'Look More Professional',
                 'items': [
-                    'Real-time analytics dashboard',
-                    'Customer behavior insights (DIAMOND)',
-                    'POS integration (DIAMOND)',
+                    'Remove DineMatters branding completely',
+                    'Custom logo on QR codes',
+                    'AI SEO blog auto-generation',
+                    'Google Business Profile sync & AI review replies',
+                ]
+            },
+            {
+                'category': 'Run the Business Better',
+                'items': [
+                    'Analytics dashboard (top items, peak hours, revenue)',
+                    'Table & banquet booking',
+                    'POS integration (PetPooja, UrbanPiper, RestroWorks)',
+                    'Data export (CSV/PDF)',
+                    'Staff roles & permissions',
                 ]
             },
         ],
-        'cta': 'Upgrade to DIAMOND for Full Automation' if restaurant.plan_type == 'GOLD' else 'Upgrade to GOLD for Digital Power'
+        'cta': 'Upgrade to GOLD to own and grow your customer relationships'
     }

@@ -8,7 +8,7 @@ import { useRestaurant } from '@/contexts/RestaurantContext'
 export default function FeatureLocked() {
   const navigate = useNavigate()
   const location = useLocation()
-  const { isGold, isDiamond, planType, isLoading } = useRestaurant()
+  const { isGold, planType, isLoading } = useRestaurant()
 
   // Get the attempted path from location state or current path
   const attemptedPath = (location.state?.from || location.pathname).replace('/dinematters', '')
@@ -19,8 +19,8 @@ export default function FeatureLocked() {
     if (isLoading) return
 
     const hasAccess =
-      isDiamond ||
-      (requiredPlan === 'GOLD' && (isGold || isDiamond))
+      isGold ||
+      (requiredPlan === 'GOLD' && (isGold))
 
     if (hasAccess) {
       // Ensure we don't double-prefix the path. 
@@ -28,7 +28,7 @@ export default function FeatureLocked() {
       const target = (location.state?.from || '/dashboard').replace('/dinematters', '')
       navigate(target, { replace: true })
     }
-  }, [isGold, isDiamond, isLoading, requiredPlan, navigate, location, attemptedPath])
+  }, [isGold, isLoading, requiredPlan, navigate, location, attemptedPath])
 
   const handleGoBack = () => {
     navigate(-1)
@@ -40,10 +40,9 @@ export default function FeatureLocked() {
 
   const handleUpgrade = () => {
     // Navigate to billing/upgrade page
-    navigate('/billing')
+    navigate('/autopay-setup')
   }
 
-  const isUpgradeToDiamond = requiredPlan === 'DIAMOND' && isGold
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
@@ -109,35 +108,7 @@ export default function FeatureLocked() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {isUpgradeToDiamond ? (
-              <div className="space-y-3">
-                <div className="flex items-center space-x-3">
-                  <div className="w-8 h-8 bg-green-100 dark:bg-green-900/20 rounded-full flex items-center justify-center">
-                    <Zap className="h-4 w-4 text-green-600 dark:text-green-400" />
-                  </div>
-                  <span className="text-sm text-gray-700 dark:text-gray-300">Real-time Order Automation</span>
-                </div>
-                <div className="flex items-center space-x-3">
-                  <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900/20 rounded-full flex items-center justify-center">
-                    <Shield className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                  </div>
-                  <span className="text-sm text-gray-700 dark:text-gray-300">Full POS & Printer Integration</span>
-                </div>
-                <div className="flex items-center space-x-3">
-                  <div className="w-8 h-8 bg-purple-100 dark:bg-purple-900/20 rounded-full flex items-center justify-center">
-                    <Star className="h-4 w-4 text-purple-600 dark:text-purple-400" />
-                  </div>
-                  <span className="text-sm text-gray-700 dark:text-gray-300">Loyalty & Reward Programs</span>
-                </div>
-                <div className="flex items-center space-x-3">
-                  <div className="w-8 h-8 bg-orange-100 dark:bg-orange-900/20 rounded-full flex items-center justify-center">
-                    <TrendingUp className="h-4 w-4 text-orange-600 dark:text-orange-400" />
-                  </div>
-                  <span className="text-sm text-gray-700 dark:text-gray-300">Premium Revenue Analytics</span>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-3">
+            <div className="space-y-3">
                 <div className="flex items-center space-x-3">
                   <div className="w-8 h-8 bg-green-100 dark:bg-green-900/20 rounded-full flex items-center justify-center">
                     <Zap className="h-4 w-4 text-green-600 dark:text-green-400" />
@@ -148,7 +119,7 @@ export default function FeatureLocked() {
                   <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900/20 rounded-full flex items-center justify-center">
                     <Shield className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                   </div>
-                  <span className="text-sm text-gray-700 dark:text-gray-300">Advanced Analytics Dashboard</span>
+                  <span className="text-sm text-gray-700 dark:text-gray-300">Advanced Analytics & CRM</span>
                 </div>
                 <div className="flex items-center space-x-3">
                   <div className="w-8 h-8 bg-purple-100 dark:bg-purple-900/20 rounded-full flex items-center justify-center">
@@ -160,10 +131,9 @@ export default function FeatureLocked() {
                   <div className="w-8 h-8 bg-orange-100 dark:bg-orange-900/20 rounded-full flex items-center justify-center">
                     <TrendingUp className="h-4 w-4 text-orange-600 dark:text-orange-400" />
                   </div>
-                  <span className="text-sm text-gray-700 dark:text-gray-300">Interactive Gamification</span>
+                  <span className="text-sm text-gray-700 dark:text-gray-300">Marketing Studio & Campaigns</span>
                 </div>
               </div>
-            )}
           </CardContent>
         </Card>
 
@@ -179,31 +149,31 @@ export default function FeatureLocked() {
 }
 
 // Helper function to get feature name and required plan from path
-function getFeatureDetails(path: string): { featureName: string; requiredPlan: 'GOLD' | 'DIAMOND' } {
+function getFeatureDetails(path: string): { featureName: string; requiredPlan: 'GOLD' | 'GOLD' } {
   // Normalize path by removing leading/trailing slashes and decoding
   const cleanPath = decodeURIComponent(path.replace(/^\/+|\/+$/g, ''))
 
-  const featureMap: Record<string, { name: string; plan: 'GOLD' | 'DIAMOND' }> = {
-    'orders': { name: 'Real-time Orders', plan: 'DIAMOND' },
-    'accept-orders': { name: 'Accept Orders', plan: 'DIAMOND' },
-    'past-orders': { name: 'Past Orders', plan: 'DIAMOND' },
+  const featureMap: Record<string, { name: string; plan: 'GOLD' | 'GOLD' }> = {
+    'orders': { name: 'Real-time Orders', plan: 'GOLD' },
+    'accept-orders': { name: 'Accept Orders', plan: 'GOLD' },
+    'past-orders': { name: 'Past Orders', plan: 'GOLD' },
     'bookings': { name: 'Table Bookings', plan: 'GOLD' },
-    'customers': { name: 'Customer Management', plan: 'DIAMOND' },
-    'coupons': { name: 'Coupons Management', plan: 'DIAMOND' },
-    'loyalty-settings': { name: 'Loyalty Program', plan: 'DIAMOND' },
-    'loyalty-insights': { name: 'Loyalty Insights', plan: 'DIAMOND' },
-    'pos-integration': { name: 'POS Integration', plan: 'DIAMOND' },
+    'customers': { name: 'Customer Management', plan: 'GOLD' },
+    'coupons': { name: 'Coupons Management', plan: 'GOLD' },
+    'loyalty-settings': { name: 'Loyalty Program', plan: 'GOLD' },   // shouldn't be hit — loyalty is SILVER
+    'loyalty-insights': { name: 'Loyalty Insights', plan: 'GOLD' },  // shouldn't be hit — loyalty is SILVER
+    'pos-integration': { name: 'POS Integration', plan: 'GOLD' },
     'recommendations-engine': { name: 'AI Recommendations', plan: 'GOLD' },
     'payment-stats': { name: 'Payment Analytics', plan: 'GOLD' },
 
     // DocType mappings (ModuleList)
-    'Order': { name: 'Ordering Dashboard', plan: 'DIAMOND' },
-    'Coupon': { name: 'Coupon Management', plan: 'DIAMOND' },
-    'Coupon Usage': { name: 'Coupon Analytics', plan: 'DIAMOND' },
-    'Customer': { name: 'CRM & Loyalty', plan: 'DIAMOND' },
-    'Restaurant Loyalty Config': { name: 'Loyalty Setup', plan: 'DIAMOND' },
-    'Restaurant Loyalty Entry': { name: 'Loyalty Transactions', plan: 'DIAMOND' },
-    'Pos Integration': { name: 'POS Automation', plan: 'DIAMOND' },
+    'Order': { name: 'Ordering Dashboard', plan: 'GOLD' },
+    'Coupon': { name: 'Coupon Management', plan: 'GOLD' },
+    'Coupon Usage': { name: 'Coupon Analytics', plan: 'GOLD' },
+    'Customer': { name: 'CRM & Loyalty', plan: 'GOLD' },
+    'Restaurant Loyalty Config': { name: 'Loyalty Setup', plan: 'GOLD' },
+    'Restaurant Loyalty Entry': { name: 'Loyalty Transactions', plan: 'GOLD' },
+    'Pos Integration': { name: 'POS Automation', plan: 'GOLD' },
     'Table Booking': { name: 'Reservations', plan: 'GOLD' },
     'Banquet Booking': { name: 'Event Bookings', plan: 'GOLD' },
     'Game': { name: 'Interactive Games', plan: 'GOLD' },

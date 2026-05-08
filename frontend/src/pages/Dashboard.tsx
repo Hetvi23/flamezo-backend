@@ -356,8 +356,9 @@ export default function Dashboard() {
   const { selectedRestaurant, referralCode } = useRestaurant()
   const [showReferralInfo, setShowReferralInfo] = useState(false)
   const [copied, setCopied] = useState(false)
-  const { isGold, isDiamond } = useRestaurant()
-  const isAtLeastGold = isGold || isDiamond
+  const { isGold } = useRestaurant()
+  const isAtLeastGold = isGold
+  const isAdvancedAnalytics = isGold // Growth Intelligence remains Gold-only
   const { formatAmountNoDecimals } = useCurrency()
   const navigate = useNavigate()
   
@@ -528,7 +529,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Layer 2: Business Performance (Impact - For GOLD/DIAMOND) */}
+        {/* Layer 2: Business Performance (Impact - For GOLD) */}
         {isAtLeastGold && (
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
             <div className="flex items-center gap-2 mb-4">
@@ -548,7 +549,7 @@ export default function Dashboard() {
                   icon={TrendingUp}
                   trend="up"
                   trendValue="10%"
-                  isGold={true}
+                  isGold={isGold}
                   gradient="from-indigo-600 to-blue-500"
                 />
                 <StatCard 
@@ -556,7 +557,7 @@ export default function Dashboard() {
                   value={totalOrders}
                   subtext={`${Math.round(totalOrders / 7)} orders daily average`}
                   icon={ShoppingCart}
-                  isGold={true}
+                  isGold={isGold}
                   gradient="from-emerald-600 to-teal-500"
                 />
               </div>
@@ -568,7 +569,7 @@ export default function Dashboard() {
                 value={`${analyticsData?.enhanced?.conversionRate || 0}%`}
                 subtext="Scans to Order success"
                 icon={Zap}
-                isGold={true}
+                isGold={isGold}
                 gradient="from-amber-500 to-orange-500"
               />
               <StatCard 
@@ -576,7 +577,7 @@ export default function Dashboard() {
                 value={formatAmountNoDecimals(analyticsData?.enhanced?.avgOrderValue || 0)}
                 subtext="Spend per customer visit"
                 icon={Activity}
-                isGold={true}
+                isGold={isGold}
                 gradient="from-rose-500 to-pink-500"
               />
             </div>
@@ -599,7 +600,7 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent>
             <LockedInsight 
-              isUnlocked={isAtLeastGold} 
+              isUnlocked={isAdvancedAnalytics} 
               title="Trend Analysis" 
               description="See how your scans drive orders across the week."
             >

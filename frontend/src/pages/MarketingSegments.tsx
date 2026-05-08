@@ -59,7 +59,7 @@ const CRITERIA_DATA: Record<string, { description: string; icon: any; color: str
   },
   'High Spenders': { 
     label: 'Top Spenders',
-    description: 'Premium audience with high lifetime value. Perfect for luxury experience invites.', 
+    description: 'Premium audience with high lifetime value. Perfect for exclusive event invites.', 
     icon: Zap, 
     color: 'text-amber-600', 
     bgColor: 'bg-amber-50' 

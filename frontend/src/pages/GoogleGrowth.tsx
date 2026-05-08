@@ -13,7 +13,7 @@ import { Link } from 'react-router-dom'
 import { EmptyState } from '@/components/EmptyState'
 
 export default function GoogleGrowth() {
-  const { selectedRestaurant, isDiamond } = useRestaurant()
+  const { selectedRestaurant, isGold } = useRestaurant()
   const [loading, setLoading] = useState(true)
   const [insights, setInsights] = useState<any>(null)
 
@@ -70,7 +70,7 @@ export default function GoogleGrowth() {
             <Badge variant="outline" className="bg-blue-50 text-blue-600 border-blue-200 dark:bg-blue-900/20 dark:text-blue-400">
               <Globe className="h-3 w-3 mr-1" /> Local SEO
             </Badge>
-            {!isDiamond && (
+            {!isGold && (
               <Badge variant="outline" className="bg-amber-50 text-amber-600 border-amber-200">
                 <Star className="h-3 w-3 mr-1 fill-amber-600" /> Premium
               </Badge>

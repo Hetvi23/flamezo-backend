@@ -11,7 +11,7 @@ import { toast } from 'sonner'
 import { Link } from 'react-router-dom'
 
 export default function GoogleGrowthReviews() {
-  const { selectedRestaurant, isDiamond } = useRestaurant()
+  const { selectedRestaurant, isGold } = useRestaurant()
   const [reviews, setReviews] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [generatingFor, setGeneratingFor] = useState<string | null>(null)
@@ -31,8 +31,8 @@ export default function GoogleGrowthReviews() {
   }, [selectedRestaurant, fetchReviews])
 
   const handleGenerateReply = async (review: any) => {
-    if (!isDiamond) {
-      toast.error("AI Review Assistant requires a Diamond plan.")
+    if (!isGold) {
+      toast.error("AI Review Assistant requires a Gold plan.")
       return
     }
 
@@ -185,13 +185,13 @@ export default function GoogleGrowthReviews() {
                                     <Button 
                                         variant="outline" 
                                         size="sm" 
-                                        className={`gap-2 text-xs font-bold tracking-tight ${!isDiamond ? 'opacity-70 grayscale' : 'border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20'}`}
+                                        className={`gap-2 text-xs font-bold tracking-tight ${!isGold ? 'opacity-70 grayscale' : 'border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20'}`}
                                         onClick={() => handleGenerateReply(review)}
                                         disabled={generatingFor === review.reviewId}
                                     >
                                         <Sparkles className={`h-3.5 w-3.5 ${generatingFor === review.reviewId ? 'animate-pulse' : ''}`} />
                                         {generatingFor === review.reviewId ? 'AI thinking...' : 'Generate Smart Reply'}
-                                        {!isDiamond && <Crown className="h-3 w-3 ml-1 fill-amber-500 text-amber-500" />}
+                                        {!isGold && <Crown className="h-3 w-3 ml-1 fill-amber-500 text-amber-500" />}
                                     </Button>
                                 ) : (
                                     <div className="pt-2 animate-in fade-in slide-in-from-top-2 duration-300">

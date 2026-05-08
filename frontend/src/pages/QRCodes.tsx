@@ -788,7 +788,7 @@ export default function QRCodes() {
                     )}
                     <li><strong>2×2 grid PDF</strong> fits 4 cards per landscape A4 — recommended for mass printing</li>
                     <li>Use the <strong>Assets</strong> tab (above) to download individual codes as PNG / SVG</li>
-                    <li>SILVER plan shows Dinematters branding; GOLD/DIAMOND show your logo</li>
+                    <li>SILVER plan shows DineMatters branding; GOLD shows your logo</li>
                   </ul>
                 </div>
               </div>

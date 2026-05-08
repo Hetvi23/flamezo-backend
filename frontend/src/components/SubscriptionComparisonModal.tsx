@@ -14,13 +14,13 @@ import { Badge } from '@/components/ui/badge'
 interface SubscriptionComparisonModalProps {
   open: boolean
   onClose: () => void
-  currentPlan: 'SILVER' | 'GOLD' | 'DIAMOND'
-  onSelectPlan: (plan: 'SILVER' | 'GOLD' | 'DIAMOND') => void
+  currentPlan: 'SILVER' | 'GOLD'
+  onSelectPlan: (plan: 'SILVER' | 'GOLD') => void
   isChangingPlan: boolean
   planDefaults: {
-    pro_monthly: number
-    lux_monthly: number
-    lux_commission: number
+    gold_floor: number
+    gold_commission: number
+    gold_barrier: number
   }
 }
 
@@ -28,26 +28,28 @@ interface FeatureRow {
   name: string
   silver: string | boolean
   gold: string | boolean
-  diamond: string | boolean
 }
 
 const FEATURES: FeatureRow[] = [
-  { name: 'QR Menu (HQ Photos)', silver: 'Standard', gold: 'Unlimited HQ', diamond: 'Unlimited HQ' },
-  { name: 'Video Menu & Stories', silver: false, gold: true, diamond: true },
-  { name: 'Custom QR Logo (Branding)', silver: 'DM Brackets', gold: 'Own Brand', diamond: 'Own Brand' },
-  { name: 'Image Storage Limit', silver: '20', gold: 'Unlimited', diamond: 'Unlimited' },
-  { name: 'AI Recommendations', silver: false, gold: true, diamond: true },
-  { name: 'Analytics Dashboard', silver: false, gold: 'Advanced', diamond: 'Predictive' },
-  { name: 'Gamification (Spin-the-Wheel)', silver: false, gold: true, diamond: true },
-  { name: 'Table & Booking Engine', silver: false, gold: true, diamond: true },
-  { name: 'WhatsApp Flow', silver: false, gold: 'Manual', diamond: 'Automated' },
-  { name: 'Payment Processing', silver: false, gold: false, diamond: true },
-  { name: 'Online Ordering Flow', silver: 'Limited', gold: 'Standard', diamond: 'Advanced' },
-  { name: 'Loyalty Rewards & CRM', silver: false, gold: false, diamond: true },
-  { name: 'Delivery Hub (Logistics)', silver: false, gold: false, diamond: 'Flash/Borzo' },
-  { name: 'POS Integration', silver: false, gold: false, diamond: 'Deep Sync' },
-  { name: 'Direct Data Ownership', silver: true, gold: true, diamond: true },
-  { name: 'Success Share (Growth)', silver: '0%', gold: '0%', diamond: '1.5%' },
+  { name: 'QR Menu (HQ Photos)', silver: 'Standard', gold: 'Unlimited HQ' },
+  { name: 'Online Ordering via QR', silver: true, gold: true },
+  { name: 'Loyalty Rewards (Earn & Redeem)', silver: true, gold: true },
+  { name: 'Listed on DineMatters Club', silver: true, gold: true },
+  { name: 'Image Storage Limit', silver: '20', gold: 'Unlimited' },
+  { name: 'Video Menu & Stories', silver: false, gold: true },
+  { name: 'Custom QR Logo (Branding)', silver: false, gold: 'Own Brand' },
+  { name: 'AI Recommendations', silver: false, gold: true },
+  { name: 'Analytics Dashboard', silver: false, gold: 'Advanced' },
+  { name: 'CRM & Customer Insights', silver: false, gold: true },
+  { name: 'Marketing Studio', silver: false, gold: true },
+  { name: 'Gamification (Spin-the-Wheel)', silver: false, gold: true },
+  { name: 'Table & Booking Engine', silver: false, gold: true },
+  { name: 'WhatsApp Ordering', silver: false, gold: true },
+  { name: 'POS Integration', silver: false, gold: 'Deep Sync' },
+  { name: 'Delivery Hub (Logistics)', silver: false, gold: 'Flash/Borzo' },
+  { name: 'Coupons & Offers', silver: false, gold: true },
+  { name: 'Direct Data Ownership', silver: true, gold: true },
+  { name: 'Success Share (Commission)', silver: '0%', gold: '1.5%' },
 ]
 
 export function SubscriptionComparisonModal({
@@ -117,8 +119,8 @@ export function SubscriptionComparisonModal({
             <div className="text-center space-y-3 p-3 rounded-2xl bg-muted/5 border border-muted/10 relative">
                <div className="space-y-1">
                   <p className="text-sm font-bold uppercase tracking-tighter text-primary">Gold</p>
-                  <p className="text-2xl font-black">₹{planDefaults.pro_monthly}</p>
-                  <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">Per Month</p>
+                  <p className="text-2xl font-black">₹{planDefaults.gold_floor}<span className="text-sm font-medium">/mo floor</span></p>
+                  <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">+ {planDefaults.gold_commission}% Commission · ₹{planDefaults.gold_barrier} to unlock</p>
                </div>
                 <Button 
                  size="sm" 
@@ -127,25 +129,8 @@ export function SubscriptionComparisonModal({
                  disabled={currentPlan === 'GOLD' || isChangingPlan}
                 >
                   {currentPlan === 'GOLD' ? 'Current Plan' : 
-                   currentPlan === 'DIAMOND' ? 'Downgrade' : 'Upgrade'}
+                   currentPlan === 'GOLD' ? 'Downgrade' : 'Upgrade'}
                 </Button>
-            </div>
-            {/* Diamond */}
-            <div className="text-center space-y-3 p-3 rounded-2xl bg-primary/5 border border-primary/20 relative shadow-sm">
-               <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary text-white text-[8px] font-black tracking-tighter px-2 py-0.5 rounded-full">POPULAR</div>
-               <div className="space-y-1">
-                  <p className="text-sm font-bold uppercase tracking-tighter text-indigo-600">Diamond</p>
-                  <p className="text-2xl font-black">{planDefaults.lux_commission}%</p>
-                  <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">₹399/Month Guarantee + Success Share</p>
-               </div>
-               <Button 
-                size="sm" 
-                className="w-full h-8 text-xs font-bold rounded-lg bg-indigo-600 text-white"
-                onClick={() => onSelectPlan('DIAMOND')}
-                disabled={currentPlan === 'DIAMOND' || isChangingPlan}
-               >
-                 {currentPlan === 'DIAMOND' ? 'Current Plan' : 'Mastery'}
-               </Button>
             </div>
           </div>
         </div>
@@ -161,11 +146,8 @@ export function SubscriptionComparisonModal({
                        <td className="py-4 text-center">
                           {renderCell(feature.silver)}
                        </td>
-                       <td className="py-4 text-center">
-                          {renderCell(feature.gold)}
-                       </td>
                        <td className="py-4 text-center bg-primary/[0.03]">
-                          {renderCell(feature.diamond, true)}
+                          {renderCell(feature.gold, true)}
                        </td>
                     </tr>
                  ))}

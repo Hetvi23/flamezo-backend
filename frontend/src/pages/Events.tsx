@@ -43,7 +43,7 @@ import { Upload, X } from 'lucide-react'
 
 
 export default function Events() {
-  const { selectedRestaurant, isGold, isDiamond } = useRestaurant()
+  const { selectedRestaurant, isGold } = useRestaurant()
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [editingEvent, setEditingEvent] = useState<any>(null)
   const [filterType, setFilterType] = useState<string>('all')
@@ -171,7 +171,7 @@ export default function Events() {
     )
   }
 
-  if (!isGold && !isDiamond) {
+  if (!isGold) {
     return <LockedFeature feature="events" requiredPlan={['GOLD']} />
   }
 

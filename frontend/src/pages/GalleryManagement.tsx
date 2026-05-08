@@ -39,8 +39,11 @@ import {
   ArrowLeft,
   Utensils,
   Calendar,
-  Zap
+  Zap,
+  Crown
 } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Progress } from '@/components/ui/progress'
 import { useRestaurant } from '@/contexts/RestaurantContext'
 import { toast } from 'sonner'
 import { cn, getFrappeError } from '@/lib/utils'
@@ -49,6 +52,7 @@ import { uploadToR2, getMediaType } from '@/lib/r2Upload'
 import SilverMediaUpload from '@/components/SilverMediaUpload'
 
 export default function GalleryManagement() {
+  const navigate = useNavigate()
   const { selectedRestaurant } = useRestaurant()
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<any>(null)
@@ -573,45 +577,98 @@ export default function GalleryManagement() {
             </CardContent>
            </Card>
         </TabsContent>
-      </Tabs>
-
-      {/* Upload Dialog */}
+      </Tabs>      {/* Upload Dialog */}
       <Dialog open={isUploadDialogOpen} onOpenChange={setIsUploadDialogOpen}>
-        <DialogContent className="sm:max-w-[500px] rounded-2xl border border-border shadow-2xl p-0 overflow-hidden">
-          <div className="px-6 py-4 border-b border-border bg-muted/5">
-            <DialogTitle className="text-lg font-bold">Upload Assets</DialogTitle>
-          </div>
-          <div className="p-6 space-y-6">
-            <div className="space-y-2">
-                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Target Folder</Label>
-                <div className="grid grid-cols-2 gap-2">
-                    {CATEGORIES.map((cat) => (
-                        <Button
-                            key={cat}
-                            variant={uploadCategory === cat ? "default" : "outline"}
-                            size="sm"
-                            onClick={() => setUploadCategory(cat)}
-                            className={cn(
-                                "h-10 text-[10px] font-bold uppercase tracking-tight",
-                                uploadCategory === cat ? "bg-primary text-white" : "text-muted-foreground"
-                            )}
-                        >
-                            {cat}
-                        </Button>
-                    ))}
+        <DialogContent className="sm:max-w-[700px] rounded-2xl border border-border shadow-2xl p-0 overflow-hidden">
+          <div className="flex h-full min-h-[450px]">
+            {/* Sidebar */}
+            <div className="w-[220px] bg-muted/30 border-r border-border p-6 flex flex-col justify-between">
+              <div className="space-y-6">
+                <div className="space-y-1">
+                  <DialogTitle className="text-lg font-bold">Upload Assets</DialogTitle>
+                  <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">Storage & Categorization</p>
                 </div>
-                <p className="text-[10px] text-muted-foreground italic mt-1">Uploaded assets will be categorized under this folder.</p>
+
+                <div className="space-y-3">
+                  <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Target Folder</Label>
+                  <div className="flex flex-col gap-1.5">
+                    {CATEGORIES.map((cat) => {
+                      let Icon = Folder;
+                      if (cat === 'Food & Menu') Icon = Utensils;
+                      if (cat === 'Events') Icon = Calendar;
+                      if (cat === 'Branding') Icon = Zap;
+                      if (cat === 'Gallery Uploads') Icon = ImageIcon;
+
+                      return (
+                        <button
+                          key={cat}
+                          onClick={() => setUploadCategory(cat)}
+                          className={cn(
+                            "flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-bold transition-all text-left border",
+                            uploadCategory === cat 
+                              ? "bg-primary text-white border-primary shadow-sm" 
+                              : "text-muted-foreground bg-transparent border-transparent hover:bg-muted hover:text-foreground"
+                          )}
+                        >
+                          <Icon className={cn("h-3.5 w-3.5", uploadCategory === cat ? "text-white" : "text-muted-foreground")} />
+                          {cat}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {/* Sidebar Footer: Usage */}
+              <div className="space-y-4 pt-6 border-t border-border/50">
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-tight">
+                    <span className="text-muted-foreground">Gallery Usage</span>
+                    <span className="text-primary">{selectedCount}/25</span>
+                  </div>
+                  <Progress value={(selectedCount / 25) * 100} className="h-1.5" />
+                </div>
+                
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="w-full h-8 text-[10px] font-bold uppercase bg-background hover:bg-primary/5 hover:text-primary hover:border-primary/30"
+                  onClick={() => {
+                    setIsUploadDialogOpen(false);
+                    navigate('/autopay-setup');
+                  }}
+                >
+                  <Crown className="h-3 w-3 mr-2 text-yellow-500" />
+                  Upgrade to Gold
+                </Button>
+              </div>
             </div>
 
-            <SilverMediaUpload 
-                onUpload={handleUpload}
-                currentImageCount={selectedCount}
-                maxImages={25}
-                className="border-2 border-dashed border-border hover:border-primary/40 transition-colors p-4 rounded-xl"
-            />
-          </div>
-          <div className="px-6 py-4 bg-muted/10 border-t border-border flex justify-end">
-            <Button variant="ghost" onClick={() => setIsUploadDialogOpen(false)} className="font-bold text-sm">Close</Button>
+            {/* Main Content Area */}
+            <div className="flex-1 flex flex-col">
+              <div className="p-8 flex-1 flex flex-col justify-center">
+                <SilverMediaUpload 
+                  variant="compact"
+                  onUpload={handleUpload}
+                  onUpgrade={() => {
+                    setIsUploadDialogOpen(false);
+                    navigate('/autopay-setup');
+                  }}
+                  currentImageCount={selectedCount}
+                  maxImages={25}
+                  className="border-2 border-dashed border-border/60 hover:border-primary/30 transition-all p-8 rounded-2xl bg-muted/5"
+                />
+              </div>
+              
+              <div className="px-8 py-4 bg-muted/5 border-t border-border flex items-center justify-between">
+                <p className="text-[10px] text-muted-foreground font-medium italic">
+                  Categorized as <span className="text-primary font-bold">{uploadCategory}</span>
+                </p>
+                <Button variant="ghost" size="sm" onClick={() => setIsUploadDialogOpen(false)} className="font-bold text-xs">
+                  Cancel
+                </Button>
+              </div>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

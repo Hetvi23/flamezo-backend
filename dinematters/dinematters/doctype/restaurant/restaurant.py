@@ -133,18 +133,15 @@ class Restaurant(Document):
 
 			# Auto-set billing defaults for the new plan
 			settings = frappe.get_single("Dinematters Settings")
-			if self.plan_type == "DIAMOND":
-				self.monthly_minimum = settings.diamond_monthly_floor or 399.0
-				self.platform_fee_percent = settings.diamond_commission_percent or 1.5
-			elif self.plan_type == "GOLD":
-				self.monthly_minimum = settings.gold_monthly_fee or 999.0
-				self.platform_fee_percent = 0.0
+			if self.plan_type == "GOLD":
+				self.monthly_minimum = settings.gold_monthly_fee or 399.0
+				self.platform_fee_percent = settings.gold_commission_percent or 1.5
 			elif self.plan_type == "SILVER":
 				self.monthly_minimum = 0.0
 				self.platform_fee_percent = 0.0
 			
-			# Waiver individual feature fees for GOLD/DIAMOND (they are included)
-			if self.plan_type in ["GOLD", "DIAMOND"]:
+			# Waiver individual feature fees for GOLD (they are included)
+			if self.plan_type == "GOLD":
 				frappe.db.set_value("Restaurant Config", {"restaurant": self.name}, "menu_theme_paid_until", None)
 
 	def handle_floor_recovery_activation(self):
@@ -157,8 +154,8 @@ class Restaurant(Document):
 				# Initialize to today so the first 30-day window starts now
 				self.last_floor_recovery_date = frappe.utils.today()
 			
-			# Waiver individual feature fees for GOLD/DIAMOND (they are included)
-			if self.plan_type in ["GOLD", "DIAMOND"]:
+			# Waiver individual feature fees for GOLD (they are included)
+			if self.plan_type == "GOLD":
 				frappe.db.set_value("Restaurant Config", {"restaurant": self.name}, "menu_theme_paid_until", None)
 			
 			# Log the change (will be created in on_update)
@@ -926,13 +923,13 @@ def create_restaurant_config(self):
 			"apple_touch_icon": "",
 			"currency": self.currency or "INR",
 			"menu_layout": "2 Columns",
-			# Enable transactional features only for DIAMOND subscription plan
-			"enable_table_booking": 1 if self.plan_type == "DIAMOND" else 0,
-			"enable_banquet_booking": 1 if self.plan_type == "DIAMOND" else 0,
-			"enable_events": 1 if self.plan_type == "DIAMOND" else 0,
-			"enable_offers": 1 if self.plan_type == "DIAMOND" else 0,
-			"enable_coupons": 1 if self.plan_type == "DIAMOND" else 0,
-			"enable_experience_lounge": 1 if self.plan_type == "DIAMOND" else 0,
+			# Enable transactional features only for GOLD subscription plan
+			"enable_table_booking": 1 if self.plan_type == "GOLD" else 0,
+			"enable_banquet_booking": 1 if self.plan_type == "GOLD" else 0,
+			"enable_events": 1 if self.plan_type == "GOLD" else 0,
+			"enable_offers": 1 if self.plan_type == "GOLD" else 0,
+			"enable_coupons": 1 if self.plan_type == "GOLD" else 0,
+			"enable_experience_lounge": 1 if self.plan_type == "GOLD" else 0,
 			"menu_theme_background_enabled": 0,
 			"verify_my_user": 0,
 			"google_review_link": "",
@@ -973,12 +970,12 @@ def create_default_home_features(self):
 		for idx, feat in enumerate(default_features, 1):
 			# Features enabled logic:
 			# - Mandatory features (menu, legacy) are always enabled.
-			# - Transactional features (book-table, offers, lounge) are DIAMOND only.
+			# - Transactional features (book-table, offers, lounge) are GOLD only.
 			if feat["is_mandatory"] == 1:
 				is_enabled = True
 			else:
 				# These are the premium transactional features
-				is_enabled = (self.plan_type == "DIAMOND")
+				is_enabled = (self.plan_type == "GOLD")
 			
 			feat_doc = frappe.get_doc({
 				"doctype": "Home Feature",

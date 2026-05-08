@@ -3,7 +3,7 @@
 
 """
 Marketing Studio API (v2 — Production Ready)
-All restaurant-scoped endpoints: DIAMOND-only via @require_plan.
+All restaurant-scoped endpoints: GOLD-only via @require_plan.
 Opt-out endpoint: public (called by whitelisted webhook from Evolution API).
 """
 
@@ -20,7 +20,7 @@ import json
 # ═══════════════════════════════════════════════════════════════════
 
 @frappe.whitelist()
-@require_plan('DIAMOND')
+@require_plan('GOLD')
 def get_marketing_overview(restaurant_id):
     """Summary KPIs for Marketing Studio dashboard."""
     restaurant = validate_restaurant_for_api(restaurant_id, frappe.session.user)
@@ -98,7 +98,7 @@ def get_marketing_overview(restaurant_id):
 # ═══════════════════════════════════════════════════════════════════
 
 @frappe.whitelist()
-@require_plan('DIAMOND')
+@require_plan('GOLD')
 def get_segments(restaurant_id):
     restaurant = validate_restaurant_for_api(restaurant_id, frappe.session.user)
     segments = frappe.get_all(
@@ -113,7 +113,7 @@ def get_segments(restaurant_id):
 
 
 @frappe.whitelist()
-@require_plan('DIAMOND')
+@require_plan('GOLD')
 def save_segment(restaurant_id, segment_data):
     restaurant = validate_restaurant_for_api(restaurant_id, frappe.session.user)
     if isinstance(segment_data, str):
@@ -144,7 +144,7 @@ def save_segment(restaurant_id, segment_data):
 
 
 @frappe.whitelist()
-@require_plan('DIAMOND')
+@require_plan('GOLD')
 def preview_segment_reach(restaurant_id, criteria_type, days_since_last_visit=30,
                            min_visit_count=5, min_total_spent=1000, customer_ids=None):
     if criteria_type == "Custom SQL":
@@ -162,7 +162,7 @@ def preview_segment_reach(restaurant_id, criteria_type, days_since_last_visit=30
 
 
 @frappe.whitelist()
-@require_plan('DIAMOND')
+@require_plan('GOLD')
 def delete_segment(restaurant_id, segment_name):
     restaurant = validate_restaurant_for_api(restaurant_id, frappe.session.user)
     doc_name = frappe.db.get_value(
@@ -179,7 +179,7 @@ def delete_segment(restaurant_id, segment_name):
 # ═══════════════════════════════════════════════════════════════════
 
 @frappe.whitelist()
-@require_plan('DIAMOND')
+@require_plan('GOLD')
 def get_campaigns(restaurant_id, status=None):
     restaurant = validate_restaurant_for_api(restaurant_id, frappe.session.user)
     filters = {"restaurant": restaurant}
@@ -198,7 +198,7 @@ def get_campaigns(restaurant_id, status=None):
 
 
 @frappe.whitelist()
-@require_plan('DIAMOND')
+@require_plan('GOLD')
 def create_campaign(restaurant_id, campaign_data):
     restaurant = validate_restaurant_for_api(restaurant_id, frappe.session.user)
     if isinstance(campaign_data, str):
@@ -215,7 +215,7 @@ def create_campaign(restaurant_id, campaign_data):
 
 
 @frappe.whitelist()
-@require_plan('DIAMOND')
+@require_plan('GOLD')
 def send_campaign(campaign_id):
     """Validate balance → enqueue dispatch."""
     restaurant_id = frappe.db.get_value("Marketing Campaign", campaign_id, "restaurant")
@@ -268,7 +268,7 @@ def send_campaign(campaign_id):
 
 
 @frappe.whitelist()
-@require_plan('DIAMOND')
+@require_plan('GOLD')
 def get_campaign_analytics(campaign_id):
     restaurant_id = frappe.db.get_value("Marketing Campaign", campaign_id, "restaurant")
     validate_restaurant_for_api(restaurant_id, frappe.session.user)
@@ -311,7 +311,7 @@ def get_campaign_analytics(campaign_id):
 
 
 @frappe.whitelist()
-@require_plan('DIAMOND')
+@require_plan('GOLD')
 def cancel_campaign(campaign_id):
     restaurant_id = frappe.db.get_value("Marketing Campaign", campaign_id, "restaurant")
     validate_restaurant_for_api(restaurant_id, frappe.session.user)
@@ -324,7 +324,7 @@ def cancel_campaign(campaign_id):
 
 
 @frappe.whitelist()
-@require_plan('DIAMOND')
+@require_plan('GOLD')
 def delete_campaign(campaign_id):
     restaurant_id = frappe.db.get_value("Marketing Campaign", campaign_id, "restaurant")
     validate_restaurant_for_api(restaurant_id, frappe.session.user)
@@ -343,7 +343,7 @@ def delete_campaign(campaign_id):
 # ═══════════════════════════════════════════════════════════════════
 
 @frappe.whitelist()
-@require_plan('DIAMOND')
+@require_plan('GOLD')
 def get_triggers(restaurant_id):
     restaurant = validate_restaurant_for_api(restaurant_id, frappe.session.user)
     triggers = frappe.get_all(
@@ -358,7 +358,7 @@ def get_triggers(restaurant_id):
 
 
 @frappe.whitelist()
-@require_plan('DIAMOND')
+@require_plan('GOLD')
 def save_trigger(restaurant_id, trigger_data):
     restaurant = validate_restaurant_for_api(restaurant_id, frappe.session.user)
     if isinstance(trigger_data, str):
@@ -381,7 +381,7 @@ def save_trigger(restaurant_id, trigger_data):
 
 
 @frappe.whitelist()
-@require_plan('DIAMOND')
+@require_plan('GOLD')
 def delete_trigger(trigger_name):
     restaurant_id = frappe.db.get_value("Marketing Trigger", trigger_name, "restaurant")
     validate_restaurant_for_api(restaurant_id, frappe.session.user)
@@ -411,7 +411,7 @@ def handle_marketing_optout(phone, keyword="STOP", webhook_secret=None):
 
 
 @frappe.whitelist()
-@require_plan('DIAMOND')
+@require_plan('GOLD')
 def get_optout_stats(restaurant_id):
     """Returns opt-out statistics for the restaurant."""
     restaurant = validate_restaurant_for_api(restaurant_id, frappe.session.user)

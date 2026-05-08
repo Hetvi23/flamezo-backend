@@ -34,7 +34,7 @@ export function useFeatureGate(feature: FeatureKey, restaurantId?: string) {
           setAccess({
             hasAccess: false,
             currentPlan: 'SILVER',
-            requiredPlans: ['GOLD', 'DIAMOND'],
+            requiredPlans: ['GOLD', 'GOLD'],
             feature,
           });
         }
@@ -56,7 +56,7 @@ export function useFeatureGate(feature: FeatureKey, restaurantId?: string) {
 }
 
 export function usePlanType(restaurantId?: string) {
-  const [planType, setPlanType] = useState<'SILVER' | 'GOLD' | 'DIAMOND' | null>(null);
+  const [planType, setPlanType] = useState<'SILVER' | 'GOLD' | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -104,5 +104,5 @@ export function usePlanType(restaurantId?: string) {
     };
   }, [restaurantId]);
 
-  return { planType, isDiamond: planType === 'DIAMOND', isGold: planType === 'GOLD', isSilver: planType === 'SILVER', loading };
+  return { planType, isGold: planType === 'GOLD', isGold: planType === 'GOLD', isSilver: planType === 'SILVER', loading };
 }

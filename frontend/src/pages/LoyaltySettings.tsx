@@ -1,159 +1,83 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import { useRestaurant } from '@/contexts/RestaurantContext'
 import { useFrappePostCall, useFrappeGetDoc } from '@/lib/frappe'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
-import { NumberInput } from "@/components/ui/number-input"
 import { toast } from 'sonner'
-import { Coins, Share2, TrendingUp, Info, Trophy, Zap, AlertCircle, CheckCircle2 } from 'lucide-react'
-import { LockedFeature } from '@/components/FeatureGate/LockedFeature'
+import {
+  Trophy, Zap, Globe, Gift, Users, ShieldCheck,
+  TrendingUp, Percent, ArrowLeftRight, Info, Star, Clock, AlertTriangle
+} from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Switch } from '@/components/ui/switch'
+import { Badge } from '@/components/ui/badge'
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter
+} from '@/components/ui/dialog'
 
-// ── DineMatters Platform Guardrails (mirrored from backend) ───────────────────
-// These are displayed to the restaurant owner as allowed ranges.
-const GUARDRAILS = {
-  earn_percentage:               { min: 1,    max: 15,   label: '1% – 15%' },
-  earn_flat_coins:               { min: 5,    max: 500,  label: '5 – 500 cash' },
-  min_order_to_earn:             { min: 0,    max: 2000, label: '₹0 – ₹2,000' },
-  max_coins_per_order:           { min: 10,   max: 1000, label: '10 – 1,000 cash' },
-  min_billing_for_redemption:    { min: 0,    max: 5000, label: '₹0 – ₹5,000' },
-  min_redemption_threshold:      { min: 0,    max: 5000, label: '0 – 5,000 cash' },
-  share_reward_coins:            { min: 0,    max: 500,  label: '0 – 500 cash' },
-  referral_order_reward_coins:   { min: 0,    max: 1000, label: '0 – 1,000 cash' },
-  new_user_welcome_reward_coins: { min: 0,    max: 500,  label: '0 – 500 cash' },
-  max_opens_rewarded_per_share:  { min: 1,    max: 50,   label: '1 – 50' },
-  coins_per_unique_open:         { min: 1,    max: 100,  label: '1 – 100 cash' },
+// ── DineMatters Platform Constants (display only — actual enforcement is backend) ─
+const PLATFORM = {
+  earn_percentage:          10,
+  coin_value_in_inr:        1,
+  max_coins_per_order:      1000,
+  min_order_to_earn:        100,
+  min_redemption_threshold: 250,
+  min_billing_for_redemption: 200,
+  loyalty_expiry_months:    6,
+  welcome_reward_coins:     50,
+  referral_share_coins:     30,
+  max_opens_per_cycle:      10,
+  tier: { silver: 500, gold: 2000, platinum: 5000 },
 }
 
-type EarnType = 'Percentage of Bill' | 'Flat Cash per Order'
-
-interface FieldError { field: string; message: string }
-
 export default function LoyaltySettings() {
-  const { selectedRestaurant, isDiamond } = useRestaurant()
+  const { selectedRestaurant, isSilver } = useRestaurant()
   const [saving, setSaving] = useState(false)
   const [enableLoyalty, setEnableLoyalty] = useState(false)
-  const [fieldErrors, setFieldErrors] = useState<FieldError[]>([])
-
-  const [settings, setSettings] = useState({
-    earn_type: 'Percentage of Bill' as EarnType,
-    earn_percentage: 5,
-    earn_flat_coins: 50,
-    min_order_to_earn: 0,
-    max_coins_per_order: 500,
-    min_redemption_threshold: 100,
-    min_billing_for_redemption: 200,
-    share_reward_coins: 20,
-    min_unique_opens_for_reward: 2,
-    coins_per_unique_open: 30,
-    max_opens_rewarded_per_share: 7,
-    referral_order_reward_coins: 100,
-    new_user_welcome_reward_coins: 50,
-    welcome_coupon_discount: 0
-  })
+  const [showDisableConfirm, setShowDisableConfirm] = useState(false)
 
   const { data: restaurantDoc, mutate: mutateRestaurant } = useFrappeGetDoc(
     'Restaurant', selectedRestaurant || '',
     selectedRestaurant ? `Restaurant-${selectedRestaurant}` : null
   )
-  const { call: getLoyaltyConfig } = useFrappePostCall('dinematters.dinematters.api.loyalty.get_loyalty_config')
   const { call: updateLoyaltyConfig } = useFrappePostCall('dinematters.dinematters.api.loyalty.update_loyalty_config')
 
   useEffect(() => {
     if (restaurantDoc) setEnableLoyalty(!!restaurantDoc.enable_loyalty)
   }, [restaurantDoc])
 
-  useEffect(() => {
-    if (!selectedRestaurant) return
-    getLoyaltyConfig({ restaurant_id: selectedRestaurant }).then((res: any) => {
-      const config = res?.message?.data || res?.data?.data
-      if (!config) return
-      setSettings(prev => ({
-        ...prev,
-        // New fields (with backward compat: if earn_type missing, infer from points_per_inr)
-        earn_type: config.earn_type || 'Percentage of Bill',
-        earn_percentage: config.earn_percentage ?? (config.points_per_inr ? config.points_per_inr * 100 : 5),
-        earn_flat_coins: config.earn_flat_coins ?? 50,
-        min_order_to_earn: config.min_order_to_earn ?? 0,
-        max_coins_per_order: config.max_coins_per_order ?? 500,
-        // Existing fields
-        min_redemption_threshold: config.min_redemption_threshold ?? 100,
-        min_billing_for_redemption: config.min_billing_for_redemption ?? 200,
-        share_reward_coins: config.share_reward_coins ?? 20,
-        min_unique_opens_for_reward: config.min_unique_opens_for_reward ?? 2,
-        coins_per_unique_open: config.coins_per_unique_open ?? 30,
-        max_opens_rewarded_per_share: config.max_opens_rewarded_per_share ?? 7,
-        referral_order_reward_coins: config.referral_order_reward_coins ?? 100,
-        new_user_welcome_reward_coins: config.new_user_welcome_reward_coins ?? 50,
-        welcome_coupon_discount: config.welcome_coupon_discount ?? 0,
-      }))
-    })
-  }, [selectedRestaurant])
-
-  // ── Live preview calculation ──────────────────────────────────────────────
-  const livePreview = useMemo(() => {
-    const sampleOrder = 1000
-    let cash = 0
-    if (settings.earn_type === 'Flat Cash per Order') {
-      cash = settings.earn_flat_coins
+  // For Silver restaurants: intercept toggle-OFF with a confirmation modal
+  const handleLoyaltyToggle = (checked: boolean) => {
+    if (!checked && isSilver) {
+      setShowDisableConfirm(true)
     } else {
-      cash = Math.floor(sampleOrder * (settings.earn_percentage / 100))
+      setEnableLoyalty(checked)
     }
-    cash = Math.min(cash, settings.max_coins_per_order)
-    const qualifies = settings.min_order_to_earn === 0 || sampleOrder >= settings.min_order_to_earn
-    return { cash, qualifies, sampleOrder }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [settings.earn_type, settings.earn_percentage, settings.earn_flat_coins, settings.min_order_to_earn, settings.max_coins_per_order])
-
-  // ── Inline guardrail validation ───────────────────────────────────────────
-  const getFieldError = (field: string): string | null => {
-    const err = fieldErrors.find(e => e.field === field)
-    return err ? err.message : null
   }
 
-  const validateField = (field: keyof typeof GUARDRAILS, value: number) => {
-    const rules = GUARDRAILS[field]
-    if (!rules) return
-    const newErrors = fieldErrors.filter(e => e.field !== field)
-    if (value < rules.min || value > rules.max) {
-      newErrors.push({ field, message: `Allowed: ${rules.label}` })
-    }
-    setFieldErrors(newErrors)
-  }
-
-  const handleNumberChange = (field: keyof typeof settings, value: string) => {
-    const num = parseFloat(value)
-    const safeNum = isNaN(num) ? 0 : num
-    setSettings(prev => ({ ...prev, [field]: safeNum }))
-    if (field in GUARDRAILS) validateField(field as keyof typeof GUARDRAILS, safeNum)
+  const confirmDisableLoyalty = () => {
+    setEnableLoyalty(false)
+    setShowDisableConfirm(false)
   }
 
   const handleSave = async () => {
     if (!selectedRestaurant) return
-    if (fieldErrors.length > 0) {
-      toast.error('Please fix the highlighted errors before saving.')
-      return
-    }
     setSaving(true)
     try {
       const response: any = await updateLoyaltyConfig({
         restaurant_id: selectedRestaurant,
         enable_loyalty: enableLoyalty,
-        config: { ...settings, coin_value_in_inr: 1 }
+        config: {}   // No restaurant-configurable fields in centralized model
       })
       const body = response?.message || response?.data || response
       if (body?.success) {
         await mutateRestaurant()
-        toast.success('Loyalty settings saved successfully')
+        toast.success(enableLoyalty
+          ? 'Loyalty enabled — your customers can now earn DineMatters Cash!'
+          : 'Loyalty disabled. Ordering and Club listing have also been turned off.')
       } else {
-        const err = body?.error
-        if (err?.code === 'GUARDRAIL_VIOLATION') {
-          toast.error(`Validation error: ${err.messages?.[0]}`)
-        } else {
-          throw new Error(typeof err === 'string' ? err : err?.message || 'Failed to save settings')
-        }
+        throw new Error(body?.error || 'Failed to save')
       }
     } catch (error: any) {
       toast.error(error.message || 'Failed to save settings')
@@ -162,271 +86,278 @@ export default function LoyaltySettings() {
     }
   }
 
-  if (!isDiamond) return <LockedFeature feature="loyalty" requiredPlan={['DIAMOND']} />
-
   return (
     <div className="max-w-5xl mx-auto space-y-6 pb-12">
-      {/* Header */}
+
+      {/* ── Silver: disable loyalty confirmation modal ───────────────── */}
+      <Dialog open={showDisableConfirm} onOpenChange={setShowDisableConfirm}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <div className="flex items-center gap-3 mb-1">
+              <div className="w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
+                <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+              </div>
+              <DialogTitle>Turn off loyalty?</DialogTitle>
+            </div>
+            <DialogDescription asChild>
+              <div className="space-y-3 text-sm text-muted-foreground pt-1">
+                <p>Disabling loyalty on your Silver plan will also:</p>
+                <ul className="space-y-2">
+                  <li className="flex items-start gap-2">
+                    <span className="mt-0.5 text-red-500">✕</span>
+                    <span><strong>Turn off ordering</strong> — customers won't be able to place orders via your QR menu.</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="mt-0.5 text-red-500">✕</span>
+                    <span><strong>Remove you from DineMatters Club</strong> — customers browsing the Club app won't find your restaurant.</span>
+                  </li>
+                </ul>
+                <p className="pt-1 text-xs border-t border-border mt-2">
+                  You can still use your DineMatters QR menu as a digital menu for customers.
+                  Re-enable loyalty any time to restore ordering and Club listing.
+                </p>
+              </div>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setShowDisableConfirm(false)}>
+              Keep loyalty on
+            </Button>
+            <Button variant="destructive" onClick={confirmDisableLoyalty}>
+              Yes, disable loyalty & ordering
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Silver: info banner ──────────────────────────────────────── */}
+      {isSilver && (
+        <div className="flex items-start gap-3 p-4 rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20">
+          <Info className="w-4 h-4 text-blue-500 mt-0.5 shrink-0" />
+          <p className="text-sm text-blue-700 dark:text-blue-300">
+            On your Silver plan, <strong>loyalty and ordering are linked</strong>. Keeping loyalty on lets customers
+            earn DineMatters Cash, place orders via your QR menu, and discover you on the Club app — all for free.
+          </p>
+        </div>
+      )}
+
+      {/* ── Header ──────────────────────────────────────────────────── */}
       <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
         <div className="space-y-1">
           <div className="flex items-center gap-3">
             <Trophy className="w-8 h-8 text-primary" />
             <h1 className="text-3xl font-bold tracking-tight text-foreground">Loyalty & Growth</h1>
+            <Badge variant="secondary" className="text-xs font-semibold px-2 py-0.5 bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400 border border-orange-200 dark:border-orange-800">
+              DineMatters Network
+            </Badge>
           </div>
           <p className="text-muted-foreground mt-2">
-            Enterprise reward and referral engine to drive repeat business and viral growth.
+            Platform-wide loyalty that rewards customers across every restaurant in the DineMatters network.
           </p>
         </div>
-        {/* Single Master Toggle */}
-        <div className="flex items-center gap-3 bg-muted/50 p-3 px-4 rounded-xl border h-14">
+
+        {/* Master Toggle */}
+        <div className="flex items-center gap-3 bg-muted/50 p-3 px-4 rounded-xl border h-14 shrink-0">
           <div className="flex flex-col">
-            <Label htmlFor="enable-loyalty" className="text-sm font-semibold">Enable Loyalty Engine</Label>
-            <p className="text-[10px] text-muted-foreground">Turns all loyalty features on/off</p>
+            <Label htmlFor="enable-loyalty" className="text-sm font-semibold">Join Loyalty Network</Label>
+            <p className="text-[10px] text-muted-foreground">Enable for your restaurant</p>
           </div>
           <Switch
             id="enable-loyalty"
             checked={enableLoyalty}
-            onCheckedChange={setEnableLoyalty}
+            onCheckedChange={handleLoyaltyToggle}
           />
         </div>
       </div>
 
-      {!enableLoyalty && (
+      {/* ── Status Banner ────────────────────────────────────────────── */}
+      {!enableLoyalty ? (
         <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex gap-3 text-amber-900 dark:bg-amber-900/10 dark:border-amber-900/20 dark:text-amber-400">
           <Info className="h-5 w-5 flex-shrink-0 mt-0.5" />
-          <p className="text-sm">Loyalty engine is currently <strong>disabled</strong>. Customers won't earn cash or see the loyalty wallet. Toggle it on above to activate.</p>
+          <p className="text-sm">
+            Loyalty is currently <strong>disabled</strong>. Customers visiting your restaurant won't earn
+            DineMatters Cash. Enable it above to join the network and attract repeat customers.
+          </p>
+        </div>
+      ) : (
+        <div className="bg-green-50 border border-green-200 rounded-lg p-4 flex gap-3 text-green-900 dark:bg-green-900/10 dark:border-green-900/20 dark:text-green-400">
+          <ShieldCheck className="h-5 w-5 flex-shrink-0 mt-0.5" />
+          <p className="text-sm">
+            Your restaurant is <strong>active on the DineMatters Loyalty Network</strong>. Customers earn cash
+            on every order and can discover your restaurant through the explore feed.
+          </p>
         </div>
       )}
 
-      <div className={cn('space-y-6 transition-opacity duration-300', !enableLoyalty && 'opacity-40 pointer-events-none')}>
-        {/* ── Earning Configuration ─────────────────────────────────── */}
-        <Card>
+      <div className={cn('space-y-6 transition-opacity duration-300', !enableLoyalty && 'opacity-50')}>
+
+        {/* ── Network Value Proposition ────────────────────────────────── */}
+        <Card className="border-2 border-primary/20 bg-gradient-to-br from-primary/5 via-background to-orange-500/5">
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
-              <Coins className="w-5 h-5 text-orange-500" />
-              Earning Configuration
+              <Globe className="w-5 h-5 text-primary" />
+              How DineMatters Loyalty Works
             </CardTitle>
-            <CardDescription>Define how customers earn cash on every order.</CardDescription>
+            <CardDescription>
+              One wallet. Every restaurant. Your customers earn and spend across the entire network.
+            </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-6">
-            {/* Earn Mode Toggle */}
-            <div className="space-y-2">
-              <Label className="text-sm font-medium">Earn Mode</Label>
-              <div className="grid grid-cols-2 gap-2 p-1 bg-muted rounded-lg max-w-sm">
-                {(['Percentage of Bill', 'Flat Cash per Order'] as EarnType[]).map(mode => (
-                  <button
-                    key={mode}
-                    onClick={() => setSettings(p => ({ ...p, earn_type: mode }))}
-                    className={cn(
-                      'px-3 py-2 rounded-md text-xs font-semibold transition-all duration-200',
-                      settings.earn_type === mode
-                        ? 'bg-background shadow text-foreground'
-                        : 'text-muted-foreground hover:text-foreground'
-                    )}
-                  >
-                    {mode === 'Percentage of Bill' ? '% of Bill' : 'Flat Cash'}
-                  </button>
-                ))}
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="flex flex-col gap-2 p-4 rounded-xl bg-background border">
+                <div className="w-8 h-8 rounded-full bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center">
+                  <Percent className="w-4 h-4 text-orange-600 dark:text-orange-400" />
+                </div>
+                <p className="text-sm font-semibold">Customer Earns</p>
+                <p className="text-2xl font-bold text-primary">10% Cash</p>
+                <p className="text-xs text-muted-foreground">on every qualifying order at your restaurant</p>
+              </div>
+              <div className="flex flex-col gap-2 p-4 rounded-xl bg-background border">
+                <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                  <ArrowLeftRight className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                </div>
+                <p className="text-sm font-semibold">Spend Anywhere</p>
+                <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">1 Cash = ₹1</p>
+                <p className="text-xs text-muted-foreground">across any DineMatters partner restaurant</p>
+              </div>
+              <div className="flex flex-col gap-2 p-4 rounded-xl bg-background border">
+                <div className="w-8 h-8 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+                  <Users className="w-4 h-4 text-green-600 dark:text-green-400" />
+                </div>
+                <p className="text-sm font-semibold">You Get</p>
+                <p className="text-2xl font-bold text-green-600 dark:text-green-400">New Diners</p>
+                <p className="text-xs text-muted-foreground">from across the network discovering your restaurant</p>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Dynamic earn rate input */}
-              {settings.earn_type === 'Percentage of Bill' ? (
-                <div className="grid gap-2">
-                  <Label className="flex items-center gap-1.5 text-sm font-medium">
-                    Earn Percentage (%)
-                    <span className="text-[10px] text-muted-foreground font-normal">Allowed: {GUARDRAILS.earn_percentage.label}</span>
-                  </Label>
-                  <div className="relative">
-                    <NumberInput
-                      value={settings.earn_percentage}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleNumberChange('earn_percentage', e.target.value)}
-                      className={cn(getFieldError('earn_percentage') && 'border-destructive')}
-                    />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm font-bold">%</span>
-                  </div>
-                  {getFieldError('earn_percentage') && (
-                    <p className="text-[11px] text-destructive flex items-center gap-1"><AlertCircle className="w-3 h-3" />{getFieldError('earn_percentage')}</p>
-                  )}
-                  <p className="text-[11px] text-muted-foreground">e.g. 5% → Customer earns ₹5 of cash per ₹100 spent</p>
-                </div>
-              ) : (
-                <div className="grid gap-2">
-                  <Label className="flex items-center gap-1.5 text-sm font-medium">
-                    Flat Cash per Order
-                    <span className="text-[10px] text-muted-foreground font-normal">Allowed: {GUARDRAILS.earn_flat_coins.label}</span>
-                  </Label>
-                  <NumberInput
-                    value={settings.earn_flat_coins}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleNumberChange('earn_flat_coins', e.target.value)}
-                    className={cn(getFieldError('earn_flat_coins') && 'border-destructive')}
-                  />
-                  {getFieldError('earn_flat_coins') && (
-                    <p className="text-[11px] text-destructive flex items-center gap-1"><AlertCircle className="w-3 h-3" />{getFieldError('earn_flat_coins')}</p>
-                  )}
-                  <p className="text-[11px] text-muted-foreground">Fixed cash given on every qualifying order, regardless of order size.</p>
-                </div>
-              )}
-
-              <div className="grid gap-2">
-                <Label className="flex items-center gap-1.5 text-sm font-medium">
-                  Min. Order to Earn (₹)
-                  <span className="text-[10px] text-muted-foreground font-normal">Allowed: {GUARDRAILS.min_order_to_earn.label}</span>
-                </Label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm font-medium">₹</span>
-                  <NumberInput
-                    className={cn('pl-7', getFieldError('min_order_to_earn') && 'border-destructive')}
-                    value={settings.min_order_to_earn}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleNumberChange('min_order_to_earn', e.target.value)}
-                  />
-                </div>
-                {getFieldError('min_order_to_earn') && (
-                  <p className="text-[11px] text-destructive flex items-center gap-1"><AlertCircle className="w-3 h-3" />{getFieldError('min_order_to_earn')}</p>
-                )}
-                <p className="text-[11px] text-muted-foreground">Orders below this value earn zero cash. Set to 0 to always earn.</p>
-              </div>
-
-              <div className="grid gap-2">
-                <Label className="flex items-center gap-1.5 text-sm font-medium">
-                  Max Cash per Order
-                  <span className="text-[10px] text-muted-foreground font-normal">Allowed: {GUARDRAILS.max_coins_per_order.label}</span>
-                </Label>
-                <NumberInput
-                  value={settings.max_coins_per_order}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleNumberChange('max_coins_per_order', e.target.value)}
-                  className={cn(getFieldError('max_coins_per_order') && 'border-destructive')}
-                />
-                {getFieldError('max_coins_per_order') && (
-                  <p className="text-[11px] text-destructive flex items-center gap-1"><AlertCircle className="w-3 h-3" />{getFieldError('max_coins_per_order')}</p>
-                )}
-                <p className="text-[11px] text-muted-foreground">Hard cap per transaction. Prevents excess cash accumulation on high-value orders.</p>
-              </div>
-
-              <div className="grid gap-2">
-                <Label className="text-sm font-medium">Min. Bill to Redeem (₹)</Label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm font-medium">₹</span>
-                  <NumberInput className="pl-7" value={settings.min_billing_for_redemption} onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleNumberChange('min_billing_for_redemption', e.target.value)} />
-                </div>
-                <p className="text-[11px] text-muted-foreground">Minimum order value required to redeem cash.</p>
-              </div>
-
-              <div className="grid gap-2">
-                <Label className="text-sm font-medium">Min. Cash to Redeem</Label>
-                <NumberInput value={settings.min_redemption_threshold} onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleNumberChange('min_redemption_threshold', e.target.value)} />
-                <p className="text-[11px] text-muted-foreground">Minimum cash in wallet before customer can redeem.</p>
-              </div>
-            </div>
-
-            {/* Live Preview Box */}
-            <div className={cn(
-              'rounded-xl border p-4 flex items-start gap-4 transition-colors',
-              livePreview.qualifies ? 'bg-green-50 border-green-200 dark:bg-green-900/10 dark:border-green-900/30' : 'bg-orange-50 border-orange-200 dark:bg-orange-900/10 dark:border-orange-900/30'
-            )}>
-              <div className={cn('mt-0.5', livePreview.qualifies ? 'text-green-600' : 'text-orange-500')}>
-                {livePreview.qualifies ? <CheckCircle2 className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
-              </div>
-              <div>
-                <p className={cn('text-sm font-semibold', livePreview.qualifies ? 'text-green-800 dark:text-green-300' : 'text-orange-800 dark:text-orange-300')}>
-                  Live Preview — ₹{livePreview.sampleOrder.toLocaleString()} order
-                </p>
-                {livePreview.qualifies ? (
-                  <p className="text-sm text-muted-foreground mt-0.5">
-                    Customer earns <strong className="text-foreground">{livePreview.cash} cash (₹{livePreview.cash} value)</strong>
-                    {livePreview.cash === settings.max_coins_per_order && (
-                      <span className="text-orange-500 ml-2 text-xs">(capped at max)</span>
-                    )}
-                  </p>
-                ) : (
-                  <p className="text-sm text-muted-foreground mt-0.5">
-                    Order doesn't qualify — minimum order is ₹{settings.min_order_to_earn}
-                  </p>
-                )}
-              </div>
+            <div className="mt-4 rounded-lg bg-muted/50 border p-3 flex items-start gap-2">
+              <TrendingUp className="w-4 h-4 text-primary mt-0.5 shrink-0" />
+              <p className="text-xs text-muted-foreground">
+                <strong className="text-foreground">The DineMatters Settlement Model:</strong> When a customer
+                redeems cash earned at another restaurant at <em>yours</em>, you're not paying a fee —
+                you're gaining a customer who discovered you through the network. That discovery is the value.
+              </p>
             </div>
           </CardContent>
         </Card>
 
-        {/* ── Referral & Growth ─────────────────────────────────────── */}
+        {/* ── Platform Rates (Read-Only) ───────────────────────────────── */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Share2 className="w-5 h-5 text-blue-500" />
-                Referral (Viral Growth)
+              <CardTitle className="text-base flex items-center gap-2">
+                <Zap className="w-4 h-4 text-orange-500" />
+                Earning Rules
               </CardTitle>
+              <CardDescription>Applied uniformly across the entire network</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-5">
-              <div className="rounded-lg border border-blue-100 bg-blue-50/50 dark:bg-blue-900/10 dark:border-blue-900/20 p-3">
-                <p className="text-[11px] text-muted-foreground">
-                  Rewards given for <strong>Unique Opens</strong> only. Limit resets after each new order.
-                </p>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="grid gap-2">
-                  <Label className="text-[11px] font-medium">Max Rewards / Cycle</Label>
-                  <NumberInput value={settings.max_opens_rewarded_per_share} onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleNumberChange('max_opens_rewarded_per_share', e.target.value)} />
-                  <p className="text-[10px] text-muted-foreground">Allowed: {GUARDRAILS.max_opens_rewarded_per_share.label}</p>
+            <CardContent className="space-y-3">
+              {[
+                { label: 'Earn Rate',           value: `${PLATFORM.earn_percentage}% of bill` },
+                { label: 'Min. Order to Earn',  value: `₹${PLATFORM.min_order_to_earn}` },
+                { label: 'Max. Cash per Order', value: `₹${PLATFORM.max_coins_per_order}` },
+                { label: 'Cash Expiry',         value: `${PLATFORM.loyalty_expiry_months} months` },
+              ].map(({ label, value }) => (
+                <div key={label} className="flex items-center justify-between py-1.5 border-b last:border-0">
+                  <span className="text-sm text-muted-foreground">{label}</span>
+                  <span className="text-sm font-semibold tabular-nums">{value}</span>
                 </div>
-                <div className="grid gap-2">
-                  <Label className="text-[11px] font-medium">Cash / Unique Open</Label>
-                  <NumberInput value={settings.coins_per_unique_open} onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleNumberChange('coins_per_unique_open', e.target.value)} />
-                  <p className="text-[10px] text-muted-foreground">Allowed: {GUARDRAILS.coins_per_unique_open.label}</p>
-                </div>
-              </div>
+              ))}
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <TrendingUp className="w-5 h-5 text-green-500" />
-                Growth & Conversion Rewards
+              <CardTitle className="text-base flex items-center gap-2">
+                <Gift className="w-4 h-4 text-blue-500" />
+                Redemption Rules
               </CardTitle>
+              <CardDescription>Protects against micro-redemptions and abuse</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-5">
-              <div className="grid gap-2">
-                <Label className="text-sm font-medium">Referrer Bonus (when friend orders)</Label>
-                <NumberInput value={settings.referral_order_reward_coins} onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleNumberChange('referral_order_reward_coins', e.target.value)} />
-                <p className="text-[11px] text-muted-foreground">Allowed: {GUARDRAILS.referral_order_reward_coins.label}</p>
-              </div>
-              <div className="grid gap-2">
-                <Label className="text-sm font-medium">New User Welcome Cash</Label>
-                <NumberInput value={settings.new_user_welcome_reward_coins} onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleNumberChange('new_user_welcome_reward_coins', e.target.value)} />
-                <p className="text-[11px] text-muted-foreground">Allowed: {GUARDRAILS.new_user_welcome_reward_coins.label}</p>
-              </div>
-              <div className="grid gap-2">
-                <Label className="text-sm font-medium">Welcome Discount (₹)</Label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm font-medium">₹</span>
-                  <NumberInput className="pl-7" value={settings.welcome_coupon_discount} onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleNumberChange('welcome_coupon_discount', e.target.value)} />
+            <CardContent className="space-y-3">
+              {[
+                { label: 'Coin Value',            value: `1 Cash = ₹${PLATFORM.coin_value_in_inr}` },
+                { label: 'Min. Wallet to Redeem', value: `₹${PLATFORM.min_redemption_threshold}` },
+                { label: 'Min. Bill to Redeem',   value: `₹${PLATFORM.min_billing_for_redemption}` },
+              ].map(({ label, value }) => (
+                <div key={label} className="flex items-center justify-between py-1.5 border-b last:border-0">
+                  <span className="text-sm text-muted-foreground">{label}</span>
+                  <span className="text-sm font-semibold tabular-nums">{value}</span>
                 </div>
-              </div>
+              ))}
             </CardContent>
           </Card>
         </div>
 
-        {/* ── Platform Policy (Read-Only) ───────────────────────────── */}
+        {/* ── Growth & Referral ────────────────────────────────────────── */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Star className="w-4 h-4 text-yellow-500" />
+                Referral Rewards
+              </CardTitle>
+              <CardDescription>Drive viral growth — every customer becomes a promoter</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {[
+                { label: 'Welcome Bonus (new user)',  value: `₹${PLATFORM.welcome_reward_coins} Cash` },
+                { label: 'Referrer Reward / open',    value: `₹${PLATFORM.referral_share_coins} Cash` },
+                { label: 'Max Rewards per Cycle',     value: `${PLATFORM.max_opens_per_cycle} opens` },
+              ].map(({ label, value }) => (
+                <div key={label} className="flex items-center justify-between py-1.5 border-b last:border-0">
+                  <span className="text-sm text-muted-foreground">{label}</span>
+                  <span className="text-sm font-semibold tabular-nums">{value}</span>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Trophy className="w-4 h-4 text-amber-500" />
+                Customer Tiers
+              </CardTitle>
+              <CardDescription>Global tiers based on lifetime Cash earned across all restaurants</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {[
+                { tier: 'Bronze',   threshold: '0',                              color: 'text-amber-700 bg-amber-100 dark:bg-amber-900/30' },
+                { tier: 'Silver',   threshold: `₹${PLATFORM.tier.silver}+`,     color: 'text-slate-600 bg-slate-100 dark:bg-slate-800' },
+                { tier: 'Gold',     threshold: `₹${PLATFORM.tier.gold}+`,       color: 'text-yellow-600 bg-yellow-100 dark:bg-yellow-900/30' },
+                { tier: 'Platinum', threshold: `₹${PLATFORM.tier.platinum}+`,   color: 'text-purple-600 bg-purple-100 dark:bg-purple-900/30' },
+              ].map(({ tier, threshold, color }) => (
+                <div key={tier} className="flex items-center justify-between py-1">
+                  <span className={cn('text-xs font-bold px-2 py-0.5 rounded-full', color)}>{tier}</span>
+                  <span className="text-xs text-muted-foreground">{threshold} lifetime earnings</span>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* ── Platform Policy ──────────────────────────────────────────── */}
         <Card className="bg-muted/30 border-dashed">
           <CardHeader>
             <CardTitle className="text-sm flex items-center gap-2 text-muted-foreground">
-              <Zap className="w-4 h-4" />
+              <ShieldCheck className="w-4 h-4" />
               DineMatters Platform Policy
             </CardTitle>
           </CardHeader>
           <CardContent className="text-sm text-muted-foreground space-y-2">
-            <p>• <strong>1 Cash = ₹1</strong> — Fixed platform value. Non-configurable.</p>
-            <p>• All earn rates are bounded by DineMatters guardrails to protect your margins.</p>
-            <p>• Fraud protection: IP & browser fingerprinting on referral opens.</p>
-            <p>• Changes apply to future transactions only. Existing earned cash are unaffected.</p>
+            <p>• All earn and redemption rates are <strong>fixed platform-wide</strong> — uniform, fair, and fraud-resistant across all network restaurants.</p>
+            <p>• <strong>Fraud protection:</strong> Phone verification required for all referral rewards. IP + browser fingerprinting on referral opens.</p>
+            <p>• <strong>Settlement:</strong> No monetary charge per redemption. You gain new diners from the network; that discovery is the value exchange.</p>
+            <p>• Changes to platform rates apply to future transactions only. Existing earned Cash is never affected.</p>
+            <p className="flex items-center gap-1.5"><Clock className="w-3 h-3" /> To request a rate review, contact the DineMatters partner team.</p>
           </CardContent>
         </Card>
       </div>
 
+      {/* ── Save ────────────────────────────────────────────────────────── */}
       <div className="flex justify-end pt-6 border-t border-border">
-        <Button size="lg" onClick={handleSave} disabled={saving || fieldErrors.length > 0} className="px-12 font-semibold shadow-sm h-12">
+        <Button size="lg" onClick={handleSave} disabled={saving} className="px-12 font-semibold shadow-sm h-12">
           {saving ? 'Saving...' : 'Save Loyalty Settings'}
         </Button>
       </div>

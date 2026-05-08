@@ -47,7 +47,7 @@ interface Restaurant {
   owner_phone?: string
   owner_name?: string
   is_active: number
-  plan_type: 'SILVER' | 'GOLD' | 'DIAMOND'
+  plan_type: 'SILVER' | 'GOLD'
   coins_balance: number
   platform_fee_percent: number
   monthly_minimum: number
@@ -689,7 +689,7 @@ function AdminRestaurantDetailsPage() {
                     <Label>Subscription Tier</Label>
                     <Select 
                       value={restaurant.plan_type} 
-                      onValueChange={(v: 'SILVER' | 'GOLD' | 'DIAMOND') => setRestaurant({...restaurant, plan_type: v})}
+                      onValueChange={(v: 'SILVER' | 'GOLD') => setRestaurant({...restaurant, plan_type: v})}
                     >
                       <SelectTrigger>
                         <SelectValue />
@@ -697,7 +697,7 @@ function AdminRestaurantDetailsPage() {
                       <SelectContent>
                         <SelectItem value="SILVER"><div className="flex items-center gap-2"><Shield className="h-3 w-3 text-muted-foreground" /> SILVER (Basic)</div></SelectItem>
                         <SelectItem value="GOLD"><div className="flex items-center gap-2"><Star className="h-3 w-3 text-primary" /> GOLD (Premium)</div></SelectItem>
-                        <SelectItem value="DIAMOND"><div className="flex items-center gap-2"><Zap className="h-3 w-3 text-indigo-600" /> DIAMOND (Elite)</div></SelectItem>
+                        <SelectItem value="GOLD"><div className="flex items-center gap-2"><Zap className="h-3 w-3 text-amber-500" /> GOLD (Full Automation)</div></SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
