@@ -36,7 +36,7 @@ import {
   ClipboardCopy,
   Gem,
   Trophy,
-  ExternalLink
+  ExternalLink, Save
 } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
 import { useDataTable } from '@/hooks/useDataTable'
@@ -65,9 +65,7 @@ export default function AdminRestaurantManagement() {
   const [isAdmin, setIsAdmin] = useState(false)
   const [isOnboardingModalOpen, setIsOnboardingModalOpen] = useState(false)
   const [selectedOnboarding, setSelectedOnboarding] = useState<string[]>([])
-  const [newRestaurantName, setNewRestaurantName] = useState('')
   const [isGenerating, setIsGenerating] = useState(false)
-  const [isNewLead, setIsNewLead] = useState(false)
   const [selectedOnboardingResId, setSelectedOnboardingResId] = useState('')
   const [isLinkModalOpen, setIsLinkModalOpen] = useState(false)
   const [linkToCopy, setLinkToCopy] = useState('')
@@ -353,25 +351,18 @@ export default function AdminRestaurantManagement() {
   }
 
   const handleGenerateLink = async () => {
-    if (!isNewLead && !selectedOnboardingResId) {
+    if (!selectedOnboardingResId) {
       toast.error('Please select a restaurant')
-      return
-    }
-    if (isNewLead && !newRestaurantName.trim()) {
-      toast.error('Please enter a restaurant name')
       return
     }
 
     try {
       setIsGenerating(true)
-      const params = isNewLead
-        ? { restaurant_name: newRestaurantName }
-        : { linked_restaurant: selectedOnboardingResId }
+      const params = { linked_restaurant: selectedOnboardingResId }
 
       const result = await generateOnboardingLink(params) as any
       if (result?.message?.success) {
         toast.success('Onboarding link generated!')
-        setNewRestaurantName('')
         setSelectedOnboardingResId('')
         loadOnboarding()
       } else {
@@ -437,18 +428,18 @@ export default function AdminRestaurantManagement() {
           <Button
             onClick={() => setIsPlatformSettingsModalOpen(true)}
             variant="outline"
-            className="h-11 px-4 rounded-xl border-stone-200 hover:bg-stone-50 transition-all font-semibold"
+            className="h-11 px-4 rounded-xl border-stone-200 hover:border-primary/30 hover:bg-primary/5 hover:-translate-y-1 hover:shadow-lg active:translate-y-0 transition-all duration-300 font-semibold group"
           >
-            <Settings className="h-4 w-4 mr-2" />
+            <Settings className="h-4 w-4 mr-2 group-hover:rotate-90 transition-transform duration-500" />
             Platform Settings
           </Button>
 
           <Button
             onClick={() => setIsOnboardingModalOpen(true)}
             variant="outline"
-            className="relative h-11 px-6 rounded-xl border-primary/20 bg-primary/5 hover:bg-primary/10 transition-all font-semibold"
+            className="relative h-11 px-6 rounded-xl border-primary/20 bg-primary/5 hover:bg-primary/10 hover:-translate-y-1 hover:shadow-lg active:translate-y-0 transition-all duration-300 font-semibold group"
           >
-            <Inbox className="h-4 w-4 mr-2 text-primary" />
+            <Inbox className="h-4 w-4 mr-2 text-primary group-hover:scale-110 transition-transform" />
             Onboarding Requests
             {pendingCount > 0 && (
               <Badge className="ml-2 bg-primary text-white border-none px-1.5 h-5 min-w-5 flex items-center justify-center animate-pulse">
@@ -926,96 +917,65 @@ export default function AdminRestaurantManagement() {
       {/* Onboarding Inbox Modal */}
       <Dialog open={isOnboardingModalOpen} onOpenChange={setIsOnboardingModalOpen}>
         <DialogContent className="sm:max-w-4xl p-0 overflow-hidden border-none shadow-2xl rounded-2xl">
-          <div className="p-6 bg-muted/10 border-b">
-            <DialogHeader>
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-primary/10 rounded-lg">
-                  <Inbox className="h-5 w-5 text-primary" />
+          <div className="p-8 bg-gradient-to-br from-primary/10 via-background to-background border-b relative overflow-hidden">
+            <div className="absolute -top-10 -right-10 opacity-[0.03] rotate-12">
+              <Inbox className="h-40 w-40" />
+            </div>
+            <DialogHeader className="relative z-10">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-4">
+                  <div className="p-3 bg-primary/10 rounded-2xl backdrop-blur-sm border border-primary/20 shadow-inner">
+                    <Inbox className="h-6 w-6 text-primary" />
+                  </div>
+                  <div>
+                    <DialogTitle className="text-2xl font-black tracking-tight">Onboarding Inbox</DialogTitle>
+                    <DialogDescription className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                      <div className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
+                      Review and finalize new restaurant setups
+                    </DialogDescription>
+                  </div>
                 </div>
-                <div>
-                  <DialogTitle className="text-xl font-bold">Onboarding Inbox</DialogTitle>
-                  <DialogDescription className="text-sm font-medium text-muted-foreground">
-                    Review and finalize new restaurant setups
-                  </DialogDescription>
-                </div>
+                {selectedOnboarding.length > 0 && (
+                  <div className="flex items-center gap-3 animate-in fade-in slide-in-from-right-4 duration-300">
+                    <Badge className="bg-primary/10 text-primary border-primary/20 px-3 py-1 text-xs font-bold rounded-full">
+                      {selectedOnboarding.length} Selected
+                    </Badge>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      className="h-9 rounded-xl font-bold shadow-lg shadow-red-500/10 hover:scale-105 transition-all"
+                      onClick={handleBulkDelete}
+                      disabled={updating === 'bulk-delete'}
+                    >
+                      <Trash2 className="h-3.5 w-3.5 mr-2" />
+                      Delete
+                    </Button>
+                  </div>
+                )}
               </div>
-              {selectedOnboarding.length > 0 && (
-                <div className="flex items-center gap-3 animate-in fade-in slide-in-from-right-2">
-                  <span className="text-xs font-bold text-primary bg-primary/10 px-2 py-1 rounded-md">
-                    {selectedOnboarding.length} Selected
-                  </span>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    className="h-8 rounded-lg font-bold shadow-sm"
-                    onClick={handleBulkDelete}
-                    disabled={updating === 'bulk-delete'}
-                  >
-                    <Trash2 className="h-3.5 w-3.5 mr-1.5" />
-                    Delete Selected
-                  </Button>
-                </div>
-              )}
             </DialogHeader>
           </div>
 
           <div className="px-6 py-5 bg-muted/5 border-b">
             <div className="flex flex-col gap-4">
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label className="text-[10px] font-black uppercase tracking-widest text-primary">Onboarding Type</Label>
-                  <p className="text-xs text-muted-foreground">Select an existing restaurant or create a new lead</p>
-                </div>
-                <div className="flex items-center gap-2 bg-muted/20 p-1 rounded-xl">
-                  <button
-                    onClick={() => setIsNewLead(false)}
-                    className={cn(
-                      "px-3 py-1.5 rounded-lg text-xs font-bold transition-all",
-                      !isNewLead ? "bg-white shadow-sm text-primary" : "text-muted-foreground hover:text-foreground"
-                    )}
-                  >
-                    Existing
-                  </button>
-                  <button
-                    onClick={() => setIsNewLead(true)}
-                    className={cn(
-                      "px-3 py-1.5 rounded-lg text-xs font-bold transition-all",
-                      isNewLead ? "bg-white shadow-sm text-primary" : "text-muted-foreground hover:text-foreground"
-                    )}
-                  >
-                    New Lead
-                  </button>
-                </div>
-              </div>
-
               <div className="flex flex-col sm:flex-row gap-3 items-end animate-in fade-in slide-in-from-top-2 duration-300">
                 <div className="flex-1 space-y-2 w-full">
                   <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground ml-1">
-                    {isNewLead ? "Restaurant Name" : "Select Restaurant"}
+                    Select Restaurant
                   </Label>
-                  {isNewLead ? (
-                    <Input
-                      placeholder="e.g. Flapjack Downtown"
-                      value={newRestaurantName}
-                      onChange={(e) => setNewRestaurantName(e.target.value)}
-                      className="h-10 rounded-xl bg-white"
-                      onKeyDown={(e) => e.key === 'Enter' && handleGenerateLink()}
-                    />
-                  ) : (
-                    <RestaurantSelector
-                      value={selectedOnboardingResId}
-                      onSelect={setSelectedOnboardingResId}
-                      options={(restaurants || []).map((r: any) => ({
-                        value: r.name,
-                        label: r.restaurant_name
-                      }))}
-                      placeholder="Search existing restaurants..."
-                    />
-                  )}
+                  <RestaurantSelector
+                    value={selectedOnboardingResId}
+                    onSelect={setSelectedOnboardingResId}
+                    options={(restaurants || []).map((r: any) => ({
+                      value: r.name,
+                      label: r.restaurant_name
+                    }))}
+                    placeholder="Search existing restaurants..."
+                  />
                 </div>
                 <Button
                   onClick={handleGenerateLink}
-                  disabled={isGenerating || (isNewLead ? !newRestaurantName.trim() : !selectedOnboardingResId)}
+                  disabled={isGenerating || !selectedOnboardingResId}
                   className="h-10 rounded-xl px-8 font-bold shadow-lg shadow-primary/20 whitespace-nowrap"
                 >
                   {isGenerating ? <RefreshCw className="h-4 w-4 animate-spin mr-2" /> : <ExternalLink className="h-4 w-4 mr-2" />}
@@ -1086,21 +1046,31 @@ export default function AdminRestaurantManagement() {
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="h-8 px-2 text-xs font-semibold"
-                            onClick={() => handleCopyOnboardingLink(req.onboarding_link)}
+                            className="h-9 px-3 text-xs font-bold hover:bg-primary/10 hover:text-primary transition-all rounded-lg"
+                            onClick={() => window.open(req.onboarding_link, '_blank')}
                           >
-                            <ClipboardCopy className="h-3 w-3 mr-1" />
-                            Copy Link
+                            <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
+                            Launch
                           </Button>
 
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="h-8 px-2 text-xs font-semibold text-red-500"
+                            className="h-9 px-3 text-xs font-bold hover:bg-muted transition-all rounded-lg"
+                            onClick={() => handleCopyOnboardingLink(req.onboarding_link)}
+                          >
+                            <ClipboardCopy className="h-3.5 w-3.5 mr-1.5" />
+                            Copy
+                          </Button>
+
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-9 w-9 text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-all rounded-lg"
                             onClick={() => handleDeleteOnboarding(req.name)}
                             disabled={updating === req.name}
                           >
-                            <Trash2 className="h-3 w-3" />
+                            <Trash2 className="h-4 w-4" />
                           </Button>
                         </div>
                       </TableCell>
@@ -1168,23 +1138,32 @@ export default function AdminRestaurantManagement() {
       {/* Platform Settings Modal */}
       <Dialog open={isPlatformSettingsModalOpen} onOpenChange={setIsPlatformSettingsModalOpen}>
         <DialogContent className="sm:max-w-[500px] rounded-3xl p-0 overflow-hidden border-none shadow-2xl">
-          <div className="bg-stone-900 p-8 text-white relative">
-            <div className="absolute top-0 right-0 p-8 opacity-10">
-              <Settings className="h-24 w-24" />
+          <div className="bg-gradient-to-br from-stone-900 to-stone-800 dark:from-stone-950 dark:to-stone-900 p-8 text-white relative overflow-hidden">
+            <div className="absolute -top-6 -right-6 p-8 opacity-10 rotate-12 group-hover:rotate-45 transition-transform duration-1000">
+              <Settings className="h-32 w-32" />
             </div>
-            <DialogHeader>
-              <DialogTitle className="text-2xl font-black tracking-tight">Platform Settings</DialogTitle>
-              <DialogDescription className="text-stone-400 font-medium">
+            <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_30%_30%,rgba(255,255,255,0.05),transparent)] pointer-events-none" />
+            <DialogHeader className="relative z-10">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="p-2 bg-white/10 rounded-xl backdrop-blur-md border border-white/10">
+                  <Settings className="h-5 w-5 text-amber-400" />
+                </div>
+                <DialogTitle className="text-2xl font-black tracking-tight text-white">Platform Settings</DialogTitle>
+              </div>
+              <DialogDescription className="text-stone-400 font-medium pl-1">
                 Universal configuration for DineMatters ecosystem
               </DialogDescription>
             </DialogHeader>
           </div>
 
-          <div className="p-8 space-y-8">
+          <div className="p-8 space-y-8 bg-background">
             <div className="space-y-6">
-              <div className="flex items-center justify-between p-4 bg-stone-50 rounded-2xl border border-stone-100">
-                <div className="space-y-0.5">
-                  <Label className="text-base font-bold">Charge GST</Label>
+              <div className="flex items-center justify-between p-5 bg-muted/30 dark:bg-muted/10 rounded-2xl border border-border/50 hover:border-primary/20 transition-all shadow-sm">
+                <div className="space-y-1">
+                  <Label className="text-base font-bold flex items-center gap-2">
+                    Charge GST 
+                    {platformSettings.charge_gst && <Badge className="bg-green-500/20 text-green-600 border-none text-[9px] h-4">ACTIVE</Badge>}
+                  </Label>
                   <p className="text-xs text-muted-foreground font-medium">Add tax to all platform transactions</p>
                 </div>
                 <Switch 
@@ -1194,13 +1173,13 @@ export default function AdminRestaurantManagement() {
               </div>
 
               {platformSettings.charge_gst && (
-                <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
-                  <Label className="text-sm font-bold ml-1">GST Percentage (%)</Label>
+                <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-300">
+                  <Label className="text-sm font-bold ml-1 text-muted-foreground">GST Percentage (%)</Label>
                   <NumberInput
                     value={platformSettings.gst_percent}
                     onChange={(e) => setPlatformSettings(prev => ({ ...prev, gst_percent: parseFloat(e.target.value || '0') }))}
                     placeholder="18.0"
-                    className="h-12 rounded-xl bg-stone-50 border-stone-200"
+                    className="h-12 rounded-xl bg-muted/30 border-border focus-visible:ring-primary/20"
                   />
                 </div>
               )}
@@ -1226,34 +1205,40 @@ export default function AdminRestaurantManagement() {
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label className="text-sm font-bold ml-1 text-amber-600 uppercase tracking-widest">Gold Upgrade Barrier (Wallet Balance)</Label>
+              <div className="space-y-3 p-5 rounded-2xl bg-amber-500/5 border border-amber-500/10 hover:border-amber-500/30 transition-all">
+                <div className="flex items-center gap-2 mb-1">
+                  <div className="p-1.5 bg-amber-500/10 rounded-lg">
+                    <Trophy className="h-3.5 w-3.5 text-amber-600" />
+                  </div>
+                  <Label className="text-sm font-bold text-amber-600 uppercase tracking-widest">Upgrade Barrier</Label>
+                </div>
                 <NumberInput
                   value={platformSettings.gold_upgrade_barrier}
                   onChange={(e) => setPlatformSettings(prev => ({ ...prev, gold_upgrade_barrier: parseFloat(e.target.value || '0') }))}
-                  className="h-12 rounded-xl font-bold text-amber-700 bg-amber-50 border-amber-100"
+                  className="h-14 rounded-xl font-black text-2xl text-amber-700 bg-amber-500/5 border-amber-500/10 focus-visible:ring-amber-500/20"
                 />
-                <p className="text-[10px] text-muted-foreground px-1">
-                  Restaurants must top-up this amount in a single go to unlock GOLD tier features.
+                <p className="text-[10px] text-amber-700/70 font-medium px-1 flex items-center gap-1.5">
+                  <Zap className="h-3 w-3" />
+                  Single top-up required to unlock GOLD tier features.
                 </p>
               </div>
             </div>
           </div>
 
-          <DialogFooter className="p-8 bg-stone-50 border-t border-stone-100">
+          <DialogFooter className="p-6 bg-muted/30 dark:bg-muted/10 border-t border-border/50 flex flex-row gap-3">
             <Button 
               variant="ghost" 
               onClick={() => setIsPlatformSettingsModalOpen(false)}
-              className="rounded-xl h-12 font-bold"
+              className="rounded-xl h-12 font-bold flex-1"
             >
               Cancel
             </Button>
             <Button 
               onClick={handleUpdatePlatformSettings}
               disabled={updating === 'platform-settings'}
-              className="rounded-xl h-12 px-8 font-bold bg-stone-900 hover:bg-stone-800 text-white shadow-xl transition-all"
+              className="rounded-xl h-12 px-10 font-bold bg-stone-900 dark:bg-primary text-white hover:bg-stone-800 dark:hover:bg-primary/90 shadow-xl shadow-stone-900/10 transition-all flex-1"
             >
-              {updating === 'platform-settings' && <RefreshCw className="h-4 w-4 mr-2 animate-spin" />}
+              {updating === 'platform-settings' ? <RefreshCw className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
               Save Changes
             </Button>
           </DialogFooter>

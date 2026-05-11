@@ -10,21 +10,62 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
-import { Plus, Edit2, Trash2, Users, Star, Camera, Instagram } from 'lucide-react'
+import { Plus, Edit2, Trash2, Users, Star, Instagram, Image, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useRestaurant } from '@/contexts/RestaurantContext'
+import { uploadToR2 } from '@/lib/r2Upload'
 
 export default function LegacyContentPage() {
   const { selectedRestaurant } = useRestaurant()
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<any>(null)
 
+  const [uploading, setUploading] = useState(false)
+  const [heroData, setHeroData] = useState({
+    hero_media_type: 'image',
+    hero_media_src: '',
+    hero_fallback_image: '',
+    hero_title: '',
+    opening_text: '',
+    paragraph_1: '',
+    paragraph_2: ''
+  })
+  const [footerData, setFooterData] = useState({
+    footer_media_src: '',
+    footer_title: '',
+    footer_description: '',
+    footer_cta_text: '',
+    footer_cta_route: ''
+  })
+
   // Get the main legacy content document
-  const { isLoading: contentLoading } = useFrappeGetDoc(
+  const { data: legacyContent, isLoading: contentLoading, mutate: mutateContent } = useFrappeGetDoc(
     'Legacy Content',
     selectedRestaurant || '',
     { enabled: !!selectedRestaurant }
   )
+
+  React.useEffect(() => {
+    if (legacyContent && legacyContent.name === selectedRestaurant) {
+      setHeroData({
+        hero_media_type: legacyContent.hero_media_type || 'image',
+        hero_media_src: legacyContent.hero_media_src || '',
+        hero_fallback_image: legacyContent.hero_fallback_image || '',
+        hero_title: legacyContent.hero_title || '',
+        opening_text: legacyContent.opening_text || '',
+        paragraph_1: legacyContent.paragraph_1 || '',
+        paragraph_2: legacyContent.paragraph_2 || ''
+      })
+      
+      setFooterData({
+        footer_media_src: legacyContent.footer_media_src || '',
+        footer_title: legacyContent.footer_title || '',
+        footer_description: legacyContent.footer_description || '',
+        footer_cta_text: legacyContent.footer_cta_text || '',
+        footer_cta_route: legacyContent.footer_cta_route || ''
+      })
+    }
+  }, [legacyContent, selectedRestaurant])
 
   // Get child table data
   const { data: signatureDishes, mutate: mutateSignatureDishes } = useFrappeGetDocList('Legacy Signature Dish', {
@@ -45,11 +86,6 @@ export default function LegacyContentPage() {
     orderBy: { field: 'display_order', order: 'asc' }
   })
 
-  const { data: galleryImages, mutate: mutateGallery } = useFrappeGetDocList('Legacy Gallery Image', {
-    filters: [['parent', '=', selectedRestaurant]],
-    fields: ['name', 'image', 'title', 'display_order'],
-    orderBy: { field: 'display_order', order: 'asc' }
-  })
 
   const { data: instagramReels, mutate: mutateReels } = useFrappeGetDocList('Legacy Instagram Reel', {
     filters: [['parent', '=', selectedRestaurant]],
@@ -66,6 +102,89 @@ export default function LegacyContentPage() {
   const { call: createDoc, loading: isCreating } = useFrappePostCall('frappe.client.insert')
   const { updateDoc, loading: isUpdating } = useFrappeUpdateDoc()
   const { deleteDoc } = useFrappeDeleteDoc()
+  const { call: updateLegacyContent, loading: isUpdatingLegacy } = useFrappePostCall('dinematters.dinematters.api.legacy.update_legacy_content')
+  const { call: generateLegacyContent, loading: isGenerating } = useFrappePostCall('dinematters.dinematters.api.legacy.generate_legacy_content')
+
+  const handleGenerateLegacy = async () => {
+    try {
+      const res = await generateLegacyContent({ restaurant_id: selectedRestaurant })
+      if (res?.message?.success) {
+        toast.success('Legacy content generated successfully')
+        mutateContent()
+        mutateSignatureDishes()
+        mutateTestimonials()
+        mutateMembers()
+      } else {
+        toast.error(res?.message?.error?.message || 'Failed to generate legacy content')
+      }
+    } catch (error) {
+      toast.error('Error generating legacy content')
+    }
+  }
+
+  const handleFileUpload = async (file: File, mediaRole: string): Promise<string> => {
+    setUploading(true)
+    try {
+      const result = await uploadToR2({
+        ownerDoctype: 'Legacy Content',
+        ownerName: selectedRestaurant || '',
+        mediaRole,
+        file
+      })
+      return result.primary_url
+    } catch (error) {
+      console.error('Upload failed:', error)
+      throw error
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const handleHeroContentSave = async (e: React.FormEvent) => {
+    e.preventDefault()
+    try {
+      await updateLegacyContent({
+        restaurant_id: selectedRestaurant,
+        hero: {
+          mediaType: heroData.hero_media_type,
+          mediaSrc: heroData.hero_media_src,
+          fallbackImage: heroData.hero_fallback_image,
+          title: heroData.hero_title
+        },
+        content: {
+          openingText: heroData.opening_text,
+          paragraph1: heroData.paragraph_1,
+          paragraph2: heroData.paragraph_2
+        }
+      })
+      toast.success('Hero content updated successfully')
+      mutateContent()
+    } catch (error) {
+      toast.error('Failed to update hero content')
+    }
+  }
+
+  const handleFooterContentSave = async (e: React.FormEvent) => {
+    e.preventDefault()
+    try {
+      await updateLegacyContent({
+        restaurant_id: selectedRestaurant,
+        footer: {
+          mediaSrc: footerData.footer_media_src,
+          title: footerData.footer_title,
+          description: footerData.footer_description,
+          ctaButton: {
+            text: footerData.footer_cta_text,
+            route: footerData.footer_cta_route
+          }
+        }
+      })
+      toast.success('Footer content updated successfully')
+      mutateContent()
+    } catch (error) {
+      toast.error('Failed to update footer content')
+    }
+  }
 
   const handleSave = async (data: any, type: string, doctype: string) => {
     try {
@@ -90,7 +209,6 @@ export default function LegacyContentPage() {
       mutateSignatureDishes()
       mutateTestimonials()
       mutateMembers()
-      mutateGallery()
       mutateReels()
     } catch (error) {
       toast.error(`Failed to save ${type}`)
@@ -106,7 +224,6 @@ export default function LegacyContentPage() {
       mutateSignatureDishes()
       mutateTestimonials()
       mutateMembers()
-      mutateGallery()
       mutateReels()
     } catch (error) {
       toast.error(`Failed to delete ${type}`)
@@ -118,7 +235,6 @@ export default function LegacyContentPage() {
       'Legacy Signature Dish': 'signature_dishes',
       'Legacy Testimonial': 'testimonials',
       'Legacy Member': 'members',
-      'Legacy Gallery Image': 'gallery_featured_images',
       'Legacy Instagram Reel': 'instagram_reels'
     }
     return mapping[doctype] || ''
@@ -193,11 +309,6 @@ export default function LegacyContentPage() {
           data.image = formData.get('image')
           data.display_order = parseInt(formData.get('display_order') as string) || 0
           break
-        case 'Gallery Image':
-          data.image = formData.get('image')
-          data.title = formData.get('title')
-          data.display_order = parseInt(formData.get('display_order') as string) || 0
-          break
         case 'Instagram Reel':
           data.reel_link = formData.get('reel_link')
           data.title = formData.get('title')
@@ -214,7 +325,7 @@ export default function LegacyContentPage() {
           <>
             <div>
               <Label htmlFor="dish">Dish</Label>
-              <Select name="dish" defaultValue={editingData?.dish} required>
+              <Select key={editingData?.name || 'new'} name="dish" defaultValue={editingData?.dish} required>
                 <SelectTrigger>
                   <SelectValue placeholder="Select a dish" />
                 </SelectTrigger>
@@ -295,22 +406,6 @@ export default function LegacyContentPage() {
           </>
         )}
         
-        {type === 'Gallery Image' && (
-          <>
-            <div>
-              <Label htmlFor="image">Image URL</Label>
-              <Input name="image" defaultValue={editingData?.image} required />
-            </div>
-            <div>
-              <Label htmlFor="title">Title (Optional)</Label>
-              <Input name="title" defaultValue={editingData?.title} />
-            </div>
-            <div>
-              <Label htmlFor="display_order">Display Order</Label>
-              <NumberInput  name="display_order" defaultValue={editingData?.display_order || 0} />
-            </div>
-          </>
-        )}
         
         {type === 'Instagram Reel' && (
           <>
@@ -359,10 +454,151 @@ export default function LegacyContentPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Legacy Content Management</h1>
-        <p className="text-muted-foreground">Manage your restaurant's story, heritage, and featured content</p>
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-2xl font-bold">Legacy Content Management</h1>
+          <p className="text-muted-foreground">Manage your restaurant's story, heritage, and featured content</p>
+        </div>
+        <Button 
+          onClick={handleGenerateLegacy} 
+          disabled={isGenerating}
+          variant="outline"
+          className="gap-2 border-primary/50 hover:border-primary text-primary"
+        >
+          {isGenerating ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Star className="h-4 w-4 fill-primary" />
+          )}
+          Generate with AI
+        </Button>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Image className="h-5 w-5" />
+            Hero Section
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form 
+            key={legacyContent?.name || 'loading'}
+            onSubmit={handleHeroContentSave} className="space-y-4">
+            <div>
+              <Label htmlFor="hero_media_type">Hero Media Type</Label>
+              <Select 
+                name="hero_media_type" 
+                value={heroData.hero_media_type}
+                onValueChange={(val) => setHeroData(prev => ({ ...prev, hero_media_type: val }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select media type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="image">Image</SelectItem>
+                  <SelectItem value="video">Video</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="hero_media_upload">Upload Hero Media</Label>
+                <div className="flex gap-2 items-start mt-1">
+                  <Input 
+                    id="hero_media_upload"
+                    type="file" 
+                    accept={heroData.hero_media_type === 'video' ? 'video/*' : 'image/*'} 
+                    onChange={async (e) => {
+                      if (e.target.files && e.target.files[0]) {
+                        try {
+                          const url = await handleFileUpload(e.target.files[0], 'legacy_hero_media')
+                          setHeroData(prev => ({ ...prev, hero_media_src: url }))
+                          toast.success('Hero media uploaded')
+                        } catch (err) {
+                          toast.error('Failed to upload hero media')
+                        }
+                      }
+                    }}
+                  />
+                </div>
+                {heroData.hero_media_src && (
+                  <p className="text-xs text-muted-foreground mt-2 truncate">Current: {heroData.hero_media_src}</p>
+                )}
+              </div>
+              
+              {heroData.hero_media_type === 'video' && (
+                <div>
+                  <Label htmlFor="hero_fallback_upload">Upload Fallback Image (Optional)</Label>
+                  <div className="flex gap-2 items-start mt-1">
+                    <Input 
+                      id="hero_fallback_upload"
+                      type="file" 
+                      accept="image/*"
+                      onChange={async (e) => {
+                        if (e.target.files && e.target.files[0]) {
+                          try {
+                            const url = await handleFileUpload(e.target.files[0], 'legacy_hero_fallback')
+                            setHeroData(prev => ({ ...prev, hero_fallback_image: url }))
+                            toast.success('Fallback image uploaded')
+                          } catch (err) {
+                            toast.error('Failed to upload fallback image')
+                          }
+                        }
+                      }}
+                    />
+                  </div>
+                  {heroData.hero_fallback_image && (
+                    <p className="text-xs text-muted-foreground mt-2 truncate">Current: {heroData.hero_fallback_image}</p>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div>
+              <Label htmlFor="hero_title">Hero Title</Label>
+              <Input 
+                name="hero_title" 
+                value={heroData.hero_title} 
+                onChange={(e) => setHeroData(prev => ({ ...prev, hero_title: e.target.value }))}
+                placeholder="Enter your restaurant's story title" 
+              />
+            </div>
+            <div>
+              <Label htmlFor="opening_text">Opening Text</Label>
+              <Textarea 
+                name="opening_text" 
+                value={heroData.opening_text} 
+                onChange={(e) => setHeroData(prev => ({ ...prev, opening_text: e.target.value }))}
+                placeholder="Welcome text for your restaurant" 
+              />
+            </div>
+            <div>
+              <Label htmlFor="paragraph_1">First Paragraph</Label>
+              <Textarea 
+                name="paragraph_1" 
+                value={heroData.paragraph_1} 
+                onChange={(e) => setHeroData(prev => ({ ...prev, paragraph_1: e.target.value }))}
+                placeholder="Tell your restaurant's story" 
+              />
+            </div>
+            <div>
+              <Label htmlFor="paragraph_2">Second Paragraph (Optional)</Label>
+              <Textarea 
+                name="paragraph_2" 
+                value={heroData.paragraph_2} 
+                onChange={(e) => setHeroData(prev => ({ ...prev, paragraph_2: e.target.value }))}
+                placeholder="Continue your story" 
+              />
+            </div>
+            <Button type="submit" disabled={isUpdatingLegacy || uploading}>
+              {uploading || isUpdatingLegacy ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : null}
+              Save Hero Section
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
 
       <div className="grid gap-6">
         {renderSection(
@@ -371,22 +607,34 @@ export default function LegacyContentPage() {
           signatureDishes || [],
           'Signature Dish',
           'Legacy Signature Dish',
-          (item) => (
-            <div key={item.name} className="flex items-center justify-between p-4 border rounded-lg">
-              <div>
-                <h4 className="font-semibold">{item.dish_name || item.dish}</h4>
-                <p className="text-sm text-muted-foreground">Order: {item.display_order}</p>
+          (item) => {
+            const product = menuProducts?.find((p: any) => p.name === item.dish)
+            return (
+              <div key={item.name} className="flex items-center justify-between p-4 border rounded-lg">
+                <div className="flex items-center gap-3">
+                  {product?.image ? (
+                    <img src={product.image} className="h-12 w-12 rounded-md object-cover" alt={item.dish_name} />
+                  ) : (
+                    <div className="h-12 w-12 rounded-md bg-muted flex items-center justify-center">
+                      <Image className="h-6 w-6 text-muted-foreground" />
+                    </div>
+                  )}
+                  <div>
+                    <h4 className="font-semibold">{item.dish_name || product?.product_name || item.dish}</h4>
+                    <p className="text-sm text-muted-foreground">Order: {item.display_order}</p>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Button size="sm" variant="outline" onClick={() => setEditingItem({ ...item, type: 'Signature Dish', doctype: 'Legacy Signature Dish' })}>
+                    <Edit2 className="h-4 w-4" />
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => handleDelete('Legacy Signature Dish', item.name, 'Signature Dish')}>
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
-              <div className="flex gap-2">
-                <Button size="sm" variant="outline" onClick={() => setEditingItem({ ...item, type: 'Signature Dish', doctype: 'Legacy Signature Dish' })}>
-                  <Edit2 className="h-4 w-4" />
-                </Button>
-                <Button size="sm" variant="outline" onClick={() => handleDelete('Legacy Signature Dish', item.name, 'Signature Dish')}>
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-          )
+            )
+          }
         )}
 
         {renderSection(
@@ -442,29 +690,6 @@ export default function LegacyContentPage() {
           )
         )}
 
-        {renderSection(
-          'Gallery Images',
-          <Camera className="h-5 w-5" />,
-          galleryImages || [],
-          'Gallery Image',
-          'Legacy Gallery Image',
-          (item) => (
-            <div key={item.name} className="flex items-center justify-between p-4 border rounded-lg">
-              <div>
-                <h4 className="font-semibold">{item.title || 'Untitled'}</h4>
-                <p className="text-sm text-muted-foreground truncate">{item.image}</p>
-              </div>
-              <div className="flex gap-2">
-                <Button size="sm" variant="outline" onClick={() => setEditingItem({ ...item, type: 'Gallery Image', doctype: 'Legacy Gallery Image' })}>
-                  <Edit2 className="h-4 w-4" />
-                </Button>
-                <Button size="sm" variant="outline" onClick={() => handleDelete('Legacy Gallery Image', item.name, 'Gallery Image')}>
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-          )
-        )}
 
         {renderSection(
           'Instagram Reels',
@@ -490,6 +715,89 @@ export default function LegacyContentPage() {
           )
         )}
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Image className="h-5 w-5" />
+            Footer Section
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form 
+            key={legacyContent?.name ? `footer-${legacyContent.name}` : 'footer-loading'}
+            onSubmit={handleFooterContentSave} className="space-y-4">
+            <div>
+              <Label htmlFor="footer_media_upload">Upload Footer Media (Image/Video)</Label>
+              <div className="flex gap-2 items-start mt-1">
+                <Input 
+                  id="footer_media_upload"
+                  type="file" 
+                  accept="image/*,video/*"
+                  onChange={async (e) => {
+                    if (e.target.files && e.target.files[0]) {
+                      try {
+                        const url = await handleFileUpload(e.target.files[0], 'legacy_footer_media')
+                        setFooterData(prev => ({ ...prev, footer_media_src: url }))
+                        toast.success('Footer media uploaded')
+                      } catch (err) {
+                        toast.error('Failed to upload footer media')
+                      }
+                    }
+                  }}
+                />
+              </div>
+              {footerData.footer_media_src && (
+                <p className="text-xs text-muted-foreground mt-2 truncate">Current: {footerData.footer_media_src}</p>
+              )}
+            </div>
+
+            <div>
+              <Label htmlFor="footer_title">Footer Title</Label>
+              <Input 
+                name="footer_title" 
+                value={footerData.footer_title} 
+                onChange={(e) => setFooterData(prev => ({ ...prev, footer_title: e.target.value }))}
+                placeholder="Ready for Your Next Culinary Adventure?" 
+              />
+            </div>
+            <div>
+              <Label htmlFor="footer_description">Footer Description</Label>
+              <Textarea 
+                name="footer_description" 
+                value={footerData.footer_description} 
+                onChange={(e) => setFooterData(prev => ({ ...prev, footer_description: e.target.value }))}
+                placeholder="Start exploring our menu today..." 
+              />
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="footer_cta_text">CTA Button Text</Label>
+                <Input 
+                  name="footer_cta_text" 
+                  value={footerData.footer_cta_text} 
+                  onChange={(e) => setFooterData(prev => ({ ...prev, footer_cta_text: e.target.value }))}
+                  placeholder="Explore Our Menu" 
+                />
+              </div>
+              <div>
+                <Label htmlFor="footer_cta_route">CTA Button Route</Label>
+                <Input 
+                  name="footer_cta_route" 
+                  value={footerData.footer_cta_route} 
+                  onChange={(e) => setFooterData(prev => ({ ...prev, footer_cta_route: e.target.value }))}
+                  placeholder="/main-menu" 
+                />
+              </div>
+            </div>
+            
+            <Button type="submit" disabled={isUpdatingLegacy || uploading}>
+              {uploading || isUpdatingLegacy ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : null}
+              Save Footer Section
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
     </div>
   )
 }

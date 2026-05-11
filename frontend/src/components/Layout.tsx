@@ -118,25 +118,6 @@ const navigation: NavItem[] = [
   { type: 'link', name: 'Dashboard', href: '/dashboard', icon: Home },
   {
     type: 'group',
-    id: 'setup-config',
-    name: 'Setup & Config',
-    icon: Store,
-    children: [
-      { name: 'Setup Wizard', href: '/setup', icon: Sparkles },
-      { name: 'Team Management', href: '/team', icon: Users, adminOnly: true },
-      { name: 'POS Integration', href: '/pos-integration', icon: Settings, feature: 'pos_integration' },
-      { name: 'Manage Offer and Coupons', href: '/coupons', icon: Tag, feature: 'coupons' },
-      { name: 'Manage QR Code', href: '/qr-codes', icon: QrCode },
-      { name: 'Home Features', href: '/home-features', icon: Grid3x3 },
-      { name: 'Order settings', href: '/frontend-ordering', icon: Package, feature: 'order_settings' },
-      { name: 'Logistics Hub', href: '/logistics-hub', icon: Truck, feature: 'ordering' },
-      { name: 'AI Menu Background', href: '/ai-menu-theme-background', icon: Sparkles },
-      { name: 'Gallery Management', href: '/gallery-management', icon: Star },
-    ],
-  },
-  { type: 'link', name: 'Customer pay & Usage', href: '/billing', icon: CreditCard, feature: 'customer_pay_and_usage' },
-  {
-    type: 'group',
     id: 'manage-orders',
     name: 'Manage Orders',
     icon: ShoppingCart,
@@ -149,8 +130,19 @@ const navigation: NavItem[] = [
   },
   { type: 'link', name: 'WhatsApp Orders', href: '/whatsapp-orders', icon: MessageSquare, badgeHref: '/whatsapp-orders', feature: 'whatsapp_orders' },
   { type: 'link', name: 'Table Bookings', href: '/bookings', icon: Calendar, feature: 'table_booking' },
-  { type: 'link', name: 'Events', href: '/events', icon: PartyPopper, feature: 'events' },
+  {
+    type: 'group',
+    id: 'manage-product',
+    name: 'Manage Product',
+    icon: Package,
+    children: [
+      { name: 'Menu Management', href: '/menu', icon: Package },
+      { name: 'AI Image Gallery', href: '/ai-enhancements', icon: Sparkles },
+      { name: 'Recommendations Engine', href: '/recommendations-engine', icon: FolderTree, feature: 'ai_recommendations' },
+    ],
+  },
   { type: 'link', name: 'Customers', href: '/customers', icon: Users, feature: 'customer' },
+  { type: 'link', name: 'Events', href: '/events', icon: PartyPopper, feature: 'events' },
   {
     type: 'group',
     id: 'loyalty-growth',
@@ -162,18 +154,6 @@ const navigation: NavItem[] = [
       { name: 'Customer Insights', href: '/loyalty-insights', icon: Users, feature: 'loyalty_insights' },
       { name: 'Analytics', href: '/loyalty-analytics', icon: BarChart3, feature: 'loyalty' },
     ],
-  },
-  {
-    type: 'group',
-    id: 'manage-product',
-    name: 'Manage Product',
-    icon: Package,
-    children: [
-      { name: 'Menu Management', href: '/menu', icon: Package },
-      { name: 'AI Image Gallery', href: '/ai-enhancements', icon: Sparkles },
-      { name: 'Recommendations Engine', href: '/recommendations-engine', icon: FolderTree, feature: 'ai_recommendations' },
-    ],
-
   },
   {
     type: 'group',
@@ -201,6 +181,25 @@ const navigation: NavItem[] = [
       { name: 'Reviews & AI Reply', href: '/google-growth/reviews', icon: Star, feature: 'google_growth_ai' },
     ],
   },
+  {
+    type: 'group',
+    id: 'setup-config',
+    name: 'Setup & Config',
+    icon: Store,
+    children: [
+      { name: 'Setup Wizard', href: '/setup', icon: Sparkles },
+      { name: 'Team Management', href: '/team', icon: Users, adminOnly: true },
+      { name: 'POS Integration', href: '/pos-integration', icon: Settings, feature: 'pos_integration' },
+      { name: 'Manage Offer and Coupons', href: '/coupons', icon: Tag, feature: 'coupons' },
+      { name: 'Manage QR Code', href: '/qr-codes', icon: QrCode },
+      { name: 'Home Features', href: '/home-features', icon: Grid3x3 },
+      { name: 'Order settings', href: '/frontend-ordering', icon: Package, feature: 'order_settings' },
+      { name: 'Logistics Hub', href: '/logistics-hub', icon: Truck, feature: 'ordering' },
+      { name: 'AI Menu Background', href: '/ai-menu-theme-background', icon: Sparkles },
+      { name: 'Gallery Management', href: '/gallery-management', icon: Star },
+    ],
+  },
+  { type: 'link', name: 'Customer pay & Usage', href: '/billing', icon: CreditCard, feature: 'customer_pay_and_usage' },
   // Admin-only link - will be filtered by admin check in render
   { type: 'link', name: 'Restaurant Management', href: '/admin/restaurants', icon: Shield, adminOnly: true },
 ]
@@ -210,7 +209,8 @@ export default function Layout({ children }: LayoutProps) {
   const location = useLocation()
   const navigate = useNavigate()
   const { theme, toggleTheme } = useTheme()
-  const { selectedRestaurant, setSelectedRestaurant, restaurants, isGold, isSilver, planType, coinsBalance, billingStatus, isActive, refreshConfig, billingInfo, isAdmin: isRestaurantAdmin } = useRestaurant()
+  const { selectedRestaurant, setSelectedRestaurant, restaurants, isGold, isSilver, planType, coinsBalance, billingStatus, isActive, refreshConfig, billingInfo, isAdmin: isRestaurantAdmin, restaurantConfig } = useRestaurant()
+  const orderChannel: 'Realtime' | 'WhatsApp' = restaurantConfig?.settings?.order_settings?.order_channel || 'Realtime'
   const { formatAmountNoDecimals } = useCurrency()
   const [sidebarOpen, setSidebarOpen] = useState(false) // Mobile sidebar
   const [sidebarExpanded, setSidebarExpanded] = useState(true) // Desktop sidebar expanded/collapsed
@@ -889,7 +889,9 @@ export default function Layout({ children }: LayoutProps) {
                   const showBadge = badgeCount > 0
                   // Unified locking logic
                   const featureStatus = getFeatureStatus(item.feature)
-                  const isLocked = featureStatus.isLocked
+                  // Lock WhatsApp Orders when Gold restaurant has Realtime channel active
+                  const isWhatsAppItemLocked = item.feature === 'whatsapp_orders' && isGold && orderChannel === 'Realtime'
+                  const isLocked = featureStatus.isLocked || isWhatsAppItemLocked
 
                   const LockIcon = (item.feature && GOLD_ONLY_FEATURES.includes(item.feature))
                     ? (
@@ -905,6 +907,14 @@ export default function Layout({ children }: LayoutProps) {
                       key={item.name}
                       to={item.href}
                       onClick={(e) => {
+                        if (isWhatsAppItemLocked) {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          toast.error('Real-time order channel is active', {
+                            description: 'Switch to WhatsApp channel in Order Settings to use this feature'
+                          })
+                          return
+                        }
                         if (handleLockedClick(e, item.name, featureStatus)) return
                         setSidebarOpen(false)
                       }}
@@ -968,7 +978,9 @@ export default function Layout({ children }: LayoutProps) {
 
                 // Group locking logic
                 const groupStatus = getFeatureStatus(group.feature)
-                const isGroupLocked = groupStatus.isLocked
+                // Lock 'Manage Orders' group when Gold restaurant has chosen WhatsApp channel
+                const isWhatsAppChannelLocked = group.id === 'manage-orders' && isGold && orderChannel === 'WhatsApp'
+                const isGroupLocked = groupStatus.isLocked || isWhatsAppChannelLocked
 
                 // Check if all children are also locked (to mark parent as fully locked)
                 const allChildrenLocked = filteredChildren.length > 0 && filteredChildren.every(child => getFeatureStatus(child.feature).isLocked)
@@ -996,7 +1008,7 @@ export default function Layout({ children }: LayoutProps) {
                             hasActiveChild ? "text-primary" : "text-muted-foreground hover:text-sidebar-foreground",
                             isGroupFullyLocked && "opacity-60"
                           )}
-                          title={`${group.name}${isGroupFullyLocked ? ' (Locked)' : ''}`}
+                          title={`${group.name}${isWhatsAppChannelLocked ? ' (WhatsApp channel active)' : isGroupFullyLocked ? ' (Locked)' : ''}`}
                         >
                           <Icon className="h-4 w-4" />
                           {isGroupFullyLocked && (
@@ -1018,7 +1030,7 @@ export default function Layout({ children }: LayoutProps) {
 
                             // Unified child locking logic
                             const childStatus = getFeatureStatus(child.feature)
-                            const isChildLocked = childStatus.isLocked
+                            const isChildLocked = childStatus.isLocked || isWhatsAppChannelLocked
 
                             const ChildLockIcon = (child.feature && GOLD_ONLY_FEATURES.includes(child.feature))
                               ? <Star className="h-3 w-3 text-amber-500 flex-shrink-0 ml-auto" />
@@ -1028,6 +1040,14 @@ export default function Layout({ children }: LayoutProps) {
                                 <Link
                                   to={child.href}
                                   onClick={(e) => {
+                                    if (isWhatsAppChannelLocked) {
+                                      e.preventDefault()
+                                      e.stopPropagation()
+                                      toast.error('WhatsApp order channel is active', {
+                                        description: 'Switch to Real-time orders in Order Settings to use this feature'
+                                      })
+                                      return
+                                    }
                                     if (handleLockedClick(e, child.name, childStatus)) return
                                     setSidebarOpen(false)
                                   }}
@@ -1128,7 +1148,7 @@ export default function Layout({ children }: LayoutProps) {
 
                             // Unified child locking logic (Expanded View)
                             const childStatus = getFeatureStatus(child.feature)
-                            const isChildLocked = childStatus.isLocked
+                            const isChildLocked = childStatus.isLocked || isWhatsAppChannelLocked
 
                             const ChildLockIcon = (child.feature && GOLD_ONLY_FEATURES.includes(child.feature))
                               ? (
@@ -1143,6 +1163,14 @@ export default function Layout({ children }: LayoutProps) {
                                 key={child.href}
                                 to={child.href}
                                 onClick={(e) => {
+                                  if (isWhatsAppChannelLocked) {
+                                    e.preventDefault()
+                                    e.stopPropagation()
+                                    toast.error('WhatsApp order channel is active', {
+                                      description: 'Switch to Real-time orders in Order Settings to use this feature'
+                                    })
+                                    return
+                                  }
                                   if (handleLockedClick(e, child.name, childStatus)) return
                                   setSidebarOpen(false)
                                 }}

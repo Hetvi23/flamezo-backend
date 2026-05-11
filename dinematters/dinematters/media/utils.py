@@ -29,7 +29,7 @@ def get_allowed_roles():
 		"Menu Image Extractor": ["category_image"],
 		"Event": ["event_image"],
 		"Offer": ["offer_image"],
-		"Legacy Content": ["legacy_hero_media", "legacy_hero_fallback", "legacy_footer_media"],
+		"Legacy Content": ["legacy_hero_media", "legacy_hero_fallback", "legacy_footer_media", "legacy_member_image", "legacy_testimonial_avatar", "legacy_testimonial_dish_image", "legacy_gallery_image"],
 		"Legacy Member": ["legacy_member_image"],
 		"Legacy Testimonial": ["legacy_testimonial_avatar", "legacy_testimonial_dish_image"],
 		"Legacy Gallery Image": ["legacy_gallery_image"],

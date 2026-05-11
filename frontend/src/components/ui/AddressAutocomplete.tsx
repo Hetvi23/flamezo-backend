@@ -12,6 +12,9 @@ interface AddressAutocompleteProps {
     address: string
     latitude: number | null
     longitude: number | null
+    city?: string
+    state?: string
+    zipCode?: string
   }) => void
   label?: string
   required?: boolean
@@ -220,7 +223,7 @@ export default function AddressAutocomplete({
         service.getDetails(
           {
             placeId,
-            fields: ['formatted_address', 'geometry'],
+            fields: ['formatted_address', 'geometry', 'address_components'],
             sessionToken,
           },
           (place: any, status: any) => {
@@ -228,9 +231,39 @@ export default function AddressAutocomplete({
               const lat = place.geometry?.location?.lat?.() ?? null
               const lng = place.geometry?.location?.lng?.() ?? null
               const finalAddress = place.formatted_address || displayAddress
+              
+              // Extract city, state and zip code from address components
+              let city = ''
+              let state = ''
+              let zipCode = ''
+              
+              if (place.address_components) {
+                for (const component of place.address_components) {
+                  const types = component.types
+                  if (types.includes('locality')) {
+                    city = component.long_name
+                  } else if (types.includes('postal_code')) {
+                    zipCode = component.long_name
+                  } else if (types.includes('administrative_area_level_1')) {
+                    state = component.long_name
+                  } else if (!city && types.includes('administrative_area_level_2')) {
+                    city = component.long_name
+                  } else if (!city && types.includes('sublocality_level_1')) {
+                    city = component.long_name
+                  }
+                }
+              }
+
               onChange(finalAddress)
 
-              onLocationSelect?.({ address: finalAddress, latitude: lat, longitude: lng })
+              onLocationSelect?.({ 
+                address: finalAddress, 
+                latitude: lat, 
+                longitude: lng,
+                city: city,
+                state: state,
+                zipCode: zipCode
+              })
 
               // Refresh session token
               const maps = window.google?.maps

@@ -117,8 +117,8 @@ export default function DynamicForm({
   const [formData, setFormData] = useState<Record<string, any>>({})
   const [saving, setSaving] = useState(false)
   const [progress, setProgress] = useState(0)
-  // Track if lat/lng were auto-filled from Google Places (makes them read-only)
-  const [addressLatLngLocked, setAddressLatLngLocked] = useState(false)
+  // Track if address components were auto-filled from Google Places (makes them read-only)
+  const [addressComponentsLocked, setAddressComponentsLocked] = useState(false)
 
   const { call: insertDoc } = useFrappePostCall('dinematters.dinematters.api.documents.create_document')
   const { call: updateDoc } = useFrappePostCall('dinematters.dinematters.api.documents.update_document')
@@ -162,7 +162,7 @@ export default function DynamicForm({
       // The hasUserDataRef guard must NOT run here; only block re-hydration for SAME-identity
       // SWR background revalidations (handled below by the !formDataInitialized check).
       hasUserDataRef.current = false       // clear the unsaved-edits flag for the new identity
-      setAddressLatLngLocked(false)        // unlock lat/lng so step-1 lock doesn't bleed into step-2+
+      setAddressComponentsLocked(false)        // unlock lat/lng so step-1 lock doesn't bleed into step-2+
       setFormDataInitialized(false)
       lastHydratedKeyRef.current = currentDocKey  // update immediately to prevent re-render loop
       setFormData({})
@@ -720,7 +720,8 @@ export default function DynamicForm({
               label={field.label}
               value={value || ''}
               onChange={(addr) => handleFieldChange('address', addr)}
-              onLocationSelect={({ address, latitude, longitude }) => {
+              onLocationSelect={({ address, latitude, longitude, city, state, zipCode }) => {
+                console.log('[DynamicForm] Address Selected:', { address, latitude, longitude, city, state, zipCode })
                 handleFieldChange('address', address)
                 if (latitude !== null) {
                   handleFieldChange('latitude', latitude)
@@ -728,8 +729,17 @@ export default function DynamicForm({
                 if (longitude !== null) {
                   handleFieldChange('longitude', longitude)
                 }
-                // Lock lat/lng fields since they were auto-filled from Google
-                setAddressLatLngLocked(true)
+                if (city) {
+                  handleFieldChange('city', city)
+                }
+                if (state) {
+                  handleFieldChange('state', state)
+                }
+                if (zipCode) {
+                  handleFieldChange('zip_code', zipCode)
+                }
+                // Lock address component fields since they were auto-filled from Google
+                setAddressComponentsLocked(true)
               }}
               required={field.required}
               readOnly={isReadOnly}
@@ -742,9 +752,15 @@ export default function DynamicForm({
         if (doctype === 'Restaurant' && field.fieldname === 'city') {
           return (
             <div key={field.fieldname} className="space-y-2">
-              <Label htmlFor={field.fieldname}>
+              <Label htmlFor={field.fieldname} className="flex items-center gap-1.5">
                 City
                 {field.required && <span className="text-destructive">*</span>}
+                {addressComponentsLocked && (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-primary bg-primary/10 px-1.5 py-0.5 rounded-full">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-2.5 h-2.5"><rect width="18" height="11" x="3" y="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
+                    Auto-filled
+                  </span>
+                )}
               </Label>
               <Suspense fallback={<div className="h-10 animate-pulse bg-muted rounded-md" />}>
                 <CityStateSelector
@@ -756,9 +772,12 @@ export default function DynamicForm({
                     if (lat) handleFieldChange('city_latitude', parseFloat(lat))
                     if (lng) handleFieldChange('city_longitude', parseFloat(lng))
                   }}
-                  disabled={isReadOnly}
+                  disabled={isReadOnly || addressComponentsLocked}
                 />
               </Suspense>
+              {addressComponentsLocked && (
+                <p className="text-xs text-primary/70 mt-1">Auto-populated from the selected address. Select a different address to update.</p>
+              )}
               {field.description && (
                 <p className="text-xs text-muted-foreground">{getEnhancedDescription(field, doctype)}</p>
               )}
@@ -882,9 +901,15 @@ export default function DynamicForm({
         return (
           <div key={field.fieldname} className="space-y-2">
             <div className="flex justify-between items-center">
-              <Label htmlFor={field.fieldname}>
+              <Label htmlFor={field.fieldname} className="flex items-center gap-1.5">
                 {field.label}
                 {field.required && <span className="text-destructive">*</span>}
+                {field.fieldname === 'zip_code' && addressComponentsLocked && (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-primary bg-primary/10 px-1.5 py-0.5 rounded-full">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-2.5 h-2.5"><rect width="18" height="11" x="3" y="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
+                    Auto-filled
+                  </span>
+                )}
               </Label>
               {limit && (
                 <span className={cn(
@@ -903,10 +928,14 @@ export default function DynamicForm({
               id={field.fieldname}
               value={value}
               onChange={(e) => handleFieldChange(field.fieldname, e.target.value)}
-              readOnly={isReadOnly}
+              readOnly={isReadOnly || (field.fieldname === 'zip_code' && addressComponentsLocked)}
               required={field.required}
               maxLength={limit}
+              className={field.fieldname === 'zip_code' && addressComponentsLocked ? 'bg-muted opacity-70 cursor-not-allowed' : ''}
             />
+            {field.fieldname === 'zip_code' && addressComponentsLocked && (
+              <p className="text-xs text-primary/70 mt-1">Auto-populated from the selected address. Select a different address to update.</p>
+            )}
             {field.description && (
               <p className="text-xs text-muted-foreground space-y-1">
                 <span className="block">{getEnhancedDescription(field, doctype)}</span>
@@ -1008,15 +1037,15 @@ export default function DynamicForm({
       case 'Currency':
       case 'Float':
       case 'Int': {
-        // Make latitude/longitude read-only when auto-filled from Google Places
-        const isLatLngField = doctype === 'Restaurant' && (field.fieldname === 'latitude' || field.fieldname === 'longitude')
-        const isEffectivelyReadOnly = isReadOnly || (isLatLngField && addressLatLngLocked)
+        // Make latitude/longitude/zip read-only when auto-filled from Google Places
+        const isAutoFilledField = doctype === 'Restaurant' && (field.fieldname === 'latitude' || field.fieldname === 'longitude' || field.fieldname === 'zip_code')
+        const isEffectivelyReadOnly = isReadOnly || (isAutoFilledField && addressComponentsLocked)
         return (
           <div key={field.fieldname} className="space-y-2">
             <Label htmlFor={field.fieldname} className="flex items-center gap-1.5">
               {field.label}
               {field.required && <span className="text-destructive">*</span>}
-              {isLatLngField && addressLatLngLocked && (
+              {isAutoFilledField && addressComponentsLocked && (
                 <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-primary bg-primary/10 px-1.5 py-0.5 rounded-full">
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-2.5 h-2.5"><rect width="18" height="11" x="3" y="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
                   Auto-filled
@@ -1030,12 +1059,12 @@ export default function DynamicForm({
               onChange={(e: { target: { value: string } }) => handleFieldChange(field.fieldname, parseFloat(e.target.value) || 0)}
               readOnly={isEffectivelyReadOnly}
               required={field.required}
-              className={isLatLngField && addressLatLngLocked ? 'bg-muted opacity-70 cursor-not-allowed' : ''}
+              className={isAutoFilledField && addressComponentsLocked ? 'bg-muted opacity-70 cursor-not-allowed' : ''}
             />
             {field.description && (
               <p className="text-xs text-muted-foreground">{getEnhancedDescription(field, doctype)}</p>
             )}
-            {isLatLngField && addressLatLngLocked && (
+            {isAutoFilledField && addressComponentsLocked && (
               <p className="text-xs text-primary/70">Auto-populated from the selected address. Select a different address to update.</p>
             )}
           </div>

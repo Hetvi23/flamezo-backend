@@ -73,14 +73,15 @@ def send_otp(restaurant_id, phone, purpose="verification", restaurant_name=None,
 		used_channel = None
 
 		# 1. Try Evolution API (Strategic Preference - Free/Dedicated)
+		# site_config.json takes priority so config persists across deployments without DB changes
 		if channel != "sms":
-			evo_url = settings.evolution_api_url
-			evo_key = settings.get_password("evolution_api_key")
-			evo_inst = settings.evolution_api_instance
+			site_config = frappe.get_site_config()
+			evo_url = site_config.get("evolution_api_url") or settings.evolution_api_url
+			evo_key = site_config.get("evolution_api_key") or settings.get_password("evolution_api_key")
+			evo_inst = site_config.get("evolution_api_instance") or settings.evolution_api_instance
 			if evo_url and evo_key and evo_inst:
 				if send_otp_via_evolution_api(evo_url, evo_key, evo_inst, normalized, otp, restaurant_name=restaurant_name or restaurant_id):
 					used_channel = "whatsapp"
-
 
 
 
