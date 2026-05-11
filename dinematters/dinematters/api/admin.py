@@ -556,8 +556,6 @@ def admin_give_coins(restaurant_id, amount, reason="Admin Grant"):
         # Validate amount
         try:
             amount = float(amount)
-            if amount <= 0:
-                raise ValueError("Amount must be positive")
         except:
             return {'success': False, 'error': 'Invalid amount'}
             
@@ -568,11 +566,14 @@ def admin_give_coins(restaurant_id, amount, reason="Admin Grant"):
             
         # Update balance and log the transaction (audit trail)
         from dinematters.dinematters.api.coin_billing import record_transaction
+        
+        description = f"Admin {'Grant' if amount >= 0 else 'Deduction'}: {reason}"
+        
         new_bal = record_transaction(
             restaurant=restaurant.name,
             txn_type="Admin Adjustment",
             amount=amount,
-            description=f"Admin Grant: {reason}"
+            description=description
         )
         
         return {

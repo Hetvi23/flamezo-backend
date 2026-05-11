@@ -80,6 +80,7 @@ export default function AdminRestaurantManagement() {
   const [isCoinModalOpen, setIsCoinModalOpen] = useState(false)
   const [coinAmount, setCoinAmount] = useState('')
   const [coinReason, setCoinReason] = useState('Admin Grant')
+  const [coinAction, setCoinAction] = useState<'grant' | 'deduct'>('grant')
   const [selectedRestaurant, setSelectedRestaurant] = useState<Restaurant | null>(null)
 
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false)
@@ -225,18 +226,21 @@ export default function AdminRestaurantManagement() {
     if (!selectedRestaurant || !coinAmount) return
     try {
       setUpdating(selectedRestaurant.name)
+      const amount = parseFloat(coinAmount)
+      const finalAmount = coinAction === 'grant' ? amount : -Math.abs(amount)
+      
       const result = await giveCoins({
         restaurant_id: selectedRestaurant.restaurant_id,
-        amount: coinAmount,
+        amount: finalAmount,
         reason: coinReason
       }) as any
       if (result?.message?.success) {
-        toast.success(`Granted ${coinAmount} coins to treasury`)
+        toast.success(`${coinAction === 'grant' ? 'Granted' : 'Deducted'} ${coinAmount} coins`)
         setIsCoinModalOpen(false)
         loadRestaurants()
       }
     } catch (error) {
-      toast.error('Treasury grant failed')
+      toast.error('Treasury update failed')
     } finally {
       setUpdating(null)
     }
@@ -654,11 +658,38 @@ export default function AdminRestaurantManagement() {
             <DialogHeader className="text-center">
               <DialogTitle className="text-xl font-bold text-center w-full">Issue Credits</DialogTitle>
               <DialogDescription className="text-sm text-center pt-2">
-                Manually add digital coins to <span className="font-bold text-foreground">"{selectedRestaurant?.restaurant_name}"</span>.
+                {coinAction === 'grant' ? 'Manually add' : 'Manually remove'} digital coins {coinAction === 'grant' ? 'to' : 'from'} <span className="font-bold text-foreground">"{selectedRestaurant?.restaurant_name}"</span>.
               </DialogDescription>
             </DialogHeader>
           </div>
           <div className="px-8 pb-8 space-y-5">
+            <div className="flex items-center justify-center gap-2 bg-muted/20 p-1 rounded-xl mb-2">
+              <button
+                onClick={() => {
+                  setCoinAction('grant')
+                  setCoinReason('Admin Grant')
+                }}
+                className={cn(
+                  "flex-1 py-2 rounded-lg text-xs font-bold transition-all",
+                  coinAction === 'grant' ? "bg-white shadow-sm text-amber-600" : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                Grant Credits
+              </button>
+              <button
+                onClick={() => {
+                  setCoinAction('deduct')
+                  setCoinReason('Admin Deduction')
+                }}
+                className={cn(
+                  "flex-1 py-2 rounded-lg text-xs font-bold transition-all",
+                  coinAction === 'deduct' ? "bg-white shadow-sm text-red-600" : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                Deduct Coins
+              </button>
+            </div>
+
             <div className="space-y-2">
               <Label className="text-xs font-semibold text-muted-foreground">Magnitude (Amount)</Label>
               <NumberInput
@@ -683,9 +714,12 @@ export default function AdminRestaurantManagement() {
             <Button variant="ghost" onClick={() => setIsCoinModalOpen(false)} className="rounded-xl flex-1 sm:flex-none">Cancel</Button>
             <Button
               onClick={handleGiveCoins}
-              className="rounded-xl px-6 flex-1 sm:flex-none bg-amber-600 hover:bg-amber-700 text-white shadow-sm"
+              className={cn(
+                "rounded-xl px-6 flex-1 sm:flex-none text-white shadow-sm",
+                coinAction === 'grant' ? "bg-amber-600 hover:bg-amber-700" : "bg-red-600 hover:bg-red-700"
+              )}
             >
-              Authorize Grant
+              {coinAction === 'grant' ? 'Authorize Grant' : 'Authorize Deduction'}
             </Button>
           </DialogFooter>
         </DialogContent>
