@@ -9,10 +9,10 @@ import { Input } from "@/components/ui/input"
 import { NumberInput } from "@/components/ui/number-input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { toast } from 'sonner'
-import { Truck, ShoppingBag, Clock, DollarSign, Settings, Percent, FileText } from 'lucide-react'
+import { Truck, ShoppingBag, Clock, DollarSign, Settings, Percent, FileText, MessageSquare, Zap, Crown } from 'lucide-react'
 
 export default function OrderSettings() {
-  const { selectedRestaurant, billingInfo } = useRestaurant()
+  const { selectedRestaurant, billingInfo, isGold } = useRestaurant()
   const [saving, setSaving] = useState(false)
   const [settings, setSettings] = useState({
     enable_takeaway: 1,
@@ -24,6 +24,7 @@ export default function OrderSettings() {
     estimated_prep_time: 30,
     default_delivery_fee: 0,
     no_ordering: 0,
+    order_channel: 'Realtime' as 'Realtime' | 'WhatsApp',
     tax_rate: 5.0,
     gst_number: ''
   })
@@ -46,6 +47,7 @@ export default function OrderSettings() {
         estimated_prep_time: restaurantDoc.estimated_prep_time ?? 30,
         default_delivery_fee: restaurantDoc.default_delivery_fee ?? 0,
         no_ordering: restaurantDoc.no_ordering ?? 0,
+        order_channel: (restaurantDoc.order_channel as 'Realtime' | 'WhatsApp') || 'Realtime',
         tax_rate: restaurantDoc.tax_rate ?? 5.0,
         gst_number: restaurantDoc.gst_number ?? ''
       })
@@ -71,6 +73,7 @@ export default function OrderSettings() {
           estimated_prep_time: settings.estimated_prep_time,
           default_delivery_fee: settings.default_delivery_fee,
           no_ordering: settings.no_ordering,
+          order_channel: settings.order_channel,
           tax_rate: settings.tax_rate,
           gst_number: settings.gst_number
         }
@@ -159,6 +162,68 @@ export default function OrderSettings() {
                   Note: GOLD plan 1.5% commission applies per order. When ordering is disabled, the ₹{billingInfo?.plan_defaults?.gold_floor || 399} monthly floor still applies.
                 </div>
               )}
+        </CardContent>
+      </Card>
+
+      {/* Order Channel */}
+      <Card className={!isGold ? 'opacity-70' : ''}>
+        <CardContent className="pt-5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              {/* Toggle pill */}
+              <button
+                type="button"
+                disabled={!isGold}
+                onClick={() => isGold && setSettings(prev => ({
+                  ...prev,
+                  order_channel: prev.order_channel === 'Realtime' ? 'WhatsApp' : 'Realtime'
+                }))}
+                className={[
+                  'relative inline-flex h-6 w-11 flex-shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none',
+                  settings.order_channel === 'WhatsApp' ? 'bg-green-500' : 'bg-primary',
+                  !isGold ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
+                ].join(' ')}
+                aria-checked={settings.order_channel === 'WhatsApp'}
+                role="switch"
+              >
+                <span
+                  className={[
+                    'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
+                    settings.order_channel === 'WhatsApp' ? 'translate-x-5' : 'translate-x-0'
+                  ].join(' ')}
+                />
+              </button>
+
+              {/* Labels */}
+              <div className="flex items-center gap-2">
+                <span className={`flex items-center gap-1 text-sm font-medium transition-colors ${settings.order_channel === 'Realtime' ? 'text-primary' : 'text-muted-foreground'}`}>
+                  <Zap className="w-3.5 h-3.5" /> Real-time
+                </span>
+                <span className="text-muted-foreground/40 text-xs">/</span>
+                <span className={`flex items-center gap-1 text-sm font-medium transition-colors ${settings.order_channel === 'WhatsApp' ? 'text-green-600 dark:text-green-400' : 'text-muted-foreground'}`}>
+                  <MessageSquare className="w-3.5 h-3.5" /> WhatsApp
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              {!isGold && (
+                <span className="flex items-center gap-1 text-xs font-semibold text-amber-600 bg-amber-100 dark:bg-amber-900/30 dark:text-amber-400 px-2 py-0.5 rounded-full">
+                  <Crown className="w-3 h-3" /> GOLD
+                </span>
+              )}
+              <div>
+                <p className="text-sm font-medium text-right">Order Channel</p>
+                <p className="text-xs text-muted-foreground text-right">
+                  {!isGold
+                    ? 'Upgrade to GOLD to enable real-time ordering'
+                    : settings.order_channel === 'WhatsApp'
+                      ? 'Customers order via WhatsApp — sidebar orders hidden'
+                      : 'In-app checkout with live order tracking'}
+                </p>
+              </div>
+            </div>
+          </div>
         </CardContent>
       </Card>
 

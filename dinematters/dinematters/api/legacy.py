@@ -12,6 +12,7 @@ import json
 from frappe.utils import get_url
 from dinematters.dinematters.utils.api_helpers import validate_restaurant_for_api
 from dinematters.dinematters.media.utils import get_media_asset_data
+from dinematters.dinematters.services.ai.legacy_generation import LegacyGenerator, clean_description, infer_cuisine_identity
 import json
 
 
@@ -110,12 +111,13 @@ def get_legacy_content(restaurant_id):
 			
 			testimonials.append({
 				"id": int(testimonial.idx) if hasattr(testimonial, 'idx') else len(testimonials) + 1,
-				"name": testimonial.name,
+				"name": testimonial.customer_name or testimonial.name,
+				"customer_name": testimonial.customer_name or testimonial.name,
 				"location": testimonial.location or "",
 				"rating": int(testimonial.rating) if testimonial.rating else 5,
 				"text": testimonial.text,
 				"dishImages": dish_images,
-				"avatar": avatar_url or testimonial.name[:2].upper()
+				"avatar": avatar_url or (testimonial.customer_name or testimonial.name or "")[:2].upper()
 			})
 		
 		# Format members with Media Asset data
@@ -131,7 +133,8 @@ def get_legacy_content(restaurant_id):
 			
 			members.append({
 				"id": int(member.idx) if hasattr(member, 'idx') else len(members) + 1,
-				"name": member.name,
+				"name": member.member_name or member.name,
+				"member_name": member.member_name or member.name,
 				"image": member_media["url"],
 				"imageBlurPlaceholder": member_media.get("blur_placeholder"),
 				"role": member.role or "",
@@ -161,34 +164,6 @@ def get_legacy_content(restaurant_id):
 				})
 				seen_urls.add(url)
 
-		# 2. Add images from Legacy Content (backward compatibility / additional curated images)
-		if hasattr(legacy_doc, 'gallery_featured_images') and legacy_doc.gallery_featured_images:
-			for img_row in legacy_doc.gallery_featured_images:
-				# Get gallery image from Media Asset or fallback
-				gallery_media = get_media_asset_data(
-					"Legacy Gallery Image",
-					img_row.name,
-					"legacy_gallery_image",
-					img_row.image
-				)
-				if gallery_media["url"] and gallery_media["url"] not in seen_urls:
-					gallery_images.append({
-						"src": gallery_media["url"],
-						"blurPlaceholder": gallery_media.get("blur_placeholder"),
-						"title": img_row.title or ""
-					})
-					seen_urls.add(gallery_media["url"])
-		# Fallback: handle old JSON format for backward compatibility
-		elif hasattr(legacy_doc, 'gallery_featured_images') and isinstance(legacy_doc.gallery_featured_images, str):
-			try:
-				img_list = json.loads(legacy_doc.gallery_featured_images)
-				for img in img_list:
-					url = get_url(img) if img.startswith("/files/") else img
-					if url and url not in seen_urls:
-						gallery_images.append({"src": url, "title": ""})
-						seen_urls.add(url)
-			except:
-				pass
 		
 		gallery = {
 			"featuredImages": gallery_images
@@ -315,11 +290,11 @@ def update_legacy_content(restaurant_id, hero=None, content=None, signature_dish
 			legacy_doc.testimonials = []
 			for test_data in testimonials:
 				testimonial_row = legacy_doc.append("testimonials", {
-					"name": test_data.get("name"),
+					"customer_name": test_data.get("name") or test_data.get("customer_name"),
 					"location": test_data.get("location", ""),
 					"rating": test_data.get("rating", 5),
 					"text": test_data.get("text"),
-					"avatar": test_data.get("avatar", test_data.get("name", "")[:2].upper()),
+					"avatar": test_data.get("avatar", (test_data.get("name") or test_data.get("customer_name") or "")[:2].upper()),
 					"display_order": test_data.get("displayOrder", 0)
 				})
 				
@@ -346,30 +321,12 @@ def update_legacy_content(restaurant_id, hero=None, content=None, signature_dish
 						member_image = match.group(0)
 				
 				legacy_doc.append("members", {
-					"name": member_data.get("name"),
-					"image": member_image,
+					"member_name": member_data.get("name"),
+					"image": member_image or "",
 					"role": member_data.get("role", ""),
 					"display_order": member_data.get("displayOrder", 0)
 				})
 		
-		# Update gallery
-		if gallery and "featuredImages" in gallery:
-			legacy_doc.gallery_featured_images = []
-			for img_data in gallery["featuredImages"]:
-				# Handle both new format (object with src/title) and old format (string URL)
-				if isinstance(img_data, dict):
-					img_url = img_data.get("src", "")
-					img_title = img_data.get("title", "")
-				else:
-					img_url = img_data
-					img_title = ""
-				
-				if img_url:
-					legacy_doc.append("gallery_featured_images", {
-						"image": img_url,
-						"title": img_title,
-						"display_order": len(legacy_doc.gallery_featured_images) + 1
-					})
 		
 		# Update Instagram reels
 		if instagram_reels:
@@ -453,4 +410,158 @@ def get_default_legacy_content(restaurant_name):
 		}
 	}
 
+@frappe.whitelist()
+def generate_legacy_content(restaurant_id):
+	"""
+	POST /api/method/dinematters.dinematters.api.legacy.generate_legacy_content
+	Generate perfect 10/10 content for the Legacy Feature.
+	Only for System Administrator and DineMatters Supervisor.
+	"""
+	try:
+		# Role check
+		roles = frappe.get_roles(frappe.session.user)
+		if "System Manager" not in roles and "DineMatters Supervisor" not in roles and frappe.session.user != "Administrator":
+			frappe.throw("Not authorized to generate legacy content", frappe.PermissionError)
+			
+		# Validate restaurant
+		restaurant = validate_restaurant_for_api(restaurant_id, frappe.session.user)
+		
+		# Fetch restaurant info
+		restaurant_doc = frappe.get_doc("Restaurant", restaurant)
 
+		# Fetch all active menu items
+		items = frappe.get_all("Menu Product",
+			filters={"restaurant": restaurant, "is_active": 1},
+			fields=["name as id", "product_name as item_name", "category_name as item_group", "description"],
+			limit=60
+		)
+
+		# Derive cuisine identity from real category names
+		categories = list({d["item_group"] for d in items if d.get("item_group")})
+		cuisine_identity = infer_cuisine_identity(categories)
+
+		restaurant_info = {
+			"restaurant_name": restaurant_doc.restaurant_name,
+			"owner_name": restaurant_doc.owner_name,
+			"city": restaurant_doc.city or "",
+			"state": restaurant_doc.state or "",
+			# Deduplicate & truncate — some descriptions are copy-pasted many times in DB
+			"description_clean": clean_description(restaurant_doc.description or "", max_chars=500),
+			"cuisine_identity": cuisine_identity,
+			"categories": sorted(categories),
+		}
+		
+		# Call AI Generator
+		generator = LegacyGenerator()
+		ai_result = generator.generate_legacy_text(restaurant_info, items)
+		
+		# Get existing legacy content to preserve media files
+		legacy_name = frappe.db.get_value("Legacy Content", {"restaurant": restaurant}, "name")
+		existing_hero_media = ""
+		existing_hero_fallback = ""
+		existing_hero_media_type = "image"
+		existing_footer_media = ""
+		
+		if legacy_name:
+			legacy_doc = frappe.get_doc("Legacy Content", legacy_name)
+			existing_hero_media = legacy_doc.hero_media_src or ""
+			existing_hero_fallback = legacy_doc.hero_fallback_image or ""
+			existing_hero_media_type = legacy_doc.hero_media_type or "image"
+			existing_footer_media = legacy_doc.footer_media_src or ""
+			
+		hero_payload = {
+			"mediaType": existing_hero_media_type,
+			"mediaSrc": existing_hero_media,
+			"fallbackImage": existing_hero_fallback,
+			"title": ai_result["hero"]["title"]
+		}
+		
+		content_payload = {
+			"openingText": ai_result["content"]["openingText"],
+			"paragraph1": ai_result["content"]["paragraph1"],
+			"paragraph2": ai_result["content"]["paragraph2"]
+		}
+		
+		footer_payload = {
+			"mediaSrc": existing_footer_media,
+			"title": ai_result["footer"]["title"],
+			"description": ai_result["footer"]["description"],
+			"ctaButton": ai_result["footer"]["ctaButton"]
+		}
+
+		# Format testimonials from AI
+		testimonials_payload = []
+		for i, t in enumerate(ai_result.get("testimonials", [])):
+			testimonials_payload.append({
+				"name": t["name"],
+				"location": t["location"],
+				"rating": t["rating"],
+				"text": t["text"],
+				"displayOrder": i + 1
+			})
+
+		# Build members from real restaurant owner data (not AI-invented names)
+		members_payload = []
+		if restaurant_doc.owner_name:
+			# Use actual owner + AI-suggested role for that person
+			ai_members = ai_result.get("members", [])
+			owner_role = "Founder"
+			if ai_members:
+				# AI knows the owner name — use the role it assigned to them
+				for m in ai_members:
+					if restaurant_doc.owner_name.lower() in m.get("name", "").lower():
+						owner_role = m.get("role", "Founder")
+						break
+				else:
+					owner_role = ai_members[0].get("role", "Founder")
+			members_payload.append({
+				"name": restaurant_doc.owner_name,
+				"role": owner_role,
+				"displayOrder": 1
+			})
+
+		# Match signature dishes by name to find their IDs
+		signature_dishes_payload = []
+		chosen_names = ai_result.get("signature_dish_names", [])
+		
+		# Create a name-to-id map for all dishes
+		dish_name_to_id = {d["item_name"].lower(): d["id"] for d in items}
+		
+		seen_ids = set()
+		for chosen_name in chosen_names:
+			dish_id = dish_name_to_id.get(chosen_name.lower())
+			if dish_id and dish_id not in seen_ids:
+				signature_dishes_payload.append({
+					"dishId": dish_id,
+					"displayOrder": len(signature_dishes_payload) + 1
+				})
+				seen_ids.add(dish_id)
+		
+		update_result = update_legacy_content(
+			restaurant_id=restaurant_id,
+			hero=hero_payload,
+			content=content_payload,
+			footer=footer_payload,
+			testimonials=testimonials_payload,
+			members=members_payload,
+			signature_dishes=signature_dishes_payload
+		)
+		
+		if not update_result.get("success"):
+			return update_result
+			
+		return {
+			"success": True,
+			"message": "Legacy content successfully generated and updated.",
+			"data": ai_result
+		}
+		
+	except Exception as e:
+		frappe.log_error(f"Error in generate_legacy_content: {str(e)}")
+		return {
+			"success": False,
+			"error": {
+				"code": "LEGACY_GENERATE_ERROR",
+				"message": str(e)
+			}
+		}

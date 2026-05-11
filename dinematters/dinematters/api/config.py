@@ -264,6 +264,7 @@ def get_restaurant_config(restaurant_id):
 					"enable_delivery": bool(restaurant_doc.get("enable_delivery", 0)),
 					"enable_dine_in": bool(restaurant_doc.get("enable_dine_in", 1)),
 					"no_ordering": bool(restaurant_doc.get("no_ordering", 0)),
+					"order_channel": restaurant_doc.get("order_channel") or "Realtime",
 					"packaging_fee_type": restaurant_doc.get("packaging_fee_type") or "Fixed",
 					"default_packaging_fee": flt(restaurant_doc.get("default_packaging_fee", 0)),
 					"minimum_order_value": flt(restaurant_doc.get("minimum_order_value", 0)),
@@ -804,10 +805,11 @@ def update_order_settings(restaurant_id, settings):
 		# Update fields
 		updated_fields = []
 		allowed_fields = [
-			"enable_takeaway", 
-			"enable_delivery", 
+			"enable_takeaway",
+			"enable_delivery",
 			"enable_dine_in",
 			"no_ordering",
+			"order_channel",
 			"packaging_fee_type",
 			"default_packaging_fee", 
 			"minimum_order_value", 

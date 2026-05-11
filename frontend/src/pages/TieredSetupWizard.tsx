@@ -15,6 +15,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { useRestaurant } from '@/contexts/RestaurantContext'
 import { cn } from '@/lib/utils'
+import { getHiddenFields } from '@/config/setupWizardFields'
 
 interface WizardStep {
   id: string
@@ -62,7 +63,7 @@ interface SetupProgressResponse {
 export default function TieredSetupWizard() {
   const { stepId: urlSlug } = useParams<{ stepId?: string }>()
   const navigate = useNavigate()
-  const { selectedRestaurant, setSelectedRestaurant, planType, isSilver, isGold, isLoading: contextLoading, restaurants } = useRestaurant()
+  const { selectedRestaurant, setSelectedRestaurant, planType, isGold, isLoading: contextLoading, restaurants } = useRestaurant()
 
   // Define All Possible Steps
   const allPotentialSteps: WizardStep[] = [
@@ -304,56 +305,14 @@ export default function TieredSetupWizard() {
                     refreshProgress?.()
                     setFormHasChanges(false)
                     toast.success(`${currentStep.title} saved successfully!`)
-                    setTimeout(handleNext, 500)
                   }}
                   triggerSave={triggerSave}
                   showSaveButton={false}
-                  hideFields={(() => {
-                    const adminFields = ['platform_fee_percent', 'plan_changed_by', 'plan_change_reason', 'current_image_count'];
-                    
-                    // Plan-specific field hiding logic
-                    if (currentStep.id === 'restaurant') {
-                      return [
-                        ...adminFields,
-                        'company', 'subdomain', 'slug', 'plan_type', 'plan_activated_on', 
-                        'monthly_minimum', 'billing_status', 'mandate_status', 'onboarding_date', 
-                        'recommendation_run_count', 'recommendation_run', 'razorpay_account_id', 
-                        'razorpay_kyc_status', 'razorpay_customer_id', 'razorpay_token_id', 
-                        'razorpay_merchant_key_id', 'razorpay_keys_updated_at', 'razorpay_keys_updated_by', 
-                        'max_images_lite', 'total_orders', 'total_revenue', 
-                        'commission_earned', 'total_ai_generations', 
-                        'total_ai_cost', 'tax_rate', 'gst_number', 'enable_takeaway', 'enable_delivery', 
-                        'no_ordering', 'default_delivery_fee', 'default_packaging_fee', 'minimum_order_value', 
-                        'estimated_prep_time', 'restaurant_config', 'qr_codes_pdf_url',
-                        
-                        // Newly hidden admin/billing, pos, loyalty, and redundant fields
-                        'is_active', 'deferred_plan_type', 'plan_change_date', 'plan_change_history',
-                        'coins_balance', 'auto_recharge_enabled', 'auto_recharge_threshold', 'auto_recharge_amount',
-                        'daily_auto_recharge_limit', 'daily_auto_recharge_count', 'last_auto_recharge_date',
-                        'enable_loyalty', 'pos_provider', 'pos_enabled', 'pos_app_key', 'pos_app_secret',
-                        'pos_access_token', 'pos_merchant_id', 'pos_last_sync_at', 'pos_sync_status',
-                        'logo', 'city_latitude', 'city_longitude',
-                        'razorpay_webhook_secret', 'enable_floor_recovery'
-                      ]
-                    }
-                    if (currentStep.id === 'config') {
-                      const hidden = [
-                        'restaurant', 'restaurant_name', 'currency', 'primary_color', 'apple_touch_icon',
-                        'section_break_ai_theme_background', 'menu_theme_background_enabled', 'menu_theme_paid_until',
-                        'menu_theme_generation_status', 'menu_theme_background_active', 'menu_theme_wallpapers',
-                        'menu_theme_main_index', 'menu_theme_selected_items', 'menu_theme_color_theme',
-                        'column_break_ai_theme_background', 'menu_theme_background_preview', 'menu_theme_background_sources',
-                        'menu_theme_background_history', 'menu_theme_last_error',
-                        'qr_code', 'brand_logo', 'hero_image', 'menu_theme', 'custom_css', 'verify_my_user'
-                      ]
-                      // Silver hides coupons only (loyalty is a Silver feature)
-                      if (isSilver) {
-                        hidden.push('enable_coupons')
-                      }
-                      return hidden
-                    }
-                    return []
-                  })()}
+                  hideFields={
+                    (currentStep.id === 'restaurant' || currentStep.id === 'config')
+                      ? getHiddenFields(currentStep.id, planType)
+                      : []
+                  }
                 />
               )}
            </div>

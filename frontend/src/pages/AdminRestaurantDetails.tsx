@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { useFrappePostCall, useFrappeGetCall } from '@/lib/frappe'
+import { useFrappePostCall, useFrappeGetCall, useFrappeAuth } from '@/lib/frappe'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from "@/components/ui/input"
@@ -35,7 +35,9 @@ import {
   Save,
   Undo2,
   ClipboardCopy,
-  MessageSquare
+  MessageSquare,
+  Sparkles,
+  Loader2
 } from 'lucide-react'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import MenuImageExtractorForm from '@/components/MenuImageExtractorForm'
@@ -112,6 +114,36 @@ function AdminRestaurantDetailsPage() {
   const [isGeneratingRecharge, setIsGeneratingRecharge] = useState(false)
   const [isLinkModalOpen, setIsLinkModalOpen] = useState(false)
   const [linkToCopy, setLinkToCopy] = useState('')
+
+  const { currentUser } = useFrappeAuth()
+  const userRoles = (window as any)?.frappe?.boot?.user_roles || []
+  const hasSupervisorRole = userRoles.includes('DineMatters Supervisor')
+  const isMainAdmin = currentUser === 'Administrator' || userRoles.includes('System Manager')
+  const canGenerateLegacy = isMainAdmin || hasSupervisorRole
+
+  const [isGeneratingLegacy, setIsGeneratingLegacy] = useState(false)
+  const { call: generateLegacyContent } = useFrappePostCall(
+    'dinematters.dinematters.api.legacy.generate_legacy_content'
+  )
+
+  const handleGenerateLegacy = async () => {
+    if (!id) return
+    try {
+      setIsGeneratingLegacy(true)
+      const result = await generateLegacyContent({ restaurant_id: id }) as any
+      if (result?.message?.success) {
+        toast.success('Legacy content successfully generated!', {
+          description: 'A premium 10/10 story has been crafted for this restaurant.'
+        })
+      } else {
+        throw new Error(result?.message?.error?.message || 'Generation failed')
+      }
+    } catch (error) {
+      toast.error('Failed to generate legacy content', { description: getFrappeError(error) })
+    } finally {
+      setIsGeneratingLegacy(false)
+    }
+  }
 
   // APIs
   const { call: getDetails } = useFrappePostCall<{ success: boolean, data: { restaurant: Restaurant } }>(
@@ -327,6 +359,17 @@ function AdminRestaurantDetailsPage() {
           </div>
 
           <div className="flex items-center gap-3">
+            {canGenerateLegacy && (
+              <Button 
+                onClick={handleGenerateLegacy}
+                disabled={isGeneratingLegacy}
+                className="bg-amber-500 hover:bg-amber-600 shadow-amber-500/20 shadow-lg gap-2 text-white"
+              >
+                {isGeneratingLegacy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                Generate Legacy
+              </Button>
+            )}
+
              <Dialog open={isMenuModalOpen} onOpenChange={setIsMenuModalOpen}>
               <DialogTrigger asChild>
                 <Button className="bg-indigo-600 hover:bg-indigo-700 shadow-indigo-500/20 shadow-lg gap-2">
