@@ -204,7 +204,9 @@ doc_events = {
 			# Push notification to merchant dashboard (free FCM, background-safe)
 			"dinematters.dinematters.api.realtime.notify_new_order_to_merchant",
 			# Marketing Studio: fire 'On Order Complete' triggers
-			"dinematters.dinematters.tasks.marketing_tasks.fire_order_complete_triggers"
+			"dinematters.dinematters.tasks.marketing_tasks.fire_order_complete_triggers",
+			# POS: push confirmed orders to POS provider (Petpooja, etc.)
+			"dinematters.dinematters.pos.utils.handle_order_update"
 		],
 		"on_update": [
 			"dinematters.dinematters.api.realtime.notify_order_update",
@@ -372,6 +374,12 @@ website_route_rules = [
 
 # Redirect root to dinematters so unauthenticated users land on dinematters login
 # (ProtectedRoute then redirects to /dinematters/login)
-website_redirects = [{"source": "/", "target": "/dinematters"}]
+website_redirects = [
+    {"source": "/", "target": "/dinematters"},
+    {"source": "/forgot-password", "target": "/dinematters/forgot-password"},
+    {"source": "/update-password", "target": "/dinematters/reset-password"}
+
+]
+
 
 fixtures = [{"dt": "Custom Field", "filters": [["module", "=", "Dinematters"]]}]

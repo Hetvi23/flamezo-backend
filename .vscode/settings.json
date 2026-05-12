@@ -11,8 +11,19 @@
         "/home/frappe/frappe-bench/apps/dinematters",
         "/home/frappe/frappe-bench/env/lib/python3.12/site-packages"
     ],
+    "python.analysis.typeCheckingMode": "off",
     "python.analysis.diagnosticSeverityOverrides": {
         "reportGeneralTypeIssues": "none",
-        "reportAttributeAccessIssue": "none"
-    }
+        "reportAttributeAccessIssue": "none",
+        "reportMissingImports": "none",
+        "reportMissingModuleSource": "none",
+        "reportUndefinedVariable": "none",
+        "reportArgumentType": "none",
+        "reportCallIssue": "none",
+        "reportOperatorIssue": "none",
+        "reportIndexIssue": "none",
+        "reportReturnType": "none",
+        "reportAssignmentType": "none"
+    },
+    "pyrefly.enable": false
 }

@@ -5,31 +5,65 @@ from frappe.utils import now_datetime
 from dinematters.dinematters.pos.base import POSProvider
 from dinematters.dinematters.utils.common import safe_log_error
 
+# Staging vs Production endpoint selection.
+# Set petpooja_env = "production" in site_config.json to switch to prod URLs.
+# Production URLs are populated when Petpooja issues production credentials.
+_STAGING_BASE  = "https://qle1yy2ydc.execute-api.ap-southeast-1.amazonaws.com/V1"
+_PROD_BASE     = "https://prod.petpooja.com/V1"  # placeholder — update when Petpooja provides prod URL
+
+def _base_url():
+    env = frappe.conf.get("petpooja_env", "staging")
+    return _PROD_BASE if env == "production" else _STAGING_BASE
+
 class PetpoojaProvider(POSProvider):
     def __init__(self, restaurant_doc):
         super().__init__(restaurant_doc)
-        self.api_url = "https://developerapi.petpooja.com/v1/" # Staging: https://sandbox.petpooja.com/v1/
+        base = _base_url()
+        self.save_order_url   = f"{base}/save_order"
+        self.fetch_menu_url   = f"{base}/mapped_restaurant_menus"
+        self.update_order_url = f"{base}/update_order_status"
+        self.rider_url        = f"{base}/rider_status_update"
 
     def sync_menu(self):
-        """
-        Petpooja usually pushes the menu to us.
-        We provide pull_menu as the standardized way to trigger this.
-        """
+        """Petpooja is push-based; we also support active pull via mapped_restaurant_menus."""
         return self.pull_menu()
 
     def pull_menu(self):
         """
-        Fetch menu from Petpooja (Pull strategy)
+        Fetch full menu from Petpooja and sync categories + products into DineMatters.
+        Petpooja pushes menu to us via webhook (handle_menu_push), but this allows
+        an on-demand pull so merchants can trigger a sync without waiting.
+        Skipped if menu sync is disabled.
         """
-        # In actual Petpooja implementation, this often requires hitting /get_menus
-        # For now, we provide the template for the 'Price Override' sync logic
-        safe_log_error("Petpooja Sync", f"Pull Menu triggered for {self.restaurant.name}")
-        
-        # This would be the mapping logic once response is received:
-        # 1. Resolve Category
-        # 2. Sync Product (Boss Logic: Override Price)
-        
-        return {"status": "success", "message": "Pull Menu initiated for Petpooja."}
+        if not self.restaurant.get("pos_menu_sync_enabled", 1):
+            return {"status": "skipped", "message": "Menu sync is disabled for this restaurant"}
+
+        if not all([self.settings.get("app_key"), self.settings.get("app_secret"),
+                    self.settings.get("access_token"), self.settings.get("merchant_id")]):
+            return {"status": "error", "message": "Missing Petpooja credentials"}
+
+        try:
+            resp = requests.post(
+                self.fetch_menu_url,
+                headers={"Content-Type": "application/json"},
+                data=json.dumps({
+                    "app_key": self.settings["app_key"],
+                    "app_secret": self.settings["app_secret"],
+                    "access_token": self.settings["access_token"],
+                    "restID": self.settings["merchant_id"]
+                }),
+                timeout=20
+            )
+            resp.raise_for_status()
+            data = resp.json()
+        except Exception as e:
+            safe_log_error("Petpooja Menu Fetch Error", frappe.get_traceback())
+            return {"status": "error", "message": str(e)}
+
+        if str(data.get("success")) != "1":
+            return {"status": "error", "message": data.get("message", "Menu fetch failed")}
+
+        return self.handle_menu_push(data)
 
     def push_order(self, order_doc):
         """
@@ -48,7 +82,7 @@ class PetpoojaProvider(POSProvider):
         try:
             # Petpooja 'Save Order' endpoint
             response = requests.post(
-                f"{self.api_url}save_order",
+                self.save_order_url,
                 headers=headers,
                 data=json.dumps(payload),
                 timeout=15
@@ -101,9 +135,11 @@ class PetpoojaProvider(POSProvider):
                 return
 
             # Status Transition Safety: Don't move backwards
+            # Must match Order doctype status options exactly
             status_priority = {
-                "pending": 0,
+                "pending_verification": 0,
                 "Accepted": 1,
+                "confirmed": 1,
                 "preparing": 2,
                 "ready": 3,
                 "Dispatched": 4,
@@ -117,7 +153,7 @@ class PetpoojaProvider(POSProvider):
             if new_status == "cancelled":
                 # Cancellation is always valid unless already delivered
                 if order.status == "delivered":
-                    return 
+                    return
             elif new_priority <= current_priority:
                 # Ignore status updates that are older or the same as current
                 return
@@ -142,7 +178,12 @@ class PetpoojaProvider(POSProvider):
         """
         Handle Menu Push from Petpooja (Production Implementation)
         Ensures Categories and Products are synced with correct pricing.
+        Skipped if the restaurant has disabled menu sync (pos_menu_sync_enabled = 0).
         """
+        if not self.restaurant.get("pos_menu_sync_enabled", 1):
+            frappe.logger().info(f"Menu sync skipped for {self.restaurant.name} — sync disabled by restaurant")
+            return {"status": "skipped", "message": "Menu sync is disabled for this restaurant"}
+
         frappe.logger().info(f"Petpooja Menu Push received for restaurant {self.restaurant.name}")
         
         try:
@@ -156,9 +197,18 @@ class PetpoojaProvider(POSProvider):
             for item in items:
                 self._sync_product(item)
 
+            # Persist CGST/SGST taxids from the menu payload so _format_order can reference them
+            taxes = data.get("taxes", [])
+            for t in taxes:
+                tname = (t.get("taxname") or "").upper()
+                if tname == "CGST":
+                    self.restaurant.db_set("pos_cgst_taxid", str(t.get("taxid", "2201")))
+                elif tname == "SGST":
+                    self.restaurant.db_set("pos_sgst_taxid", str(t.get("taxid", "2202")))
+
             self.restaurant.db_set("pos_last_sync_at", now_datetime())
             self.restaurant.db_set("pos_sync_status", "Success: Menu Pushed")
-            
+
             return {"status": "success", "message": "Menu synced successfully"}
 
         except Exception as e:
@@ -290,12 +340,13 @@ class PetpoojaProvider(POSProvider):
         """
         from dinematters.dinematters.pos.base import DineMattersOrderStatus
         
+        # Per Petpooja docs: -1=Cancelled, 1/2/3=Accepted, 4=Dispatched, 5=Food Ready, 10=Delivered
         mapping = {
             "1": DineMattersOrderStatus.ACCEPTED,
-            "2": DineMattersOrderStatus.PREPARING,
-            "3": DineMattersOrderStatus.READY,
+            "2": DineMattersOrderStatus.ACCEPTED,
+            "3": DineMattersOrderStatus.ACCEPTED,
             "4": DineMattersOrderStatus.DISPATCHED,
-            "5": DineMattersOrderStatus.DELIVERED,
+            "5": DineMattersOrderStatus.READY,
             "10": DineMattersOrderStatus.DELIVERED,
             "-1": DineMattersOrderStatus.CANCELLED
         }
@@ -303,56 +354,135 @@ class PetpoojaProvider(POSProvider):
 
     def _format_order(self, order_doc):
         """
-        Map Dinematters Order to Petpooja 'Save Order' 2026 schema
-        Supports: Dine-In (1), Takeaway (2), Delivery (3)
+        Map DineMatters Order to Petpooja 'Save Order' 2026 schema.
+        Supports: Dine-In (D), Takeaway (P), Delivery (H)
         """
-        # Generate Callback URL for Petpooja updates
-        from frappe.utils import get_url
+        from frappe.utils import get_url, get_datetime
+
         callback_url = get_url("/api/method/dinematters.dinematters.api.pos.petpooja_callback")
+
+        # ── item-level tax: split order-level CGST/SGST proportionally across items ──
+        # Order doctype stores cgst and sgst as Currency fields at order level.
+        # We distribute proportionally by item subtotal weight.
+        order_subtotal = float(order_doc.subtotal or 0) or 1  # avoid div-by-zero
+        order_cgst = float(order_doc.cgst or 0)
+        order_sgst = float(order_doc.sgst or 0)
+        tax_rate_half = float(order_doc.tax_percent or 0) / 2  # e.g. 2.5 for 5% GST
+
+        # Fetch Petpooja taxids from restaurant's last synced menu (stored in pos_sync_status meta or defaults)
+        # We use the known sandbox taxids (2201=CGST, 2202=SGST) as defaults.
+        # When menu push happens, _sync_category stores per-category tax — but for order relay
+        # Petpooja uses the taxids registered in their system for this restID.
+        cgst_taxid = frappe.db.get_value("Restaurant", self.restaurant.name, "pos_cgst_taxid") or "2201"
+        sgst_taxid = frappe.db.get_value("Restaurant", self.restaurant.name, "pos_sgst_taxid") or "2202"
 
         order_items = []
         for item in order_doc.order_items:
-            # Map item taxes if available
+            item_subtotal = float(item.unit_price or 0) * int(item.quantity or 1)
+            weight = item_subtotal / order_subtotal if order_subtotal else 1
+
+            item_cgst_amt = round(order_cgst * weight, 2)
+            item_sgst_amt = round(order_sgst * weight, 2)
+
             item_tax = []
-            if getattr(item, 'tax_percent', None):
-                item_tax.append({
-                    "id": "1", # Generic Tax ID
-                    "title": "GST",
-                    "type": "percentage",
-                    "price": str(item.tax_amount) if hasattr(item, 'tax_amount') else "0",
-                    "tax_percentage": str(item.tax_percent)
-                })
+            if tax_rate_half > 0:
+                item_tax = [
+                    {"id": cgst_taxid, "name": "CGST", "tax_percentage": str(tax_rate_half), "amount": str(item_cgst_amt)},
+                    {"id": sgst_taxid, "name": "SGST", "tax_percentage": str(tax_rate_half), "amount": str(item_sgst_amt)},
+                ]
+
+            # Resolve Petpooja item ID — use pos_id from Menu Product if menu has been synced
+            petpooja_item_id = frappe.db.get_value("Menu Product", item.product, "pos_id") or item.product
+
+            # Parse addon/variation from customizations JSON field
+            addon_items = []
+            variation_name = ""
+            variation_id = ""
+            if item.customizations:
+                try:
+                    cust = json.loads(item.customizations) if isinstance(item.customizations, str) else item.customizations
+                    # Variation: expect {"variation": {"name": "...", "id": "..."}}
+                    variation = cust.get("variation") or {}
+                    variation_name = str(variation.get("name", ""))
+                    variation_id = str(variation.get("id", ""))
+                    # Addons: expect {"addons": [{"id": "...", "name": "...", "quantity": 1, "price": "..."}]}
+                    for addon in (cust.get("addons") or []):
+                        addon_items.append({
+                            "id": str(addon.get("id", "")),
+                            "name": str(addon.get("name", "")),
+                            "quantity": str(addon.get("quantity", 1)),
+                            "price": str(addon.get("price", "0")),
+                            "final_price": str(addon.get("price", "0")),
+                            "item_tax": []
+                        })
+                except Exception:
+                    pass  # malformed customizations — skip, don't break the order push
 
             order_items.append({
-                "id": item.product,
+                "id": str(petpooja_item_id),
                 "name": item.product_name,
                 "quantity": str(item.quantity),
-                "price": str(item.price),
-                "total": str(item.total_price),
-                "discount": "0",
-                "tax_inclusive": "1" if getattr(item, 'is_tax_inclusive', 0) else "0",
+                "price": str(item.unit_price),
+                "final_price": str(item.total_price),
+                "item_discount": "",
+                "tax_inclusive": False,
+                "gst_liability": "restaurant",
                 "item_tax": item_tax,
-                "addonItem": [] # Placeholder for now, can be expanded if Customizations exist
+                "variation_name": variation_name,
+                "variation_id": variation_id,
+                "addon_items": addon_items
             })
 
-        # Determine Order Type
-        # 1: Dine-In, 2: Takeaway, 3: Delivery
-        order_type_map = {
-            "dine_in": "1",
-            "takeaway": "2",
-            "delivery": "3"
-        }
-        order_type = order_type_map.get(order_doc.order_type, "2")
+        # ── order type ──
+        order_type = {"dine_in": "D", "takeaway": "P", "delivery": "H"}.get(order_doc.order_type, "P")
 
-        # Construct Address for Delivery
+        # ── delivery address ──
         full_address = order_doc.delivery_address or ""
         if order_doc.delivery_landmark:
             full_address += f" (Landmark: {order_doc.delivery_landmark})"
 
-        # 2025/2026 Tax percentages
-        tax_percent = str(order_doc.tax_percent or 0)
+        # ── payment type ──
+        pm = (order_doc.payment_method or "").lower()
+        if pm == "card":
+            payment_type = "CARD"
+        elif pm in ("online", "upi", "wallet"):
+            payment_type = "ONLINE"
+        else:
+            payment_type = "COD"
 
-        # Base payload with authentication
+        # ── timestamps ──
+        tax_percent = str(order_doc.tax_percent or 0)
+        creation_dt = get_datetime(order_doc.creation)
+        order_date  = creation_dt.strftime("%Y-%m-%d")
+        order_time  = creation_dt.strftime("%H:%M:%S")
+        created_on  = creation_dt.strftime("%Y-%m-%d %H:%M:%S")
+
+        # ── order-level tax array (CGST + SGST totals) ──
+        order_tax = []
+        if order_cgst > 0:
+            order_tax.append({"id": cgst_taxid, "name": "CGST",
+                               "tax_percentage": str(tax_rate_half), "amount": str(round(order_cgst, 2))})
+        if order_sgst > 0:
+            order_tax.append({"id": sgst_taxid, "name": "SGST",
+                               "tax_percentage": str(tax_rate_half), "amount": str(round(order_sgst, 2))})
+
+        # ── discount array ──
+        order_discount = []
+        if float(order_doc.discount or 0) > 0:
+            order_discount.append({
+                "id": "1",
+                "title": "Discount",
+                "amount": str(order_doc.discount),
+                "discount_type": "F"
+            })
+        if float(order_doc.loyalty_discount or 0) > 0:
+            order_discount.append({
+                "id": "2",
+                "title": "Loyalty Discount",
+                "amount": str(order_doc.loyalty_discount),
+                "discount_type": "F"
+            })
+
         payload = {
             "app_key": self.settings["app_key"],
             "app_secret": self.settings["app_secret"],
@@ -362,40 +492,46 @@ class PetpoojaProvider(POSProvider):
             "address": self.restaurant.address or "",
             "Contact_information": self.restaurant.contact_number or "",
             "device_type": "Web",
-            "order": {
+            "OrderInfo": {
                 "customer": {
                     "name": order_doc.customer_name or "Guest",
                     "phone": order_doc.customer_phone or "",
                     "email": order_doc.customer_email or "",
                     "address": full_address,
                     "city": order_doc.delivery_city or "",
-                    "zip": order_doc.delivery_zip_code or ""
+                    "zip": order_doc.delivery_zip_code or "",
+                    "latitude": str(order_doc.delivery_latitude) if getattr(order_doc, "delivery_latitude", None) else "",
+                    "longitude": str(order_doc.delivery_longitude) if getattr(order_doc, "delivery_longitude", None) else ""
                 },
                 "order": {
                     "orderID": order_doc.name,
-                    "order_number": order_doc.order_number,
-                    "order_date": order_doc.creation.strftime("%Y-%m-%d %H:%M:%S"),
+                    "preorder_date": order_date,
+                    "preorder_time": order_time,
+                    "created_on": created_on,
+                    "advanced_order": "N",
                     "order_type": order_type,
-                    "subtotal": str(order_doc.subtotal),
-                    "tax": str(order_doc.tax),
                     "total": str(order_doc.total),
-                    "payment_type": "1" if order_doc.payment_method == "online" else "0",
-                    "discount": str(order_doc.discount or 0.0),
-                    "instructions": order_doc.delivery_instructions or "",
+                    "tax_total": str(round(float(order_doc.tax or 0), 2)),
+                    "payment_type": payment_type,
+                    "delivery_charges": str(order_doc.delivery_fee or 0),
+                    "packing_charges": str(order_doc.packaging_fee or 0),
+                    "discount_total": str(round(float(order_doc.discount or 0) + float(order_doc.loyalty_discount or 0), 2)),
+                    "discount_type": "F",
+                    "description": order_doc.delivery_instructions or "",
                     "callback_url": callback_url,
-                    "urgent_order": "0", # Per user requirement
+                    "urgent_order": "N",
                     "urgent_time": "",
+                    "enable_delivery": "1",
                     "dc_tax_percentage": tax_percent if order_doc.delivery_fee else "0",
                     "pc_tax_percentage": tax_percent if order_doc.packaging_fee else "0"
                 },
                 "orderItem": order_items,
-                "tax": [], # Order level taxes if any summary needed
-                "discount": []
+                "tax": order_tax,
+                "discount": order_discount
             }
         }
 
-        # Add table info if dine-in
-        if order_type == "1" and order_doc.table_number:
-            payload["order"]["order"]["table_no"] = str(order_doc.table_number)
+        if order_type == "D" and order_doc.table_number:
+            payload["OrderInfo"]["order"]["table_no"] = str(order_doc.table_number)
 
         return payload

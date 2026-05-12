@@ -16,6 +16,7 @@
   "column_break_1",
   "is_special",
   "display_order",
+  "parent_category",
   "section_break_description",
   "description",
   "section_break_image",
@@ -98,6 +99,28 @@
    "fieldname": "category_image",
    "fieldtype": "Attach Image",
    "label": "Category Image"
+  },
+  {
+   "fieldname": "pos_id",
+   "fieldtype": "Data",
+   "label": "POS Category ID",
+   "read_only": 1
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Active\nInactive",
+   "default": "Active"
+  },
+  {
+   "fieldname": "parent_category",
+   "fieldtype": "Link",
+   "label": "Parent Category",
+   "options": "Menu Category",
+   "description": "Optional. If set, this category becomes a sub-category of the selected parent.",
+   "in_list_view": 0,
+   "search_index": 1
   }
  ],
  "index_web_pages_for_search": 1,
@@ -134,8 +157,3 @@
  "states": [],
  "track_changes": 1
 }
-
-
-
-
-

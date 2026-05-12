@@ -106,34 +106,27 @@ def add_cors_headers(response=None, request=None):
 	if not response:
 		return
 	
-	# Ensure response has headers attribute
-	if not hasattr(response, 'headers'):
-		return
-	
-	# Set Access-Control-Allow-Origin
-	response.headers['Access-Control-Allow-Origin'] = origin
-	
-	# Set Access-Control-Allow-Credentials
-	response.headers['Access-Control-Allow-Credentials'] = 'true'
-	
-	# Set Vary header to indicate origin-based response
-	response.headers['Vary'] = 'Origin'
-	
-	# Handle preflight OPTIONS requests
-	if request.method == 'OPTIONS':
-		# Set allowed methods
-		response.headers['Access-Control-Allow-Methods'] = ', '.join(ALLOWED_METHODS)
+	# Add CORS headers
+	if hasattr(response, 'headers') and response.headers is not None:
+		# Werkzeug Response object
+		response.headers['Access-Control-Allow-Origin'] = origin
+		response.headers['Access-Control-Allow-Credentials'] = 'true'
+		response.headers['Vary'] = 'Origin'
 		
-		# Set allowed headers
-		response.headers['Access-Control-Allow-Headers'] = ', '.join(ALLOWED_HEADERS)
-		
-		# Set max age for preflight caching (24 hours)
-		if not frappe.conf.developer_mode:
-			response.headers['Access-Control-Max-Age'] = '86400'
-	else:
-		# For non-OPTIONS requests, also include methods and headers for better compatibility
-		response.headers['Access-Control-Allow-Methods'] = ', '.join(ALLOWED_METHODS)
-		response.headers['Access-Control-Allow-Headers'] = ', '.join(ALLOWED_HEADERS)
+		if request.method == 'OPTIONS':
+			response.headers['Access-Control-Allow-Methods'] = ', '.join(ALLOWED_METHODS)
+			response.headers['Access-Control-Allow-Headers'] = ', '.join(ALLOWED_HEADERS)
+			if not frappe.conf.developer_mode:
+				response.headers['Access-Control-Max-Age'] = '86400'
+		else:
+			response.headers['Access-Control-Allow-Methods'] = ', '.join(ALLOWED_METHODS)
+			response.headers['Access-Control-Allow-Headers'] = ', '.join(ALLOWED_HEADERS)
+	elif isinstance(response, dict):
+		# Frappe response dict
+		# Note: Frappe's response dict doesn't have a standard 'headers' key for CORS,
+		# but we can try to set it if needed. Usually, after_request is best for objects.
+		# However, to be safe, we don't crash.
+		pass
 
 
 def handle_cors_preflight():

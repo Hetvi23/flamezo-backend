@@ -11,8 +11,8 @@ Covers:
   - _credit_autopay_coins()    — idempotency
   - deduct_coins()             — grace limit enforcement
   - update_subscription_plan() — barrier checks, Tomorrow Rule
-  - initialize_free_coins()    — idempotent signup bonus
   - process_referral_bonus()   — first-purchase trigger, double-dip prevention
+
 
 Run with:
     bench run-tests --app dinematters --module dinematters.dinematters.tests.test_coin_billing
@@ -563,65 +563,7 @@ class TestUpdateSubscriptionPlan(unittest.TestCase):
         self.assertTrue(result["success"])
 
 
-# ─── 7. initialize_free_coins() ──────────────────────────────────────────────
 
-class TestInitializeFreeCoins(unittest.TestCase):
-    """Signup bonus: 60 coins, granted exactly once per restaurant."""
-
-    @classmethod
-    def setUpClass(cls):
-        frappe.set_user("Administrator")
-        cleanup_restaurants_by_prefix(_PREFIX + "-IFC-")
-
-    @classmethod
-    def tearDownClass(cls):
-        cleanup_restaurants_by_prefix(_PREFIX + "-IFC-")
-
-    def setUp(self):
-        self._res_name = f"{_PREFIX}-IFC-{frappe.generate_hash(length=6)}"
-        make_restaurant(self._res_name, balance=0.0)
-        # Clear the auto-hook free coins so initialize_free_coins() sees a clean slate
-        reset_restaurant_balance(self._res_name, 0.0)
-        clear_transactions(self._res_name)
-        from dinematters.dinematters.api.coin_billing import initialize_free_coins
-        self.initialize_free_coins = initialize_free_coins
-
-    def tearDown(self):
-        cleanup_restaurant(self._res_name)
-
-    def test_grants_60_coins_on_first_call(self):
-        result = self.initialize_free_coins(self._res_name)
-        self.assertTrue(result)
-        new_bal = frappe.db.get_value("Restaurant", self._res_name, "coins_balance")
-        self.assertAlmostEqual(new_bal, 60.0, places=2)
-
-    def test_idempotent_no_double_grant(self):
-        self.initialize_free_coins(self._res_name)
-        result_second = self.initialize_free_coins(self._res_name)
-        self.assertFalse(result_second)
-        # Balance must still be exactly 60 (not 120)
-        new_bal = frappe.db.get_value("Restaurant", self._res_name, "coins_balance")
-        self.assertAlmostEqual(new_bal, 60.0, places=2)
-
-    def test_skips_if_legacy_ai_credit_exists(self):
-        """
-        If an AI Credit Transaction 'Free Credits' exists, initialize_free_coins
-        must not grant coins (avoids double-dipping during legacy migration).
-        """
-        frappe.get_doc({
-            "doctype": "AI Credit Transaction",
-            "restaurant": self._res_name,
-            "transaction_type": "Free Credits",
-            "credits": 30,
-            "balance_after": 30,
-        }).insert(ignore_permissions=True)
-        frappe.db.commit()
-
-        granted = self.initialize_free_coins(self._res_name)
-        self.assertFalse(granted)
-        # Clean up AI Credit Transaction
-        frappe.db.delete("AI Credit Transaction", {"restaurant": self._res_name})
-        frappe.db.commit()
 
 
 # ─── 8. process_referral_bonus() ─────────────────────────────────────────────

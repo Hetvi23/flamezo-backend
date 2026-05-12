@@ -41,7 +41,7 @@ interface PaymentStats {
 export default function PaymentConfiguration() {
   const { restaurantId } = useParams()
   const navigate = useNavigate()
-  const { selectedRestaurant } = useRestaurant()
+  const { selectedRestaurant, billingInfo } = useRestaurant()
   const activeRestaurantId = restaurantId || selectedRestaurant
 
   const [stats, setStats] = useState<PaymentStats | null>(null)
@@ -339,7 +339,7 @@ export default function PaymentConfiguration() {
                   </div>
                   <div>
                     <p className="text-sm font-bold">3. Platform Tracking</p>
-                    <p className="text-[11px] text-muted-foreground">We track the GMV to calculate the 1.5% end-of-month platform commission.</p>
+                    <p className="text-[11px] text-muted-foreground">We track the GMV to calculate the {billingInfo?.plan_defaults?.gold_commission ?? 1.5}% end-of-month platform commission.</p>
                   </div>
                 </div>
               </div>

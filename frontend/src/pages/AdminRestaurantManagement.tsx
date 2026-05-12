@@ -100,13 +100,19 @@ export default function AdminRestaurantManagement() {
   })
 
   useEffect(() => {
-    const userRoles = (window as any)?.frappe?.boot?.user_roles || []
-    const hasSupervisorRole = userRoles.includes('DineMatters Supervisor')
-    const isMainAdmin = currentUser === 'Administrator' || userRoles.includes('System Manager')
+    // Wait for currentUser
+    if (!currentUser) return
 
-    if (isMainAdmin || hasSupervisorRole) {
+    const win = window as any
+    const userRoles: string[] = win.frappe?.boot?.user_roles || win.frappe?.boot?.user?.roles || win.frappe?.user_roles || []
+    
+    const isSupervisor = userRoles.includes('DineMatters Supervisor')
+    const isSystemManager = userRoles.includes('System Manager')
+    const isRootAdmin = currentUser === 'Administrator'
+
+    if (isRootAdmin || isSupervisor || isSystemManager) {
       setIsAdmin(true)
-      setIsSupervisorOnly(hasSupervisorRole && !isMainAdmin)
+      setIsSupervisorOnly(isSupervisor && !isRootAdmin && !isSystemManager)
     } else {
       setIsAdmin(false)
       setIsSupervisorOnly(false)
@@ -832,7 +838,7 @@ export default function AdminRestaurantManagement() {
                 <SelectContent className="rounded-2xl p-1 shadow-2xl border-none">
                   {[
                     { id: 'SILVER', label: 'Silver Tier', icon: Shield, color: 'text-slate-500', desc: 'Basic Digital Menu' },
-                    { id: 'GOLD', label: 'Gold Tier', icon: Trophy, color: 'text-amber-500', desc: '₹1299 unlock · ₹399/mo floor + 1.5% Commission' },
+                    { id: 'GOLD', label: 'Gold Tier', icon: Trophy, color: 'text-amber-500', desc: `₹${platformSettings.gold_upgrade_barrier} unlock · ₹${platformSettings.gold_monthly_fee}/mo floor + ${platformSettings.gold_commission_percent}% Commission` },
                   ].map((tier) => (
                     <SelectItem
                       key={tier.id}

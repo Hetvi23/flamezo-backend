@@ -56,12 +56,29 @@ interface DynamicFormProps {
   skipLoadingState?: boolean // Skip showing loading spinner (useful when parent handles loading via page reload)
 }
 
-// Character limits for specific doctype fields to ensure UI consistency
+// Character limits for specific doctype fields to ensure UI consistency in ono-menu.
+// Values are derived from actual UI constraints (line-clamp, container width, font size).
 const CHARACTER_LIMITS: Record<string, Record<string, number>> = {
   'Restaurant Config': {
     'tagline': 70,
     'subtitle': 100,
-  }
+    'description': 200, // legacy page hard-truncates at 200 chars
+  },
+  'Menu Product': {
+    'description': 120, // product card: line-clamp-3, text-xs/sm on mobile ~40 chars/line
+  },
+  'Menu Category': {
+    'description': 100, // short blurb, rarely displayed
+  },
+  'Event': {
+    'description': 500, // shown in full-height modal, no truncation
+  },
+  'Coupon': {
+    'description': 100, // offer carousel: line-clamp-2, text-sm ~50 chars/line
+  },
+  'Game': {
+    'description': 80, // game card: line-clamp-2, text-xs/sm on mobile ~40 chars/line
+  },
 }
 
 export default function DynamicForm({
@@ -950,19 +967,35 @@ export default function DynamicForm({
         )
 
       case 'Text':
-      case 'Long Text':
+      case 'Long Text': {
+        const textLimit = (doctype && CHARACTER_LIMITS[doctype]) ? CHARACTER_LIMITS[doctype][field.fieldname] : undefined
         return (
           <div key={field.fieldname} className="space-y-2">
-            <Label htmlFor={field.fieldname}>
-              {field.label}
-              {field.required && <span className="text-destructive">*</span>}
-            </Label>
+            <div className="flex justify-between items-center">
+              <Label htmlFor={field.fieldname}>
+                {field.label}
+                {field.required && <span className="text-destructive">*</span>}
+              </Label>
+              {textLimit && (
+                <span className={cn(
+                  "text-[10px] font-medium px-1.5 py-0.5 rounded-full transition-colors",
+                  value.length >= textLimit
+                    ? "bg-destructive text-white"
+                    : value.length > textLimit * 0.8
+                      ? "bg-amber-100 text-amber-700"
+                      : "bg-muted text-muted-foreground"
+                )}>
+                  {value.length}/{textLimit}
+                </span>
+              )}
+            </div>
             <Textarea
               id={field.fieldname}
               value={value}
               onChange={(e) => handleFieldChange(field.fieldname, e.target.value)}
               readOnly={isReadOnly}
               required={field.required}
+              maxLength={textLimit}
               rows={4}
             />
             {field.description && (
@@ -970,6 +1003,7 @@ export default function DynamicForm({
             )}
           </div>
         )
+      }
 
       case 'Link':
         // For read-only Link fields, render as a simple text input instead of dropdown

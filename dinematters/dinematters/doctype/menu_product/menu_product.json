@@ -169,7 +169,6 @@
   },
   {
    "default": "1",
-
    "fieldname": "is_vegetarian",
    "fieldtype": "Check",
    "in_list_view": 1,
@@ -240,6 +239,20 @@
    "fieldtype": "Data",
    "label": "Google Product ID",
    "read_only": 1
+  },
+  {
+   "fieldname": "pos_id",
+   "fieldtype": "Data",
+   "label": "POS Item ID",
+   "in_list_view": 0,
+   "read_only": 1
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Active\nInactive",
+   "default": "Active"
   }
  ],
  "index_web_pages_for_search": 1,

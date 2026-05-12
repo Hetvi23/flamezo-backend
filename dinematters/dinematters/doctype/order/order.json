@@ -571,6 +571,12 @@
    "read_only": 1,
    "unique": 1,
    "search_index": 1
+  },
+  {
+   "fieldname": "pos_sync_status",
+   "fieldtype": "Data",
+   "label": "POS Sync Status",
+   "read_only": 1
   }
  ],
  "index_web_pages_for_search": 1,

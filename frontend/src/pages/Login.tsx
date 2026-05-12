@@ -1,4 +1,8 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
+
+import { Eye, EyeOff } from 'lucide-react'
+
 import { Input } from '@/components/ui/input'
 import loginImage from '/images/login-dinematters.webp'
 import { Button } from '@/components/ui/button'
@@ -7,7 +11,9 @@ import { toast } from 'sonner'
 export default function Login() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
+
 
   const handleSubmit = async (e: any) => {
     e.preventDefault()
@@ -73,20 +79,38 @@ export default function Login() {
               required
             />
           </div>
-          <div>
-            <label className="text-xs font-medium block mb-1 text-foreground">Password</label>
-            <Input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Enter your password"
-              required
-            />
+          <div className="space-y-1">
+            <label className="text-xs font-medium block text-foreground">Password</label>
+            <div className="relative">
+              <Input
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Enter your password"
+                className="pr-10"
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors focus:outline-none"
+                aria-label={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? (
+                  <EyeOff size={18} className="animate-in fade-in zoom-in duration-200" />
+                ) : (
+                  <Eye size={18} className="animate-in fade-in zoom-in duration-200" />
+                )}
+              </button>
+            </div>
           </div>
+
           <div className="flex items-center justify-between">
             <div>
-              <a href="/forgot-password" className="text-sm text-muted-foreground hover:text-primary hover:underline transition-colors">Forgot Password?</a>
+              <Link to="/forgot-password" className="text-sm text-muted-foreground hover:text-primary hover:underline transition-colors">Forgot Password?</Link>
+
             </div>
+
           </div>
           <div>
             <Button type="submit" className="w-full" disabled={loading}>

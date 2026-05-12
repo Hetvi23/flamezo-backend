@@ -613,57 +613,7 @@ def get_coin_transactions(restaurant, limit=20, offset=0, from_date=None, to_dat
         limit_start=int(offset)
     )
 
-@frappe.whitelist(allow_guest=False)
-def initialize_free_coins(restaurant):
-    """
-    Give free signup coins to a new restaurant.
-    Ensures they only get it once.
-    """
-    # 60 coins = 30 legacy credits
-    coins_to_add = 60 
-    
-    # Check if they already got free coins or legacy credits
-    existing_coins = frappe.db.count("Coin Transaction", {
-        "restaurant": restaurant,
-        "transaction_type": "Free Coins",
-    })
-    # Also check legacy to prevent double-dipping during migration
-    existing_credits = frappe.db.count("AI Credit Transaction", {
-        "restaurant": restaurant,
-        "transaction_type": "Free Credits",
-    })
-    
-    if not existing_coins and not existing_credits:
-        record_transaction(
-            restaurant=restaurant,
-            txn_type="Free Coins",
-            amount=coins_to_add,
-            description=f"Welcome! Rs.{coins_to_add} free balance to get started.",
-        )
-        return True
-    return False
 
-@frappe.whitelist(allow_guest=False)
-def process_monthly_subscription_coin_refill():
-    """
-    Cron job: Grant 60 free coins to all active GOLD restaurants monthly.
-    """
-    from frappe.utils import now
 
-    # We target GOLD plan
-    restaurants = frappe.get_all("Restaurant",
-        filters={"plan_type": "GOLD", "is_active": 1},
-        pluck="name"
-    )
-    
-    for r in restaurants:
-        record_transaction(
-            restaurant=r,
-            txn_type="Free Coins",
-            amount=60,
-            description="Monthly Subscription Reward: 60 Free Balance",
-        )
-    
-    frappe.db.commit()
 
 
