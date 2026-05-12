@@ -50,6 +50,7 @@
   "currency",
   "tables",
   "recommendation_run",
+  "recommendation_last_run",
   "qr_codes_pdf_url",
   "section_break_razorpay",
   "razorpay_account_id",
@@ -393,6 +394,12 @@
    "label": "Recommendation Run Count",
    "read_only": 1,
    "description": "How many times the AI menu recommendation engine has been executed for this restaurant."
+  },
+  {
+   "fieldname": "recommendation_last_run",
+   "fieldtype": "Datetime",
+   "label": "Recommendations Last Run",
+   "read_only": 1
   },
   {
    "fieldname": "qr_codes_pdf_url",
