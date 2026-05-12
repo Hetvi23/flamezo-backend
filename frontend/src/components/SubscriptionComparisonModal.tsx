@@ -30,28 +30,6 @@ interface FeatureRow {
   gold: string | boolean
 }
 
-const FEATURES: FeatureRow[] = [
-  { name: 'QR Menu (HQ Photos)', silver: 'Standard', gold: 'Unlimited HQ' },
-  { name: 'Online Ordering via QR', silver: true, gold: true },
-  { name: 'Loyalty Rewards (Earn & Redeem)', silver: true, gold: true },
-  { name: 'Listed on DineMatters Club', silver: true, gold: true },
-  { name: 'Image Storage Limit', silver: '200', gold: 'Unlimited' },
-  { name: 'Video Menu & Stories', silver: false, gold: true },
-  { name: 'Custom QR Logo (Branding)', silver: false, gold: 'Own Brand' },
-  { name: 'AI Recommendations', silver: false, gold: true },
-  { name: 'Analytics Dashboard', silver: false, gold: 'Advanced' },
-  { name: 'CRM & Customer Insights', silver: false, gold: true },
-  { name: 'Marketing Studio', silver: false, gold: true },
-  { name: 'Gamification (Spin-the-Wheel)', silver: false, gold: true },
-  { name: 'Table & Booking Engine', silver: false, gold: true },
-  { name: 'WhatsApp Ordering', silver: false, gold: true },
-  { name: 'POS Integration', silver: false, gold: 'Deep Sync' },
-  { name: 'Delivery Hub (Logistics)', silver: false, gold: 'Flash/Borzo' },
-  { name: 'Coupons & Offers', silver: false, gold: true },
-  { name: 'Direct Data Ownership', silver: true, gold: true },
-  { name: 'Success Share (Commission)', silver: '0%', gold: '1.5%' },
-]
-
 export function SubscriptionComparisonModal({
   open,
   onClose,
@@ -60,6 +38,28 @@ export function SubscriptionComparisonModal({
   isChangingPlan,
   planDefaults,
 }: SubscriptionComparisonModalProps) {
+  const FEATURES: FeatureRow[] = [
+    { name: 'QR Menu (HQ Photos)', silver: 'Standard', gold: 'Unlimited HQ' },
+    { name: 'Online Ordering via QR', silver: true, gold: true },
+    { name: 'Loyalty Rewards (Earn & Redeem)', silver: true, gold: true },
+    { name: 'Listed on DineMatters Club', silver: true, gold: true },
+    { name: 'Image Storage Limit', silver: '200', gold: 'Unlimited' },
+    { name: 'Video Menu & Stories', silver: false, gold: true },
+    { name: 'Custom QR Logo (Branding)', silver: false, gold: 'Own Brand' },
+    { name: 'AI Recommendations', silver: false, gold: true },
+    { name: 'Analytics Dashboard', silver: false, gold: 'Advanced' },
+    { name: 'CRM & Customer Insights', silver: false, gold: true },
+    { name: 'Marketing Studio', silver: false, gold: true },
+    { name: 'Gamification (Spin-the-Wheel)', silver: false, gold: true },
+    { name: 'Table & Booking Engine', silver: false, gold: true },
+    { name: 'WhatsApp Ordering', silver: false, gold: true },
+    { name: 'POS Integration', silver: false, gold: 'Deep Sync' },
+    { name: 'Delivery Hub (Logistics)', silver: false, gold: 'Flash/Borzo' },
+    { name: 'Coupons & Offers', silver: false, gold: true },
+    { name: 'Direct Data Ownership', silver: true, gold: true },
+    { name: 'Success Share (Commission)', silver: '0%', gold: `${planDefaults.gold_commission}%` },
+  ]
+
   const renderCell = (value: string | boolean, isPrimary: boolean = false) => {
     if (typeof value === 'boolean') {
       return value ? (

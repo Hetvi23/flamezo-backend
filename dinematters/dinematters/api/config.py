@@ -302,6 +302,11 @@ def get_restaurant_config(restaurant_id):
 				"lastAutoRechargeDate": str(restaurant_doc.last_auto_recharge_date) if restaurant_doc.last_auto_recharge_date else None,
 				"monthly_minimum": float(restaurant_doc.monthly_minimum or 0),
 				"platform_fee_percent": float(restaurant_doc.platform_fee_percent or 0),
+				"plan_defaults": {
+					"gold_floor": float(frappe.db.get_single_value("Dinematters Settings", "gold_monthly_fee") or 399.0),
+					"gold_commission": float(frappe.db.get_single_value("Dinematters Settings", "gold_commission_percent") or 1.5),
+					"gold_barrier": float(frappe.db.get_single_value("Dinematters Settings", "gold_upgrade_barrier") or 1299.0)
+				},
 				# Current user's role for this restaurant (Admin vs Staff)
 				"userRole": _get_user_role_for_restaurant(frappe.session.user, restaurant),
 				"features": {

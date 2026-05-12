@@ -118,7 +118,8 @@ def create_payment_order(restaurant_id, order_items, total_amount, subtotal=None
 		total_amount_paise = int(float(total_amount) * 100)
 
 		# Calculate platform fee (Dynamic % by restaurant config)
-		platform_fee_percent = float(restaurant.platform_fee_percent if restaurant.platform_fee_percent is not None else 1.5)  # type: ignore
+		default_commission = float(frappe.db.get_single_value("Dinematters Settings", "gold_commission_percent") or 1.5)
+		platform_fee_percent = float(restaurant.platform_fee_percent if restaurant.platform_fee_percent is not None else default_commission)  # type: ignore
 		platform_fee_paise = int(math.floor(total_amount_paise * (platform_fee_percent / 100.0)))  # type: ignore
 
 		# Create or Update order in ERPNext
@@ -539,7 +540,8 @@ def get_restaurant_payment_stats(restaurant_id):
 		}
 		
 		# Get monthly minimum info (ensure numeric values)
-		monthly_minimum = float(restaurant.monthly_minimum if restaurant.monthly_minimum is not None else 399.0)  # type: ignore
+		default_floor = float(frappe.db.get_single_value("Dinematters Settings", "gold_monthly_fee") or 399.0)
+		monthly_minimum = float(restaurant.monthly_minimum if restaurant.monthly_minimum is not None else default_floor)  # type: ignore
 		platform_fee_collected = (stats["total_platform_fee"] or 0) / 100.0  # Convert from paise to rupees
 		minimum_due = max(0, monthly_minimum - platform_fee_collected)
 		
@@ -884,8 +886,10 @@ def schedule_monthly_billing():
 			total_paise = int(float(total) * 100)
 			# Fetch commission settings from Restaurant
 			res_doc = frappe.get_doc("Restaurant", r.name)
-			platform_fee_percent = float(res_doc.platform_fee_percent if res_doc.platform_fee_percent is not None else 1.5)  # type: ignore
-			monthly_min = float(res_doc.monthly_minimum if res_doc.monthly_minimum is not None else 399.0)  # type: ignore
+			default_commission = float(frappe.db.get_single_value("Dinematters Settings", "gold_commission_percent") or 1.5)
+			default_floor = float(frappe.db.get_single_value("Dinematters Settings", "gold_monthly_fee") or 399.0)
+			platform_fee_percent = float(res_doc.platform_fee_percent if res_doc.platform_fee_percent is not None else default_commission)  # type: ignore
+			monthly_min = float(res_doc.monthly_minimum if res_doc.monthly_minimum is not None else default_floor)  # type: ignore
 			
 			calculated_fee = int(math.floor(total_paise * (platform_fee_percent / 100.0)))  # type: ignore
 			min_amt_paise = int(monthly_min * 100)

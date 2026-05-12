@@ -12,6 +12,10 @@ import { PageSkeleton } from './components/PageSkeleton'
 // Lazy load all page components for code-splitting
 const Dashboard = lazy(() => import('./pages/Dashboard'))
 const Login = lazy(() => import('./pages/Login'))
+const ForgotPassword = lazy(() => import('./pages/ForgotPassword'))
+const ResetPassword = lazy(() => import('./pages/ResetPassword'))
+
+
 const MyAccount = lazy(() => import('./pages/MyAccount'))
 const FeatureLocked = lazy(() => import('./pages/FeatureLocked'))
 const TieredSetupWizard = lazy(() => import('./pages/TieredSetupWizard'))
@@ -69,6 +73,10 @@ function AppContent() {
 					<Routes>
 						{/* Public routes */}
 						<Route path="/login" element={<Login />} />
+						<Route path="/forgot-password" element={<ForgotPassword />} />
+						<Route path="/reset-password" element={<ResetPassword />} />
+
+
 
 						{/* Protected routes */}
 						<Route element={<ProtectedRoute />}>

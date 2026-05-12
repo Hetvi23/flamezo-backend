@@ -72,7 +72,7 @@ const Payment: React.FC = () => {
   const [distanceError, setDistanceError] = useState<string | null>(null);
   const [deliveryDistance, setDeliveryDistance] = useState<number | null>(null);
 
-  const { restaurantConfig } = useRestaurant();
+  const { restaurantConfig, billingInfo } = useRestaurant();
   const verifyMyUser = restaurantConfig?.settings?.verifyMyUser === true;
 
   // API calls
@@ -300,8 +300,8 @@ const Payment: React.FC = () => {
                       <span>₹{deliveryFee.toFixed(2)}</span>
                     </div>
                   )}
-                  <p>• Platform fee (1.5%): ₹{(totalAmount * 0.015).toFixed(2)}</p>
-                  <p>• Restaurant receives: ₹{(totalAmount * 0.985).toFixed(2)}</p>
+                  <p>• Platform fee ({billingInfo?.plan_defaults?.gold_commission ?? 1.5}%): ₹{(totalAmount * ((billingInfo?.plan_defaults?.gold_commission ?? 1.5) / 100)).toFixed(2)}</p>
+                  <p>• Restaurant receives: ₹{(totalAmount * (1 - (billingInfo?.plan_defaults?.gold_commission ?? 1.5) / 100)).toFixed(2)}</p>
                 </div>
               </CardContent>
             </Card>

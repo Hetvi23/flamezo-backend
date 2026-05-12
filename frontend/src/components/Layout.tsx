@@ -1,7 +1,7 @@
 import { Link, useLocation, useNavigate, Outlet } from 'react-router-dom'
 import { Home, ShoppingCart, Package, Truck, FolderTree, Grid3x3, Sparkles, Star, Store, X, Lock, LockOpen, ChevronDown, ChevronRight, TrendingUp, TrendingDown, DollarSign, AlertCircle, Activity, Moon, Sun, ExternalLink, Eye, Plus, Loader2, QrCode, Clock, User, Users, LogOut, LayoutDashboard, CheckCircle2, Calendar, Tag, Shield, ShieldAlert, Wallet, Crown, CreditCard, Settings, MessageSquare, Megaphone, Send, Zap, BarChart3, Menu, Search, Globe, Mail, Smartphone, ClipboardCopy, PartyPopper } from 'lucide-react'
 import { cn, copyToClipboard } from '@/lib/utils'
-import { useFrappeGetDocList, useFrappeGetDoc, useFrappePostCall, useFrappeAuth } from '@/lib/frappe'
+import { useFrappeGetDocList, useFrappePostCall, useFrappeAuth, useFrappeGetCall } from '@/lib/frappe'
 import { AiRechargeModal } from '@/components/AiRechargeModal'
 import { useState, useEffect, useMemo } from 'react'
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select'
@@ -226,7 +226,16 @@ export default function Layout({ children }: LayoutProps) {
 
   // Admin access state - system admin (Administrator) for Restaurant Management nav
   const [isSystemAdmin, setIsSystemAdmin] = useState(false)
+  const { data: platformSettingsResp } = useFrappeGetCall<{ success: boolean; data: any }>(
+    'dinematters.dinematters.api.admin.get_platform_settings',
+    {},
+    'platform-settings-global'
+  )
+  const platformSettings = platformSettingsResp?.data || null
+
   // Combined isAdmin: true if system admin OR Restaurant Admin via plan context
+  // However, for sidebar nav, we might want to distinguish between system-level admin 
+  // and restaurant-level admin.
   const isAdmin = isSystemAdmin || isRestaurantAdmin
 
   // Sync balance when updated from other components (like Recharge Modal)
@@ -326,11 +335,15 @@ export default function Layout({ children }: LayoutProps) {
     // Wait for currentUser to be loaded
     if (!currentUser) return;
 
-    // Check for Administrator or DineMatters Supervisor role
-    const userRoles = (window as any)?.frappe?.boot?.user_roles || []
+    // Check for Administrator or DineMatters Supervisor or System Manager role
+    const win = window as any
+    const userRoles: string[] = win.frappe?.boot?.user_roles || win.frappe?.boot?.user?.roles || win.frappe?.user_roles || []
+    
     const isSupervisor = userRoles.includes('DineMatters Supervisor')
+    const hasSystemManager = userRoles.includes('System Manager')
+    const isRootAdmin = currentUser === 'Administrator'
 
-    if (currentUser === 'Administrator' || isSupervisor) {
+    if (isRootAdmin || isSupervisor || hasSystemManager) {
       setIsSystemAdmin(true)
     } else {
       setIsSystemAdmin(false)
@@ -500,10 +513,13 @@ export default function Layout({ children }: LayoutProps) {
   // Get current restaurant details (from list) and fetch the selected restaurant doc directly
   const currentRestaurant = restaurants.find(r => r.name === selectedRestaurant || r.restaurant_id === selectedRestaurant)
 
-  // Fetch restaurant document to get slug and authoritative restaurant_name
-  const { data: restaurantDoc } = useFrappeGetDoc('Restaurant', selectedRestaurant || '', {
-    enabled: !!selectedRestaurant
+  // Fetch only the fields needed from Restaurant doc (avoids fetching huge description field)
+  const { data: restaurantDocList } = useFrappeGetDocList('Restaurant', {
+    filters: selectedRestaurant ? [['name', '=', selectedRestaurant]] : [],
+    fields: ['name', 'slug', 'restaurant_id', 'restaurant_name'],
+    limit: 1,
   })
+  const restaurantDoc = restaurantDocList?.[0] || null
 
   // Preview URL path: slug preferred, fallback to restaurant_id for all pages
   const previewPath = restaurantDoc?.slug || restaurantDoc?.restaurant_id || currentRestaurant?.restaurant_id || selectedRestaurant || ''
@@ -765,7 +781,6 @@ export default function Layout({ children }: LayoutProps) {
 
                         <div className="border-t border-border/40 my-1" />
 
-                        <div className="max-h-[300px] overflow-y-auto custom-scrollbar">
                           {restaurants.map((restaurant) => (
                             <SelectItem key={restaurant.name} value={restaurant.name} className="py-1.5 focus:bg-sidebar-accent">
                               <div className="flex items-center gap-2 w-full">
@@ -779,7 +794,6 @@ export default function Layout({ children }: LayoutProps) {
                               </div>
                             </SelectItem>
                           ))}
-                        </div>
                       </SelectContent>
                     </Select>
                   ) : (
@@ -861,7 +875,7 @@ export default function Layout({ children }: LayoutProps) {
           <nav className="flex-1 px-2 py-2 space-y-0.5 overflow-y-auto">
             {isActive && navigation
               .filter((item) => {
-                if (item.adminOnly && !isAdmin) {
+                if (item.adminOnly && !isSystemAdmin) {
                   return false
                 }
                 // WhatsApp Orders visibility: only GOLD and SILVER
@@ -869,7 +883,7 @@ export default function Layout({ children }: LayoutProps) {
                   return false
                 }
                 if (item.type === 'group') {
-                  const filteredChildren = item.children.filter((child) => !child.adminOnly || isAdmin)
+                  const filteredChildren = item.children.filter((child) => !child.adminOnly || isSystemAdmin)
                   return filteredChildren.length > 0
                 }
                 return true
@@ -964,7 +978,7 @@ export default function Layout({ children }: LayoutProps) {
                 const group = item
                 const Icon = group.icon
                 const isExpanded = expandedGroups.has(group.id)
-                const filteredChildren = group.children.filter(child => !child.adminOnly || isAdmin)
+                const filteredChildren = group.children.filter(child => !child.adminOnly || isSystemAdmin)
                 const hasActiveChild = filteredChildren.some(
                   (c) => location.pathname === c.href || (c.href !== '/dashboard' && location.pathname.startsWith(c.href))
                 )
@@ -1023,7 +1037,7 @@ export default function Layout({ children }: LayoutProps) {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent side="right" align="start" className="min-w-[180px]" sideOffset={8}>
                         {group.children
-                          .filter(child => !child.adminOnly || isAdmin)
+                          .filter(child => !child.adminOnly || isSystemAdmin)
                           .map((child) => {
                             const ChildIcon = child.icon || group.icon
                             const isChildActive = location.pathname === child.href || (child.href !== '/' && child.href !== '/google-growth' && location.pathname.startsWith(child.href + '/'))
@@ -1132,7 +1146,7 @@ export default function Layout({ children }: LayoutProps) {
                     {showExpanded && isExpanded && (
                       <div className="ml-4 pl-2 border-l border-sidebar-border space-y-0.5">
                         {group.children
-                          .filter(child => !child.adminOnly || isAdmin)
+                          .filter(child => !child.adminOnly || isSystemAdmin)
                           .map((child) => {
                             const ChildIcon = child.icon || group.icon
                             const isChildActive = location.pathname === child.href ||
@@ -1837,7 +1851,11 @@ export default function Layout({ children }: LayoutProps) {
                           <div className="flex items-center gap-2 flex-1">
                             <Star className="h-3.5 w-3.5 text-amber-500" />
                             <span className="text-sm font-medium">Gold</span>
-                            <span className="ml-auto text-xs font-semibold text-amber-600">₹1,178.82 inkl. GST</span>
+                            <span className="ml-auto text-xs font-semibold text-amber-600">
+                              {platformSettings
+                                ? `₹${(platformSettings.gold_upgrade_barrier * (platformSettings.charge_gst ? (1 + platformSettings.gst_percent / 100) : 1)).toLocaleString('en-IN', { maximumFractionDigits: 2 })}${platformSettings.charge_gst ? ' inkl. GST' : ''}`
+                                : '₹1,299'}
+                            </span>
                           </div>
                         </label>
 

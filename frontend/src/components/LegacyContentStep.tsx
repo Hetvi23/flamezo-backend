@@ -108,21 +108,7 @@ export default function LegacyContentStep({ selectedRestaurant, onComplete }: Le
   const { updateDoc, loading: isUpdating } = useFrappeUpdateDoc()
   const { deleteDoc } = useFrappeDeleteDoc()
   const { call: updateLegacyContent } = useFrappePostCall('dinematters.dinematters.api.legacy.update_legacy_content')
-  const { call: generateLegacyContent, loading: isGenerating } = useFrappePostCall('dinematters.dinematters.api.legacy.generate_legacy_content')
 
-  const handleGenerateLegacy = async () => {
-    try {
-      const res = await generateLegacyContent({ restaurant_id: selectedRestaurant })
-      if (res?.message?.success) {
-        toast.success('Legacy content generated successfully')
-        refreshAll()
-      } else {
-        toast.error(res?.message?.error?.message || 'Failed to generate legacy content')
-      }
-    } catch (error) {
-      toast.error('Error generating legacy content')
-    }
-  }
 
   // Sync API response into form state when data arrives
   useEffect(() => {
@@ -822,19 +808,6 @@ export default function LegacyContentStep({ selectedRestaurant, onComplete }: Le
           <h1 className="text-2xl font-bold">Legacy Content</h1>
           <p className="text-muted-foreground">Configure your restaurant's story, heritage, and featured content</p>
         </div>
-        <Button 
-          onClick={handleGenerateLegacy} 
-          disabled={isGenerating}
-          variant="outline"
-          className="gap-2 border-primary/50 hover:border-primary text-primary"
-        >
-          {isGenerating ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <StarIcon className="h-4 w-4 fill-primary" />
-          )}
-          Generate with AI
-        </Button>
       </div>
 
       {/* Hero Section Configuration */}

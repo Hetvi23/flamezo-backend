@@ -1,14 +1,17 @@
 import React, { useState } from 'react';
 import { useFrappeGetDoc, useFrappeUpdateDoc } from 'frappe-react-sdk';
+import { Switch } from '../components/ui/switch';
 import { useRestaurant } from '../contexts/RestaurantContext';
-import { 
-  RefreshCcw, 
-  CheckCircle2, 
-  AlertCircle, 
+import {
+  RefreshCcw,
+  CheckCircle2,
+  AlertCircle,
   Save,
   ShieldCheck,
   Zap,
-  Loader2
+  Loader2,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -42,9 +45,12 @@ export default function POSIntegration() {
   const [provider, setProvider] = useState<string>(restaurant?.pos_provider || 'Petpooja');
   const [enabled, setEnabled] = useState<boolean>(!!restaurant?.pos_enabled);
   const [appKey, setAppKey] = useState<string>(restaurant?.pos_app_key || '');
-  const [appSecret, setAppSecret] = useState<string>(''); 
+  const [appSecret, setAppSecret] = useState<string>('');
   const [accessToken, setAccessToken] = useState<string>('');
   const [merchantId, setMerchantId] = useState<string>(restaurant?.pos_merchant_id || '');
+  const [showSecret, setShowSecret] = useState(false);
+  const [showToken, setShowToken] = useState(false);
+  const [menuSyncEnabled, setMenuSyncEnabled] = useState<boolean>(true);
 
   // Synchronize local state with fetched data when it arrives
   React.useEffect(() => {
@@ -53,6 +59,8 @@ export default function POSIntegration() {
       setEnabled(!!restaurant.pos_enabled);
       setAppKey(restaurant.pos_app_key || '');
       setMerchantId(restaurant.pos_merchant_id || '');
+      // default 1 (enabled) if field not yet set
+      setMenuSyncEnabled(restaurant.pos_menu_sync_enabled !== 0);
     }
   }, [restaurant]);
 
@@ -94,6 +102,7 @@ export default function POSIntegration() {
         pos_enabled: enabled ? 1 : 0,
         pos_app_key: appKey,
         pos_merchant_id: merchantId,
+        pos_menu_sync_enabled: menuSyncEnabled ? 1 : 0,
       };
 
       if (appSecret) {
@@ -198,24 +207,42 @@ export default function POSIntegration() {
                   </div>
                   <div className="space-y-2">
                     <Label>{config.appSecretLabel}</Label>
-                    <Input 
-                      type="password" 
-                      placeholder="••••••••••••" 
-                      value={appSecret}
-                      onChange={(e) => setAppSecret(e.target.value)}
-                      className="bg-background/50 border-muted focus:ring-primary/20"
-                    />
+                    <div className="relative">
+                      <Input
+                        type={showSecret ? 'text' : 'password'}
+                        placeholder={restaurant?.pos_app_secret ? '(saved — enter to change)' : '••••••••••••'}
+                        value={appSecret}
+                        onChange={(e) => setAppSecret(e.target.value)}
+                        className="bg-background/50 border-muted focus:ring-primary/20 pr-10"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowSecret(v => !v)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      >
+                        {showSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
                   </div>
                   {config.showAccessToken && (
                     <div className="space-y-2 md:col-span-2">
                       <Label>Access Token (2026 Required)</Label>
-                      <Input 
-                        type="password" 
-                        placeholder="••••••••••••" 
-                        value={accessToken}
-                        onChange={(e) => setAccessToken(e.target.value)}
-                        className="bg-background/50 border-muted focus:ring-primary/20"
-                      />
+                      <div className="relative">
+                        <Input
+                          type={showToken ? 'text' : 'password'}
+                          placeholder={restaurant?.pos_access_token ? '(saved — enter to change)' : '••••••••••••'}
+                          value={accessToken}
+                          onChange={(e) => setAccessToken(e.target.value)}
+                          className="bg-background/50 border-muted focus:ring-primary/20 pr-10"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowToken(v => !v)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                        >
+                          {showToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -254,16 +281,47 @@ export default function POSIntegration() {
                 Fetch the latest categories, products, and prices from your POS.
               </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-4">
+              {/* Menu Sync Toggle */}
+              <div className="flex items-center justify-between p-4 bg-muted/30 rounded-xl border border-muted/50">
+                <div className="space-y-0.5">
+                  <Label className="text-base">Menu Sync</Label>
+                  <p className="text-sm text-muted-foreground">
+                    {menuSyncEnabled
+                      ? 'Menu syncs automatically from your POS on every change.'
+                      : 'Sync is paused — your menu will not update from the POS.'}
+                  </p>
+                </div>
+                <Switch
+                  checked={menuSyncEnabled}
+                  onCheckedChange={async (checked) => {
+                    setMenuSyncEnabled(checked)
+                    if (!selectedRestaurant) return
+                    try {
+                      await updateDoc('Restaurant', selectedRestaurant, { pos_menu_sync_enabled: checked ? 1 : 0 })
+                      toast.success(checked ? 'Menu sync enabled' : 'Menu sync paused')
+                      mutate()
+                    } catch {
+                      toast.error('Failed to update sync setting')
+                      setMenuSyncEnabled(!checked) // revert
+                    }
+                  }}
+                  disabled={!enabled}
+                />
+              </div>
+
+              {/* Status + manual sync */}
               <div className="flex flex-col md:flex-row items-center gap-6 p-6 border-2 border-dashed border-muted/50 rounded-2xl bg-muted/5">
                 <div className="flex-1 space-y-2">
                   <div className="flex items-center gap-2">
                     <Label className="text-lg font-semibold">Current Status</Label>
                     <div className={cn(
                       "px-2 py-0.5 rounded-md text-xs font-bold border",
-                      enabled ? "bg-green-500/10 text-green-500 border-green-500/20" : "bg-muted text-muted-foreground border-muted-foreground/10"
+                      !enabled ? "bg-muted text-muted-foreground border-muted-foreground/10"
+                        : menuSyncEnabled ? "bg-green-500/10 text-green-500 border-green-500/20"
+                        : "bg-yellow-500/10 text-yellow-600 border-yellow-500/20"
                     )}>
-                      {enabled ? 'CONNECTED' : 'DISABLED'}
+                      {!enabled ? 'DISABLED' : menuSyncEnabled ? 'CONNECTED' : 'PAUSED'}
                     </div>
                   </div>
                   <p className="text-sm text-muted-foreground">
@@ -275,12 +333,12 @@ export default function POSIntegration() {
                     </p>
                   )}
                 </div>
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   size="lg"
                   className="gap-2 border-primary/20 hover:bg-primary/5 transition-all"
                   onClick={handleSyncMenu}
-                  disabled={syncing || !enabled}
+                  disabled={syncing || !enabled || !menuSyncEnabled}
                 >
                   <RefreshCcw className={cn("h-4 w-4 text-primary", syncing && "animate-spin")} />
                   {syncing ? 'Processing...' : 'Sync Menu Now'}

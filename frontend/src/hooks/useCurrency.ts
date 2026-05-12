@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { useFrappeGetDoc, useFrappeGetCall } from '@/lib/frappe'
+import { useFrappeGetDocList, useFrappeGetCall } from '@/lib/frappe'
 import { useRestaurant } from '@/contexts/RestaurantContext'
 
 const FALLBACK_SYMBOLS: Record<string, string> = {
@@ -24,15 +24,20 @@ export function useCurrency() {
   const { selectedRestaurant, restaurantConfig } = useRestaurant()
   const pricing = restaurantConfig?.pricing
 
-  // Fallback: fetch Restaurant Config and Restaurant when pricing not from context
-  const { data: configData } = useFrappeGetDoc('Restaurant Config', selectedRestaurant || '', {
-    enabled: !!selectedRestaurant && !pricing?.currency,
-    fields: ['currency']
+  // Fallback: fetch only the currency field when pricing not from context (avoids fetching huge docs)
+  const { data: configList } = useFrappeGetDocList('Restaurant Config', {
+    filters: selectedRestaurant ? [['name', '=', selectedRestaurant]] : [],
+    fields: ['currency'],
+    limit: 1,
   })
-  const { data: restaurantData } = useFrappeGetDoc('Restaurant', selectedRestaurant || '', {
-    enabled: !!selectedRestaurant && !pricing?.currency && !configData?.currency,
-    fields: ['currency']
+  const configData = configList?.[0] || null
+
+  const { data: restaurantList } = useFrappeGetDocList('Restaurant', {
+    filters: selectedRestaurant ? [['name', '=', selectedRestaurant]] : [],
+    fields: ['currency'],
+    limit: 1,
   })
+  const restaurantData = restaurantList?.[0] || null
 
   const currencyCode = pricing?.currency || configData?.currency || restaurantData?.currency || 'INR'
 

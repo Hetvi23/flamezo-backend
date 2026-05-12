@@ -75,7 +75,8 @@ def get_plan_comparison(restaurant_id=None):
     Returns:
         dict: Plan comparison data
     """
-    commission_rate = "1.5%"
+    default_rate = frappe.db.get_single_value("Dinematters Settings", "gold_commission_percent") or 1.5
+    commission_rate = f"{float(default_rate)}%"
     if restaurant_id:
         try:
             rate = frappe.db.get_value("Restaurant", restaurant_id, "platform_fee_percent")
@@ -83,6 +84,8 @@ def get_plan_comparison(restaurant_id=None):
                 commission_rate = f"{float(rate)}%"
         except Exception:
             pass
+
+    price_floor = frappe.db.get_single_value("Dinematters Settings", "gold_monthly_fee") or 399.0
 
     return {
         'SILVER': {
@@ -119,7 +122,7 @@ def get_plan_comparison(restaurant_id=None):
         },
         'GOLD': {
             'name': 'DineMatters Gold',
-            'price': f'₹399 floor / mo + {commission_rate} on orders',
+            'price': f'₹{float(price_floor)} floor / mo + {commission_rate} on orders',
             'commission': commission_rate,
             'features': {
                 'included': [
@@ -181,7 +184,7 @@ def get_upgrade_benefits(restaurant_id):
                     'Marketing campaigns via SMS, WhatsApp, Email',
                     'Event-based automation (e.g. 7 days no visit → send offer)',
                     'Coupons & targeted discount offers',
-                    f'Just {float(restaurant.platform_fee_percent or 1.5)}% commission — only pay when you earn',
+                    f'Just {float(restaurant.platform_fee_percent or frappe.db.get_single_value("Dinematters Settings", "gold_commission_percent") or 1.5)}% commission — only pay when you earn',
                 ]
             },
             {

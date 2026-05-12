@@ -3,14 +3,15 @@ from abc import ABC, abstractmethod
 class DineMattersOrderStatus:
     """
     Unified Status Engine: Maps all fragmented POS codes to a single language.
+    Values MUST match the Order doctype 'status' field options exactly.
     """
-    PLACED = "Placed"
+    PLACED = "pending_verification"
     ACCEPTED = "Accepted"
-    PREPARING = "Preparing"
-    READY = "Ready"
+    PREPARING = "preparing"
+    READY = "ready"
     DISPATCHED = "Dispatched"
-    DELIVERED = "Delivered"
-    CANCELLED = "Cancelled"
+    DELIVERED = "delivered"
+    CANCELLED = "cancelled"
 
 class POSProvider(ABC):
     def __init__(self, restaurant_doc):

@@ -115,10 +115,32 @@ function AdminRestaurantDetailsPage() {
   const [isLinkModalOpen, setIsLinkModalOpen] = useState(false)
   const [linkToCopy, setLinkToCopy] = useState('')
 
+  const [isAdmin, setIsAdmin] = useState(false)
+
   const { currentUser } = useFrappeAuth()
-  const userRoles = (window as any)?.frappe?.boot?.user_roles || []
+  
+  useEffect(() => {
+    if (!currentUser) return
+    const win = window as any
+    const userRoles: string[] = win.frappe?.boot?.user_roles || win.frappe?.boot?.user?.roles || win.frappe?.user_roles || []
+    
+    const isSupervisor = userRoles.includes('DineMatters Supervisor')
+    const hasSystemManager = userRoles.includes('System Manager')
+    const isRootAdmin = currentUser === 'Administrator'
+
+    if (isRootAdmin || isSupervisor || hasSystemManager) {
+      setIsAdmin(true)
+    } else {
+      setIsAdmin(false)
+    }
+  }, [currentUser])
+
+  // Legacy Generation Clearance
+  const win = window as any
+  const userRoles: string[] = win.frappe?.boot?.user_roles || win.frappe?.boot?.user?.roles || win.frappe?.user_roles || []
   const hasSupervisorRole = userRoles.includes('DineMatters Supervisor')
-  const isMainAdmin = currentUser === 'Administrator' || userRoles.includes('System Manager')
+  const hasSystemManager = userRoles.includes('System Manager')
+  const isMainAdmin = currentUser === 'Administrator' || hasSystemManager
   const canGenerateLegacy = isMainAdmin || hasSupervisorRole
 
   const [isGeneratingLegacy, setIsGeneratingLegacy] = useState(false)
@@ -297,6 +319,28 @@ function AdminRestaurantDetailsPage() {
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleString()
+  }
+
+  if (!isAdmin) {
+    return (
+      <div className="min-h-screen bg-stone-50 flex items-center justify-center p-6">
+        <Card className="w-full max-w-md border-none shadow-2xl rounded-3xl overflow-hidden">
+          <div className="bg-red-600 h-2" />
+          <CardContent className="p-10 text-center">
+            <div className="mx-auto w-20 h-20 bg-red-100 rounded-2xl flex items-center justify-center mb-8">
+              <Shield className="h-10 w-10 text-red-600" />
+            </div>
+            <h2 className="text-3xl font-black tracking-tight mb-4">RESTRICTED ZONE</h2>
+            <p className="text-muted-foreground leading-relaxed font-medium">
+              You lack the administrative clearance required to access the central restaurant control hub.
+            </p>
+            <Button onClick={() => navigate('/')} className="mt-8 rounded-xl px-10 h-12 font-bold uppercase tracking-widest text-xs">
+              Return Home
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
   }
 
   if (loading) {

@@ -130,7 +130,24 @@ def get_products(restaurant_id, category=None, type=None, vegetarian=None, searc
 			filters["is_active"] = 1
 		
 		if category:
-			filters["category_name"] = category
+			# If the requested category is a parent, also include products from its sub-categories.
+			# Resolve sub-category names so we can do a single IN query.
+			sub_category_names = frappe.get_all(
+				"Menu Category",
+				filters={"parent_category": ["in",
+					frappe.get_all("Menu Category",
+						filters={"restaurant": restaurant, "category_name": category},
+						pluck="name"
+					)
+				]},
+				pluck="category_name",
+			)
+			if sub_category_names:
+				# Parent has subcategories: filter by parent name OR any sub name
+				all_category_names = [category] + sub_category_names
+				filters["category_name"] = ["in", all_category_names]
+			else:
+				filters["category_name"] = category
 		
 		if type:
 			filters["product_type"] = type
@@ -745,4 +762,33 @@ def get_product_by_slug(restaurant_id, slug):
 				"message": str(e)
 			}
 		}
+
+@frappe.whitelist()
+def update_product_order(product_orders):
+	"""
+	POST /api/method/dinematters.dinematters.api.products.update_product_order
+	Update the display order for multiple products
+	product_orders: list of {"name": "...", "display_order": ...} or JSON string
+	"""
+	try:
+		if isinstance(product_orders, str):
+			product_orders = json.loads(product_orders)
+			
+		for order in product_orders:
+			# Use docname (Frappe name) for updating
+			frappe.db.set_value("Menu Product", order["name"], "display_order", order["display_order"])
+			
+		frappe.db.commit()
+		
+		# Invalidate cache since order changed
+		if product_orders:
+			# Get restaurant of first product to invalidate cache
+			restaurant = frappe.db.get_value("Menu Product", product_orders[0]["name"], "restaurant")
+			if restaurant:
+				frappe.cache().delete_key(f"top_picks:{restaurant}")
+
+		return {"success": True}
+	except Exception as e:
+		frappe.log_error(f"Error in update_product_order: {str(e)}")
+		return {"success": False, "error": str(e)}
 

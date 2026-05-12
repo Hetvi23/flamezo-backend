@@ -85,6 +85,11 @@ def get_all_restaurants(page=1, page_size=20, search=None, filters=None):
         # Check if RestaurantConfig table exists
         config_table_exists = frappe.db.table_exists('RestaurantConfig')
         
+        # Fetch dynamic defaults
+        settings = frappe.get_single("Dinematters Settings")
+        def_comm = float(settings.gold_commission_percent or 1.5)
+        def_floor = float(settings.gold_monthly_fee or 399.0)
+        
         if config_table_exists:
             query = f"""
                 SELECT 
@@ -96,8 +101,8 @@ def get_all_restaurants(page=1, page_size=20, search=None, filters=None):
                     r.creation,
                     r.modified,
                     COALESCE(r.coins_balance, 0) as coins_balance,
-                    COALESCE(r.platform_fee_percent, 1.5) as platform_fee_percent,
-                    COALESCE(r.monthly_minimum, 399) as monthly_minimum,
+                    COALESCE(r.platform_fee_percent, {def_comm}) as platform_fee_percent,
+                    COALESCE(r.monthly_minimum, {def_floor}) as monthly_minimum,
                     COALESCE(r.enable_floor_recovery, 1) as enable_floor_recovery,
                     COALESCE(rc.subscription_plan, r.plan_type, 'SILVER') as plan_type
                 FROM `tabRestaurant` r
@@ -118,8 +123,8 @@ def get_all_restaurants(page=1, page_size=20, search=None, filters=None):
                     r.creation,
                     r.modified,
                     COALESCE(r.coins_balance, 0) as coins_balance,
-                    COALESCE(r.platform_fee_percent, 1.5) as platform_fee_percent,
-                    COALESCE(r.monthly_minimum, 399) as monthly_minimum,
+                    COALESCE(r.platform_fee_percent, {def_comm}) as platform_fee_percent,
+                    COALESCE(r.monthly_minimum, {def_floor}) as monthly_minimum,
                     COALESCE(r.enable_floor_recovery, 1) as enable_floor_recovery,
                     COALESCE(r.plan_type, 'SILVER') as plan_type
                 FROM `tabRestaurant` r
@@ -853,9 +858,17 @@ def admin_create_wallet_payment_link(restaurant_id, tier):
         if not access_check.get('success') or not access_check.get('data', {}).get('allowed'):
             return {'success': False, 'error': 'Admin access required'}
 
-        # Tier → amount mapping (Silver is free — caller should not invoke for Silver)
-        TIER_AMOUNTS = {'GOLD': 399}
-        base_amount = TIER_AMOUNTS.get(tier)
+        # Fetch dynamic pricing from settings
+        settings = frappe.get_single("Dinematters Settings")
+        
+        if tier == 'GOLD':
+            base_amount = float(settings.gold_upgrade_barrier or 1299.0)
+        else:
+            # Silver is free, or fallback for other tiers
+            base_amount = 0.0
+            
+        if not base_amount and tier != 'SILVER':
+            frappe.throw(_("Invalid base amount for tier {0}").format(tier))
         if not base_amount:
             return {
                 'success': False,

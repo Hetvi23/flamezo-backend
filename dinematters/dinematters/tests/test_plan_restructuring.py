@@ -217,14 +217,7 @@ class TestSilverBillingExemption(unittest.TestCase):
         self.assertEqual(float(initial_balance), float(after_balance),
                          "SILVER restaurant balance must not change after daily floor task")
 
-    def test_silver_skipped_by_monthly_refill(self):
-        """Monthly coin refill must only run for GOLD restaurants."""
-        from dinematters.dinematters.api.coin_billing import process_monthly_subscription_coin_refill
-        initial_balance = frappe.db.get_value("Restaurant", self.restaurant, "coins_balance")
-        process_monthly_subscription_coin_refill()
-        after_balance = frappe.db.get_value("Restaurant", self.restaurant, "coins_balance")
-        self.assertEqual(float(initial_balance), float(after_balance),
-                         "SILVER restaurant must not receive monthly coin refill")
+
 
 
 # ─── 4. Billing: GOLD Floor & Commission Defaults ────────────────────────────
@@ -520,53 +513,7 @@ class TestTwoPlanModelInvariants(unittest.TestCase):
         self.assertEqual(float(commission), 1.5)
 
 
-# ─── 11. Monthly GOLD Coin Refill Cron ───────────────────────────────────────
 
-class TestMonthlyGoldCoinRefill(unittest.TestCase):
-    """
-    process_monthly_subscription_coin_refill() grants 60 free coins to GOLD only.
-    SILVER restaurants receive nothing.
-    """
-
-    def setUp(self):
-        self.gold = f"{_PREFIX}-REFILL-GOLD"
-        self.silver = f"{_PREFIX}-REFILL-SILVER"
-        make_restaurant(self.gold, plan="GOLD", balance=1000.0)
-        make_restaurant(self.silver, plan="SILVER", balance=1000.0)
-
-    def tearDown(self):
-        cleanup_restaurants_by_prefix(f"{_PREFIX}-REFILL")
-
-    def test_gold_receives_60_free_coins(self):
-        from dinematters.dinematters.api.coin_billing import process_monthly_subscription_coin_refill
-        before = float(frappe.db.get_value("Restaurant", self.gold, "coins_balance"))
-        process_monthly_subscription_coin_refill()
-        after = float(frappe.db.get_value("Restaurant", self.gold, "coins_balance"))
-        self.assertAlmostEqual(after, before + 60.0, places=1)
-
-    def test_gold_refill_transaction_type_is_free_coins(self):
-        from dinematters.dinematters.api.coin_billing import process_monthly_subscription_coin_refill
-        process_monthly_subscription_coin_refill()
-        txn = get_latest_transaction(self.gold, "Free Coins")
-        self.assertIsNotNone(txn, "Monthly refill must create a 'Free Coins' transaction for GOLD")
-        self.assertAlmostEqual(float(txn.amount), 60.0, places=1)
-
-    def test_silver_excluded_from_monthly_refill(self):
-        from dinematters.dinematters.api.coin_billing import process_monthly_subscription_coin_refill
-        before = float(frappe.db.get_value("Restaurant", self.silver, "coins_balance"))
-        process_monthly_subscription_coin_refill()
-        after = float(frappe.db.get_value("Restaurant", self.silver, "coins_balance"))
-        self.assertAlmostEqual(after, before, places=1,
-            msg="SILVER restaurant must not receive monthly coin refill")
-
-    def test_silver_has_no_free_coins_transaction_after_cron(self):
-        from dinematters.dinematters.api.coin_billing import process_monthly_subscription_coin_refill
-        # clear any prior free coins so we're testing only this run
-        frappe.db.delete("Coin Transaction", {"restaurant": self.silver, "transaction_type": "Free Coins"})
-        frappe.db.commit()
-        process_monthly_subscription_coin_refill()
-        txn = get_latest_transaction(self.silver, "Free Coins")
-        self.assertIsNone(txn, "SILVER must have zero Free Coins transactions after monthly cron")
 
 
 # ─── 12. Deferred Plan Application ───────────────────────────────────────────

@@ -574,9 +574,9 @@ export default function AutopaySetupPage() {
         onSelectPlan={handlePlanToggle}
         isChangingPlan={isChangingPlan}
         planDefaults={{
-          gold_floor: billingInfo?.plan_defaults.gold_floor || 399,
-          gold_commission: billingInfo?.plan_defaults.gold_commission || 1.5,
-          gold_barrier: billingInfo?.plan_defaults.gold_barrier || 1299,
+          gold_floor: billingInfo?.plan_defaults.gold_floor ?? 399,
+          gold_commission: billingInfo?.plan_defaults.gold_commission ?? 1.5,
+          gold_barrier: billingInfo?.plan_defaults.gold_barrier ?? 1299,
         }}
       />
 
