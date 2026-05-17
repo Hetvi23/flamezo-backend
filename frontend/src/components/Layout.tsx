@@ -26,6 +26,12 @@ import { SuspendedOverlay } from './SuspendedOverlay'
 import { normalizePhone } from '@/utils/otpStorage'
 import { getFeatureAccessStatus, GOLD_ONLY_FEATURES } from '@/utils/featureAccess'
 
+import mainLogoLight from '/images/main-logo-light.png'
+import mainLogoDark from '/images/main-logo-dark.png'
+import appLogoLight from '/images/app-logo-light.png'
+import appLogoDark from '/images/app-logo-dark.png'
+
+
 interface LayoutProps {
   children?: React.ReactNode
 }
@@ -1274,9 +1280,16 @@ export default function Layout({ children }: LayoutProps) {
             )}
             {showExpanded ? (
               <div className="flex items-center justify-between gap-3">
-                <p className="text-base italic text-red-500 dark:text-red-400 font-light flex-1">
-                  By Flamezo
-                </p>
+                <div className="flex items-center flex-1 min-w-0">
+                  <img 
+                    src={`${theme === 'dark' ? mainLogoDark : mainLogoLight}?v=1.0.3`} 
+                    alt="Flamezo" 
+                    className={cn(
+                      "w-auto object-contain shrink-0",
+                      theme === 'dark' ? "h-9" : "h-[30px]"
+                    )}
+                  />
+                </div>
                 {/* Animated Theme Switch - Expanded */}
                 <button
                   onClick={toggleTheme}
@@ -1307,7 +1320,14 @@ export default function Layout({ children }: LayoutProps) {
                 </button>
               </div>
             ) : (
-              <div className="flex flex-col items-center gap-2">
+              <div className="flex flex-col items-center gap-3">
+                <div className="flex items-center justify-center w-10 shrink-0">
+                  <img 
+                    src={`${theme === 'dark' ? appLogoDark : appLogoLight}?v=1.0.3`} 
+                    alt="Flamezo" 
+                    className="h-6 w-6 object-contain" 
+                  />
+                </div>
                 {previewPath && (
                   <Button
                     variant="outline"
@@ -1318,6 +1338,7 @@ export default function Layout({ children }: LayoutProps) {
                       window.open(url, '_blank', 'noopener,noreferrer')
                     }}
                     className="w-10 h-10 p-0"
+
                     title="Watch preview"
                   >
                     <Eye className="h-4 w-4" />
