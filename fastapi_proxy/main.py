@@ -51,7 +51,7 @@ logger = logging.getLogger(__name__)
 
 # Create FastAPI app
 app = FastAPI(
-	title="DineMatters FastAPI Proxy Shield",
+	title="Flamezo FastAPI Proxy Shield",
 	description="Transparent, protective proxy for ERPNext backend",
 	version="1.0.0",
 	docs_url="/docs" if settings.fastapi_debug else None,
@@ -119,13 +119,13 @@ async def health_check():
 	"""Health check endpoint - no rate limiting"""
 	return {
 		"status": "healthy",
-		"service": "dinematters-fastapi-proxy",
+		"service": "flamezo_backend-fastapi-proxy",
 		"version": "1.0.0"
 	}
 
 
 # Include routers
-# ERPNext uses dot notation: /api/method/dinematters.dinematters.api.ui.get_setup_wizard_steps
+# ERPNext uses dot notation: /api/method/flamezo_backend.flamezo.api.ui.get_setup_wizard_steps
 # Routes are defined with full method paths, prefix is just /api/method
 app.include_router(ui_routes.router, prefix="/api/method", tags=["UI APIs"])
 app.include_router(order_routes.router, prefix="/api/method", tags=["Order Management"])
@@ -162,7 +162,7 @@ async def catch_all_method(path: str, request: Request):
 async def root():
 	"""Root endpoint"""
 	return {
-		"service": "DineMatters FastAPI Proxy Shield",
+		"service": "Flamezo FastAPI Proxy Shield",
 		"version": "1.0.0",
 		"status": "running",
 		"docs": "/docs" if settings.fastapi_debug else "disabled"
