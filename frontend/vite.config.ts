@@ -57,7 +57,9 @@ export default defineConfig(({ command, mode }) => {
 							'sonner'
 						],
 						'vendor-utils': ['date-fns', 'clsx', 'tailwind-merge', 'zod', 'react-hook-form'],
-						'vendor-dnd': ['@dnd-kit/core', '@dnd-kit/sortable', '@dnd-kit/utilities']
+						'vendor-dnd': ['@dnd-kit/core', '@dnd-kit/sortable', '@dnd-kit/utilities'],
+						'vendor-charts': ['recharts'],
+						'vendor-excel': ['xlsx']
 					}
 				}
 			}
