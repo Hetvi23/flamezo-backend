@@ -1000,11 +1000,11 @@ def ensure_svg_files_exist(self):
 	import os
 	
 	svg_files = [
-		{"filename": "legacy.svg", "source_path": "./apps/ono-menu/public/images/ui/legacy.svg"},
-		{"filename": "experience-lounge.svg", "source_path": "./apps/ono-menu/public/images/ui/experience-lounge.svg"},
-		{"filename": "events-offers.svg", "source_path": "./apps/ono-menu/public/images/ui/events-offers.svg"},
-		{"filename": "explore.svg", "source_path": "./apps/ono-menu/public/images/ui/explore.svg"},
-		{"filename": "book-table.svg", "source_path": "./apps/ono-menu/public/images/ui/book-table.svg"}
+		{"filename": "legacy.svg", "source_path": "./apps/flamezo-web/public/images/ui/legacy.svg"},
+		{"filename": "experience-lounge.svg", "source_path": "./apps/flamezo-web/public/images/ui/experience-lounge.svg"},
+		{"filename": "events-offers.svg", "source_path": "./apps/flamezo-web/public/images/ui/events-offers.svg"},
+		{"filename": "explore.svg", "source_path": "./apps/flamezo-web/public/images/ui/explore.svg"},
+		{"filename": "book-table.svg", "source_path": "./apps/flamezo-web/public/images/ui/book-table.svg"}
 	]
 	
 	for svg in svg_files:
@@ -1019,7 +1019,7 @@ def ensure_svg_files_exist(self):
 				continue
 			
 			# Copy to public/files if not exists
-			target_path = f"./sites/dine_matters/public/files/{svg['filename']}"
+			target_path = os.path.join(frappe.get_site_path("public", "files"), svg['filename'])
 			if not os.path.exists(target_path):
 				import shutil
 				shutil.copy2(svg["source_path"], target_path)
