@@ -215,11 +215,9 @@ export default function OrderSettings() {
               <div>
                 <p className="text-sm font-medium text-right">Order Channel</p>
                 <p className="text-xs text-muted-foreground text-right">
-                  {!isGold
-                    ? 'Upgrade to GOLD to enable real-time ordering'
-                    : settings.order_channel === 'WhatsApp'
-                      ? 'Customers order via WhatsApp — sidebar orders hidden'
-                      : 'In-app checkout with live order tracking'}
+                  {settings.order_channel === 'WhatsApp'
+                    ? 'Customers order via WhatsApp — sidebar orders hidden'
+                    : 'In-app checkout with live order tracking'}
                 </p>
               </div>
             </div>

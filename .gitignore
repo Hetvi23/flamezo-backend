@@ -43,3 +43,16 @@ site_config_prod.json
 flamezoDev_key.pem
 prod-server-cred.md
 Flash-access-token.csv
+surat_photos
+
+# Surat Leads GMaps Scraper
+surat_leads_gmaps_scraper/
+surat-leads-gmaps-scraper/
+surat_leads_gmaps_scraper.py
+surat_leads/
+gmaps_scraper/
+gmaps_scraper.py
+surat_leads_FINAL.csv
+surat_restaurants.csv
+surat_restaurants_outscraper.csv
+*.csv

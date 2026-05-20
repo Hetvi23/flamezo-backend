@@ -5,16 +5,20 @@
 Feature Gate System for Subscription-based Access Control
 
 This module provides decorators and utilities to restrict feature access
-based on restaurant subscription plans (SILVER vs GOLD).
+based on restaurant subscription plan.
 
-Plan model:
-  SILVER (Free): QR menu, WhatsApp orders, order settings, loyalty earn/redeem
-                 (platform-managed), listed on Flamezo Club.
-                 Loyalty is ON by default; toggling it OFF also disables Club listing.
-  GOLD (₹1299 unlock · ₹399/mo floor · 1.5% commission):
-                 All SILVER features + full dine-in ordering (real-time, accept, logistics),
-                 CRM, marketing studio, coupons, analytics, POS integration,
-                 custom branding, data export, and more.
+Plan model (May 2026, single-tier platform):
+  GOLD (Free onboarding · ₹399/mo floor · 1.5% commission on online orders):
+        Every onboarded restaurant gets the full feature set immediately —
+        QR menu, dine-in/takeaway/delivery ordering, CRM, marketing studio,
+        coupons, analytics, POS integration, custom branding, FLAMEZO consumer
+        discovery, cross-restaurant loyalty, AI tooling, data export, etc.
+
+  SILVER: legacy tier retained only in the doctype schema for historical
+        records. New restaurants never land on SILVER and the migration patch
+        `migrate_silver_to_gold_2026` flips any remaining rows to GOLD. The
+        SILVER branches below are dead-code-safe fallbacks; they exist purely
+        so a stale row cannot crash the gate.
 """
 
 import frappe
@@ -167,10 +171,12 @@ def require_plan(*required_plans):
 
             # 3. Plan Validation
             try:
-                # We use db.get_value to avoid permission checks on get_doc for Guest users
-                plan_type = frappe.db.get_value('Restaurant', restaurant_id, 'plan_type') or 'SILVER'
+                # We use db.get_value to avoid permission checks on get_doc for Guest users.
+                # Under the single-tier model the default is GOLD; SILVER would only
+                # surface for legacy rows that the migration patch missed.
+                plan_type = frappe.db.get_value('Restaurant', restaurant_id, 'plan_type') or 'GOLD'
             except Exception:
-                plan_type = 'SILVER' # Default to safest plan if fetch fails
+                plan_type = 'GOLD'
 
             if plan_type not in required_plans:
                 frappe.throw(
@@ -227,7 +233,7 @@ def check_feature_access(restaurant_id, feature_name):
     
     return {
         'has_access': has_access,
-        'current_plan': restaurant.plan_type or 'SILVER',
+        'current_plan': restaurant.plan_type or 'GOLD',
         'required_plans': required_plans,
         'feature': feature_name
     }
@@ -341,10 +347,14 @@ def decrement_image_count(restaurant_id):
 
 def get_restaurant_plan(restaurant_id):
 	"""
-	Helper to get the current plan tier for a restaurant
+	Helper to get the current plan tier for a restaurant.
+
+	Returns "GOLD" by default — under the single-tier model that is also the
+	correct answer for an unknown / missing restaurant id, and avoids forcing
+	loyalty caps onto the more restrictive legacy SILVER tier.
 	"""
 	if not restaurant_id:
-		return "SILVER"
-	
+		return "GOLD"
+
 	plan = frappe.db.get_value("Restaurant", restaurant_id, "plan_type")
-	return plan if plan else "SILVER"
+	return plan if plan else "GOLD"

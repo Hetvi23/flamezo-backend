@@ -126,7 +126,7 @@ def get_loyalty_config(restaurant_id):
 			get_earn_percentage, get_max_coins_per_order, get_max_redemption_percent,
 			get_expiry_months, get_birthday_bonus_coins,
 		)
-		plan = frappe.db.get_value("Restaurant", restaurant, "plan_type") or "SILVER"
+		plan = frappe.db.get_value("Restaurant", restaurant, "plan_type") or "GOLD"
 		is_gold = plan == "GOLD"
 
 		# Build config: plan-tiered platform constants + program metadata
@@ -661,7 +661,7 @@ def update_loyalty_config(restaurant_id, config, enable_loyalty=None):
 		from flamezo_backend.flamezo.utils.platform_config import (
 			get_earn_percentage, get_expiry_months,
 		)
-		plan = frappe.db.get_value("Restaurant", restaurant, "plan_type") or "SILVER"
+		plan = frappe.db.get_value("Restaurant", restaurant, "plan_type") or "GOLD"
 		config["earn_type"]       = PLATFORM_LOYALTY["earn_type"]
 		config["earn_percentage"] = get_earn_percentage(plan)
 		config["points_per_inr"]  = round(get_earn_percentage(plan) / 100, 4)
@@ -684,18 +684,12 @@ def update_loyalty_config(restaurant_id, config, enable_loyalty=None):
 		# ── Update master enable_loyalty toggle ──────────────────────────────────
 		if enable_loyalty is not None:
 			enabled = 1 if enable_loyalty else 0
-			plan_type = frappe.db.get_value("Restaurant", restaurant, "plan_type") or "SILVER"
 
 			frappe.db.set_value("Restaurant", restaurant, "enable_loyalty", enabled)
 			frappe.db.set_value("Restaurant Config", {"restaurant": restaurant}, "enable_loyalty", enabled)
 
-			# For Silver restaurants: loyalty and ordering are tied together.
-			# Disabling loyalty also disables ordering and Club listing.
-			# Gold restaurants always have ordering regardless of loyalty toggle.
-			if plan_type == "SILVER":
-				frappe.db.set_value("Restaurant", restaurant, {
-					"no_ordering": 0 if enabled else 1,
-				})
+			# Under the single-tier model loyalty and ordering are independent —
+			# toggling loyalty no longer flips the ordering switch on/off.
 
 		frappe.db.commit()
 		return {"success": True}
@@ -921,7 +915,7 @@ def get_loyalty_analytics(restaurant_id):
 	"""
 	try:
 		restaurant = validate_restaurant_for_api(restaurant_id, frappe.session.user)
-		plan_type = frappe.db.get_value("Restaurant", restaurant, "plan_type") or "SILVER"
+		plan_type = frappe.db.get_value("Restaurant", restaurant, "plan_type") or "GOLD"
 		is_gold = plan_type == "GOLD"
 
 		from frappe.utils import today, add_days, getdate

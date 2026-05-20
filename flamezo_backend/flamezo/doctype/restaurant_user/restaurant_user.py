@@ -14,7 +14,7 @@ STAFF_SEAT_LIMITS = {
 
 def get_staff_seat_limit(restaurant):
 	"""Return (limit, plan_type) for the restaurant's current plan."""
-	plan_type = frappe.db.get_value("Restaurant", restaurant, "plan_type") or "SILVER"
+	plan_type = frappe.db.get_value("Restaurant", restaurant, "plan_type") or "GOLD"
 	plan_type = plan_type.upper()
 	return STAFF_SEAT_LIMITS.get(plan_type, 0), plan_type
 

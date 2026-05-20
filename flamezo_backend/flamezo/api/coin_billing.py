@@ -365,39 +365,43 @@ def get_coin_billing_info(restaurant):
         "platform_fee_percent": float(res.platform_fee_percent or 0),
         "plan_defaults": {
             "silver_monthly": 0.0,
-            "gold_floor": float(settings.gold_monthly_fee or 399.0),       # GOLD monthly floor guarantee
-            "gold_commission": float(settings.gold_commission_percent or 1.5), # GOLD commission %
-            "gold_barrier": float(settings.gold_upgrade_barrier or 1299.0)    # Wallet balance needed to unlock GOLD
+            "gold_floor": float(settings.gold_monthly_fee or 399.0),       # Monthly floor guarantee
+            "gold_commission": float(settings.gold_commission_percent or 1.5), # Commission %
+            # Retired in the new single-tier model — there is no GOLD unlock
+            # barrier. Kept in the response as `0.0` so existing frontends
+            # don't break on missing fields.
+            "gold_barrier": 0.0,
         }
     }
 
 @frappe.whitelist(allow_guest=False)
 def update_subscription_plan(restaurant, plan_type):
     """
-    Schedule a restaurant subscription tier update (SILVER/GOLD).
-    All plan changes follow the 'Tomorrow Rule' (effective at 00:00).
+    Schedule a restaurant subscription tier update.
+
+    Under the May 2026 single-tier model GOLD is the only legal target — the
+    legacy SILVER tier is retained in the doctype schema for historical
+    records only and is no longer a valid plan. Self-service downgrade to
+    SILVER is therefore rejected here. Admins who genuinely need to flip
+    a record to SILVER (e.g. for forensic / billing-dispute purposes) can
+    still do it from the Frappe desk, where `Restaurant.validate_plan_change`
+    enforces the System Manager role.
+
+    All accepted changes follow the 'Tomorrow Rule' (effective at 00:00).
     """
-    if plan_type not in ["SILVER", "GOLD"]:
-        frappe.throw(_("Invalid plan type. Options: SILVER, GOLD"))
-    
+    if plan_type != "GOLD":
+        frappe.throw(_("GOLD is the only available plan. Self-service downgrade to legacy tiers is not supported."))
+
     restaurant = validate_restaurant_for_api(restaurant, frappe.session.user)
     current_plan = frappe.db.get_value("Restaurant", restaurant, "plan_type")
     if current_plan == plan_type:
         return {"success": True, "message": f"Already on {plan_type} plan."}
 
-    # 1. Entrance Barrier Check (Recharge barrier for GOLD — must top-up ₹1299 to unlock)
-    res_info = frappe.db.get_value("Restaurant", restaurant, ["coins_balance"], as_dict=True)
-    balance = float(res_info.coins_balance or 0.0)
+    # Legacy GOLD wallet-balance "unlock barrier" (was ₹1,299) is retired under
+    # the new single-tier model — every restaurant onboards directly into the
+    # only active tier, so there is no upgrade gate to enforce here.
 
-    settings = frappe.get_single("Flamezo Settings")
-
-    if plan_type == "GOLD":
-        # Barrier = wallet must have ₹1299 to unlock GOLD (one-time recharge requirement)
-        barrier = float(settings.gold_upgrade_barrier or 1299.0)
-        if balance < barrier:
-            frappe.throw(_(f"Insufficient balance to upgrade to GOLD. Minimum Rs.{barrier} required in wallet. Current: {balance}"), frappe.ValidationError)
-    
-    # 2. Defer activation to Tomorrow 00:00
+    # Defer activation to Tomorrow 00:00
     from frappe.utils import add_days, getdate
     tomorrow = add_days(getdate(), 1)
     

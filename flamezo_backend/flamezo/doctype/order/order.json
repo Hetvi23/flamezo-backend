@@ -391,6 +391,16 @@
    "description": "Amount transferred to restaurant in paise"
   },
   {
+   "fieldname": "acquisition_source",
+   "fieldtype": "Select",
+   "label": "Acquisition Source",
+   "options": "qr_direct\nflamezo_discovery\nwhatsapp\npos\nadmin",
+   "default": "qr_direct",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "description": "How the customer reached this order: qr_direct (table/menu QR), flamezo_discovery (FLAMEZO consumer app), whatsapp (WhatsApp ordering), pos (in-restaurant POS), admin (manually entered)."
+  },
+  {
    "fieldname": "section_break_delivery",
    "fieldtype": "Section Break",
    "label": "Delivery Information"

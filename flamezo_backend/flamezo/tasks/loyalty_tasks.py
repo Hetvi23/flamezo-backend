@@ -60,8 +60,8 @@ def grant_birthday_bonuses():
 
 	for config in active_configs:
 		restaurant = config.restaurant
-		plan = frappe.db.get_value("Restaurant", restaurant, "plan_type") or "SILVER"
-		bonus_coins = get_birthday_bonus_coins(plan)  # GOLD=100, SILVER=50
+		plan = frappe.db.get_value("Restaurant", restaurant, "plan_type") or "GOLD"
+		bonus_coins = get_birthday_bonus_coins(plan)  # GOLD=100 (sole active tier; SILVER value kept for legacy rows)
 
 		if not frappe.db.get_value("Restaurant", restaurant, "enable_loyalty"):
 			continue

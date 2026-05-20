@@ -146,8 +146,9 @@ def calculate_cart_totals(restaurant, items, coupon_code=None, loyalty_coins=0, 
 	if loyalty_coins > 0 and customer and is_loyalty_enabled(restaurant):
 		balance = get_loyalty_balance(customer)  # global balance — universal wallet
 		actual_coins = min(cint(loyalty_coins), balance)
-		# Plan-tiered per-order cap: GOLD 30%, SILVER 20%
-		plan = frappe.db.get_value("Restaurant", restaurant, "plan_type") or "SILVER"
+		# Plan-tiered per-order cap: GOLD 30% (sole active tier; SILVER 20%
+		# kept in the helper for legacy rows only).
+		plan = frappe.db.get_value("Restaurant", restaurant, "plan_type") or "GOLD"
 		max_redeem_pct = get_max_redemption_percent(plan) / 100.0
 		remaining = subtotal - total_item_discount
 		loyalty_discount = min(flt(actual_coins), max(0, remaining), subtotal * max_redeem_pct)

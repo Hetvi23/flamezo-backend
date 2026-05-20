@@ -4,7 +4,7 @@ Handles daily floor recovery and deferred plan transitions.
 """
 
 import frappe
-from frappe.utils import getdate, nowdate, add_days
+from frappe.utils import getdate
 from flamezo_backend.flamezo.api.coin_billing import deduct_coins
 
 def process_daily_subscription_floors():
@@ -131,51 +131,29 @@ def apply_deferred_plan_changes():
 
 def process_silver_feature_renewals():
     """
-    Daily task to renew premium features for SILVER restaurants (e.g., Menu Theme Background).
-    Deducts 100 coins every 30 days if feature is enabled.
+    Retired under the May 2026 single-tier model.
+
+    Previously this task deducted 100 coins / 30 days from SILVER restaurants
+    that had Menu Theme Background enabled, treating it as a premium add-on.
+    Under the new model every onboarded restaurant is GOLD and the menu theme
+    feature is included in the monthly floor — there is nothing to charge.
+
+    The function is kept (as a no-op) so existing scheduler entries in
+    hooks.py and any installed sites continue to import successfully. It also
+    clears any lingering `menu_theme_paid_until` markers it finds so the
+    metadata reflects the new "always included" state.
     """
-    from frappe.utils import today, add_days, getdate
-    
-    # 1. Find all SILVER restaurants with Menu Theme Background enabled
-    silver_configs = frappe.db.sql("""
-        SELECT 
-            rc.name, rc.restaurant, rc.menu_theme_paid_until 
-        FROM 
-            `tabRestaurant Config` rc
-        JOIN 
-            `tabRestaurant` r ON r.name = rc.restaurant
-        WHERE 
-            r.plan_type = 'SILVER' 
-            AND r.is_active = 1
-            AND rc.menu_theme_background_enabled = 1
-            AND (rc.menu_theme_paid_until IS NULL OR rc.menu_theme_paid_until <= %s)
-    """, (today(),), as_dict=1)
-
-    for config in silver_configs:
-        try:
-            # Double-check plan type just in case of a race condition or stale cache
-            actual_plan = frappe.db.get_value("Restaurant", config.restaurant, "plan_type")
-            if actual_plan != 'SILVER':
-                # Skip and clear the paid_until since it shouldn't apply to premium tiers
-                frappe.db.set_value("Restaurant Config", config.name, "menu_theme_paid_until", None)
-                continue
-                
-            # Attempt to deduct 100 coins
-            deduct_coins(
-                restaurant=config.restaurant,
-                amount=100,
-                type="AI Deduction",
-                description="Menu Theme Background monthly renewal fee (Autopay)"
-            )
-            
-            # If successful, extend for 30 more days
-            new_expiry = add_days(today(), 30)
-            frappe.db.set_value("Restaurant Config", config.name, "menu_theme_paid_until", new_expiry)
-            
-        except Exception as e:
-            # If deduction fails (e.g., insufficient coins), disable the feature
-            frappe.db.set_value("Restaurant Config", config.name, "menu_theme_background_enabled", 0)
-            _title = f"Menu Theme renewal failed for {config.restaurant}: {str(e)}"
-            frappe.log_error(_title[:140], "Billing Task Info")
-
-    frappe.db.commit()
+    try:
+        frappe.db.sql(
+            """
+            UPDATE `tabRestaurant Config`
+            SET menu_theme_paid_until = NULL
+            WHERE menu_theme_paid_until IS NOT NULL
+            """
+        )
+        frappe.db.commit()
+    except Exception as e:
+        frappe.log_error(
+            f"process_silver_feature_renewals cleanup skipped: {str(e)}"[:140],
+            "Billing Task Info",
+        )

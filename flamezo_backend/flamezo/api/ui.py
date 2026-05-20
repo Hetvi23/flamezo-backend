@@ -183,7 +183,7 @@ def get_setup_wizard_steps(restaurant=None):
 	"""Get steps for restaurant setup wizard - tier-aware filtering"""
 	plan_type = 'GOLD' # Default to GOLD to see all steps for admin/system
 	if restaurant:
-		plan_type = frappe.db.get_value('Restaurant', restaurant, 'plan_type') or 'SILVER'
+		plan_type = frappe.db.get_value('Restaurant', restaurant, 'plan_type') or 'GOLD'
 
 	all_steps = [
 		{

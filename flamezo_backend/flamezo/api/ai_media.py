@@ -728,28 +728,12 @@ def set_menu_theme_background_enabled(restaurant, enabled):
     config_doc = frappe.get_doc("Restaurant Config", config_name)
     enabled_value = 1 if frappe.utils.cint(enabled) else 0
 
-    # Monetization Logic: Only when enabling
-    if enabled_value:
-        plan_type = frappe.db.get_value("Restaurant", restaurant, "plan_type") or "SILVER"
-        
-        # GOLD has this feature included for free.
-        # Only SILVER restaurants pay the activation/renewal fee.
-        if plan_type == "SILVER":
-            from flamezo_backend.flamezo.api.coin_billing import deduct_coins
-            from frappe.utils import getdate, add_days, today
-            
-            paid_until = getdate(config_doc.menu_theme_paid_until) if config_doc.menu_theme_paid_until else None
-            if not paid_until or paid_until < getdate(today()):
-                # AI Deduction (100 coins = ₹100): Throws if insufficient coins
-                deduct_coins(restaurant, 100, "AI Deduction", "Menu Theme Background activation fee (30 days)")
-                # Extends for 30 days
-                config_doc.menu_theme_paid_until = add_days(today(), 30)
-                config_doc.save(ignore_permissions=True)
-        else:
-            # For GOLD, ensure paid_until is cleared to avoid unnecessary renewal checks
-            if config_doc.menu_theme_paid_until:
-                config_doc.menu_theme_paid_until = None
-                config_doc.save(ignore_permissions=True)
+    # Menu Theme Background is included for every restaurant under the
+    # single-tier model. No coin deduction, no renewal window — just clear any
+    # legacy `menu_theme_paid_until` markers and persist the toggle.
+    if config_doc.menu_theme_paid_until:
+        config_doc.menu_theme_paid_until = None
+        config_doc.save(ignore_permissions=True)
 
     config_doc.db_set("menu_theme_background_enabled", enabled_value, update_modified=False)
     frappe.db.commit()

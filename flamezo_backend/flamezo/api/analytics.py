@@ -682,3 +682,156 @@ def get_top_products(restaurant_id, days=7, limit=8):
 	except Exception as e:
 		frappe.log_error(f"Error in get_top_products: {str(e)}")
 		return {"success": False, "error": str(e)}
+
+
+# ─── New-model analytics ─────────────────────────────────────────────────────
+# Two endpoints surface the merchant's "what is Flamezo doing for me" story:
+#   - get_commission_summary       — "you ran ₹X through Flamezo this month,
+#                                     we kept ₹Y (1.5%), you net ₹Z"
+#   - get_flamezo_acquisition_stats — "the FLAMEZO consumer app sent you N
+#                                     customers and ₹M of GMV this month"
+# Both accept an optional `start_date`/`end_date` or default to the current
+# calendar month so merchants see month-to-date by default.
+
+
+def _resolve_window(start_date, end_date):
+	"""Return (start, end) inclusive dates for the report window."""
+	if not end_date:
+		end_date = today()
+	if not start_date:
+		# Default: first day of the month of end_date.
+		end_obj = getdate(end_date)
+		start_date = end_obj.replace(day=1)
+	return getdate(start_date), getdate(end_date)
+
+
+@frappe.whitelist()
+def get_commission_summary(restaurant_id, start_date=None, end_date=None):
+	"""
+	Commission report for the merchant dashboard.
+
+	Reads `platform_fee_amount` (paise) and `total` from settled / fulfilled
+	orders in the window. We exclude cancelled and `pending_verification`
+	orders so the numbers match what the restaurant actually earned.
+
+	Returns rupee floats so the frontend doesn't have to do paise math.
+	"""
+	try:
+		restaurant = validate_restaurant_for_api(restaurant_id)
+		start, end = _resolve_window(start_date, end_date)
+
+		row = frappe.db.sql(
+			"""
+			SELECT
+				COUNT(*) AS order_count,
+				COALESCE(SUM(total), 0) AS gmv_rupees,
+				COALESCE(SUM(platform_fee_amount), 0) AS commission_paise
+			FROM `tabOrder`
+			WHERE restaurant = %s
+			  AND DATE(creation) BETWEEN %s AND %s
+			  AND status NOT IN ('cancelled', 'pending_verification')
+			  AND payment_status = 'completed'
+			""",
+			(restaurant, start, end),
+			as_dict=True,
+		)[0]
+
+		gmv = flt(row.gmv_rupees)
+		commission = flt(row.commission_paise) / 100.0
+		net = max(0.0, gmv - commission)
+
+		# Effective rate is the realised commission percent (sanity check
+		# against the configured platform_fee_percent).
+		effective_rate = (commission / gmv * 100.0) if gmv else 0.0
+
+		return {
+			"success": True,
+			"data": {
+				"restaurant_id": restaurant,
+				"window": {"start_date": str(start), "end_date": str(end)},
+				"order_count": int(row.order_count or 0),
+				"gmv": round(gmv, 2),
+				"commission": round(commission, 2),
+				"net": round(net, 2),
+				"effective_commission_percent": round(effective_rate, 3),
+			},
+		}
+	except Exception as e:
+		frappe.log_error(f"Error in get_commission_summary: {str(e)}")
+		return {"success": False, "error": str(e)}
+
+
+@frappe.whitelist()
+def get_flamezo_acquisition_stats(restaurant_id, start_date=None, end_date=None):
+	"""
+	"Customers brought in by the FLAMEZO consumer app" report.
+
+	Counts distinct `platform_customer`s (falling back to phone for guests) on
+	orders tagged `acquisition_source = 'flamezo_discovery'` in the window.
+	Also reports the GMV those orders represent so merchants can see the
+	dollar value of the network effect.
+	"""
+	try:
+		restaurant = validate_restaurant_for_api(restaurant_id)
+		start, end = _resolve_window(start_date, end_date)
+
+		row = frappe.db.sql(
+			"""
+			SELECT
+				COUNT(*) AS order_count,
+				COUNT(DISTINCT COALESCE(platform_customer, customer_phone)) AS unique_customers,
+				COALESCE(SUM(total), 0) AS gmv_rupees,
+				COALESCE(SUM(platform_fee_amount), 0) AS commission_paise
+			FROM `tabOrder`
+			WHERE restaurant = %s
+			  AND DATE(creation) BETWEEN %s AND %s
+			  AND status NOT IN ('cancelled', 'pending_verification')
+			  AND acquisition_source = 'flamezo_discovery'
+			""",
+			(restaurant, start, end),
+			as_dict=True,
+		)[0]
+
+		# Breakdown by every acquisition source so the frontend can show a
+		# simple pie / bar chart in the same call.
+		breakdown_rows = frappe.db.sql(
+			"""
+			SELECT
+				COALESCE(NULLIF(acquisition_source, ''), 'qr_direct') AS source,
+				COUNT(*) AS order_count,
+				COALESCE(SUM(total), 0) AS gmv_rupees
+			FROM `tabOrder`
+			WHERE restaurant = %s
+			  AND DATE(creation) BETWEEN %s AND %s
+			  AND status NOT IN ('cancelled', 'pending_verification')
+			GROUP BY source
+			ORDER BY order_count DESC
+			""",
+			(restaurant, start, end),
+			as_dict=True,
+		)
+
+		return {
+			"success": True,
+			"data": {
+				"restaurant_id": restaurant,
+				"window": {"start_date": str(start), "end_date": str(end)},
+				"flamezo_discovery": {
+					"orders": int(row.order_count or 0),
+					"unique_customers": int(row.unique_customers or 0),
+					"gmv": round(flt(row.gmv_rupees), 2),
+					"commission": round(flt(row.commission_paise) / 100.0, 2),
+				},
+				"breakdown": [
+					{
+						"source": r.source,
+						"orders": int(r.order_count or 0),
+						"gmv": round(flt(r.gmv_rupees), 2),
+					}
+					for r in breakdown_rows
+				],
+			},
+		}
+	except Exception as e:
+		frappe.log_error(f"Error in get_flamezo_acquisition_stats: {str(e)}")
+		return {"success": False, "error": str(e)}

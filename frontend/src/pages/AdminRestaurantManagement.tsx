@@ -837,8 +837,17 @@ export default function AdminRestaurantManagement() {
                 </SelectTrigger>
                 <SelectContent className="rounded-2xl p-1 shadow-2xl border-none">
                   {[
-                    { id: 'SILVER', label: 'Silver Tier', icon: Shield, color: 'text-slate-500', desc: 'Basic Digital Menu' },
-                    { id: 'GOLD', label: 'Gold Tier', icon: Trophy, color: 'text-amber-500', desc: `₹${platformSettings.gold_upgrade_barrier} unlock · ₹${platformSettings.gold_monthly_fee}/mo floor + ${platformSettings.gold_commission_percent}% Commission` },
+                    // Single-tier model: only GOLD is selectable. The legacy
+                    // SILVER tier is retained in the doctype schema for
+                    // historical rows only — admins can't reassign to it from
+                    // here.
+                    {
+                      id: 'GOLD',
+                      label: 'Flamezo Plan',
+                      icon: Trophy,
+                      color: 'text-amber-500',
+                      desc: `Free onboarding · ₹${platformSettings.gold_monthly_fee}/mo floor + ${platformSettings.gold_commission_percent}% commission`,
+                    },
                   ].map((tier) => (
                     <SelectItem
                       key={tier.id}
@@ -1211,21 +1220,22 @@ export default function AdminRestaurantManagement() {
                 </div>
               </div>
 
-              <div className="space-y-3 p-5 rounded-2xl bg-amber-500/5 border border-amber-500/10 hover:border-amber-500/30 transition-all">
+              <div className="space-y-3 p-5 rounded-2xl bg-muted/30 border border-muted/40">
                 <div className="flex items-center gap-2 mb-1">
-                  <div className="p-1.5 bg-amber-500/10 rounded-lg">
-                    <Trophy className="h-3.5 w-3.5 text-amber-600" />
+                  <div className="p-1.5 bg-muted/50 rounded-lg">
+                    <Trophy className="h-3.5 w-3.5 text-muted-foreground" />
                   </div>
-                  <Label className="text-sm font-bold text-amber-600 uppercase tracking-widest">Upgrade Barrier</Label>
+                  <Label className="text-sm font-bold text-muted-foreground uppercase tracking-widest">Upgrade Barrier (Legacy)</Label>
                 </div>
                 <NumberInput
                   value={platformSettings.gold_upgrade_barrier}
                   onChange={(e) => setPlatformSettings(prev => ({ ...prev, gold_upgrade_barrier: parseFloat(e.target.value || '0') }))}
-                  className="h-14 rounded-xl font-black text-2xl text-amber-700 bg-amber-500/5 border-amber-500/10 focus-visible:ring-amber-500/20"
+                  className="h-14 rounded-xl font-black text-2xl text-muted-foreground bg-muted/30 border-muted/40 focus-visible:ring-muted/40"
+                  disabled
                 />
-                <p className="text-[10px] text-amber-700/70 font-medium px-1 flex items-center gap-1.5">
+                <p className="text-[10px] text-muted-foreground font-medium px-1 flex items-center gap-1.5">
                   <Zap className="h-3 w-3" />
-                  Single top-up required to unlock GOLD tier features.
+                  Retired under the single-tier model. GOLD onboarding is now free — this field is no longer enforced.
                 </p>
               </div>
             </div>

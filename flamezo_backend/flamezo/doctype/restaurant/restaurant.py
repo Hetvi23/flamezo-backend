@@ -301,17 +301,35 @@ class Restaurant(Document):
 	
 	def after_insert(self):
 		"""Auto-assign owner when restaurant is created"""
+		# Initialize subscription metadata for the new (GOLD) onboarding model.
+		# Done here (not validate) so the values land on the very first insert without
+		# re-triggering the admin-only validate_plan_change() guard.
+		updates = {}
+		if not self.plan_type:
+			updates["plan_type"] = "GOLD"
+		if not self.plan_activated_on:
+			updates["plan_activated_on"] = frappe.utils.now()
+		if self.platform_fee_percent is None:
+			settings_commission = frappe.db.get_single_value("Flamezo Settings", "gold_commission_percent")
+			updates["platform_fee_percent"] = float(settings_commission) if settings_commission is not None else 1.5
+		if not self.monthly_minimum:
+			settings_floor = frappe.db.get_single_value("Flamezo Settings", "gold_monthly_fee")
+			updates["monthly_minimum"] = float(settings_floor) if settings_floor is not None else 399.0
+		if updates:
+			frappe.db.set_value("Restaurant", self.name, updates)
+			# Reflect the writes back on the in-memory doc for the rest of after_insert.
+			for k, v in updates.items():
+				setattr(self, k, v)
+
 		if self.owner_email:
 			self.auto_assign_owner()
-		
+
 		# Auto-create Restaurant Config for new restaurants
 		create_restaurant_config(self)
-		
+
 		# Auto-create default Home Features for new restaurants
 		create_default_home_features(self)
-		
 
-		
 		# Generate QR codes if tables field is set
 		if hasattr(self, "_generate_qr_codes") and self._generate_qr_codes:
 			if self.tables and self.tables > 0:
@@ -921,13 +939,14 @@ def create_restaurant_config(self):
 			"apple_touch_icon": "",
 			"currency": self.currency or "INR",
 			"menu_layout": "2 Columns",
-			# Enable transactional features only for GOLD subscription plan
-			"enable_table_booking": 1 if self.plan_type == "GOLD" else 0,
-			"enable_banquet_booking": 1 if self.plan_type == "GOLD" else 0,
-			"enable_events": 1 if self.plan_type == "GOLD" else 0,
-			"enable_offers": 1 if self.plan_type == "GOLD" else 0,
-			"enable_coupons": 1 if self.plan_type == "GOLD" else 0,
-			"enable_experience_lounge": 1 if self.plan_type == "GOLD" else 0,
+			# New model: every restaurant is GOLD on day 1, so transactional features
+			# are enabled by default. Owners can still toggle them off per restaurant.
+			"enable_table_booking": 1,
+			"enable_banquet_booking": 1,
+			"enable_events": 1,
+			"enable_offers": 1,
+			"enable_coupons": 1,
+			"enable_experience_lounge": 1,
 			"menu_theme_background_enabled": 0,
 			"verify_my_user": 0,
 			"google_review_link": "",
@@ -966,14 +985,10 @@ def create_default_home_features(self):
 		]
 		
 		for idx, feat in enumerate(default_features, 1):
-			# Features enabled logic:
-			# - Mandatory features (menu, legacy) are always enabled.
-			# - Transactional features (book-table, offers, lounge) are GOLD only.
-			if feat["is_mandatory"] == 1:
-				is_enabled = True
-			else:
-				# These are the premium transactional features
-				is_enabled = (self.plan_type == "GOLD")
+			# New model: all restaurants are GOLD on day 1, so every default home
+			# feature ships enabled. Owners can hide individual features from their
+			# dashboard if they don't want them.
+			is_enabled = True
 			
 			feat_doc = frappe.get_doc({
 				"doctype": "Home Feature",

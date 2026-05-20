@@ -109,6 +109,7 @@ def get_onboarding_details(token):
             'instagram_link': getattr(doc, 'instagram_link', None),
             'facebook_link': getattr(doc, 'facebook_link', None),
             'website_link': getattr(doc, 'website_link', None),
+            'google_review_link': getattr(doc, 'google_review_link', None),
             'menu_link': getattr(doc, 'menu_link', None),
             'logo': getattr(doc, 'logo', None)
         }
@@ -147,7 +148,7 @@ def submit_onboarding_data(token, data):
         fields = [
             'owner_name', 'owner_email', 'owner_phone', 'whatsapp_number', 
             'tagline', 'instagram_link', 'facebook_link', 'website_link', 
-            'menu_link', 'address', 'city', 'state', 'zip_code', 'google_map_url',
+            'google_review_link', 'menu_link', 'address', 'city', 'state', 'zip_code', 'google_map_url',
             'logo', 'hero_image', 'fssai_number', 'gst_number', 'tax_rate', 
             'pan_number', 'opening_time', 'closing_time', 
             'swiggy_link', 'zomato_link', 'subtitle', 'description', 

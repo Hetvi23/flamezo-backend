@@ -63,22 +63,10 @@ export default function MarketingOverview() {
       .finally(() => setLoading(false))
   }, [selectedRestaurant])
 
-  if (!isGold) {
-    return (
-      <div className="flex flex-col items-center justify-center h-[60vh] gap-4 text-center p-8">
-        <div className="p-4 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-white">
-          <Megaphone className="h-8 w-8" />
-        </div>
-        <h2 className="text-2xl font-bold">Marketing Studio</h2>
-        <p className="text-muted-foreground max-w-md">
-          Upgrade to <strong>GOLD</strong> to access the Marketing Studio — run WhatsApp campaigns, SMS blasts, and fully automated customer retention triggers.
-        </p>
-        <Link to="/autopay-setup">
-          <Button className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white">Upgrade to GOLD</Button>
-        </Link>
-      </div>
-    )
-  }
+  // Marketing Studio is included for every restaurant under the single-tier
+  // model — no upgrade gate. `isGold` from context is always true so the
+  // legacy gating branch has been removed entirely.
+  void isGold
 
   const kpis = [
     {

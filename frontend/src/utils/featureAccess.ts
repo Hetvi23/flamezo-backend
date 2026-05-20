@@ -1,73 +1,30 @@
 /**
  * Centralized Feature Access Control
- * 
- * Defines the mapping between features and subscription plans (SILVER/GOLD).
+ *
+ * Under the May 2026 single-tier business model every onboarded restaurant is
+ * on GOLD (the only active tier) and therefore has access to every feature on
+ * day one. The helper and constants below are retained for backwards
+ * compatibility with the many components that import them, but they now
+ * always report "unlocked".
+ *
+ * If a paid tier is ever reintroduced, restore the original SILVER/GOLD lists
+ * and reinstate the gating logic.
  */
 
 export type PlanType = 'SILVER' | 'GOLD';
 
-export const GOLD_ONLY_FEATURES = [
-  'coupons',
-  'pos_integration',
-  'customer_pay_and_usage',
-  'marketing_studio',
-  'google_growth_sync',
-  'google_growth_ai',
-  'analytics',
-  'ai_recommendations',
-  'aiRecommendations', // mapping backend key
-  'custom_branding',
-  'customBranding', // mapping backend key
-  'table_booking',
-  'tableBooking', // mapping backend key
-  'games',
-  'events',
-  'offers',
-  'experience_lounge',
-  'video_upload',
-  'videoUpload', // mapping backend key
-  'branding',
-  'google_growth',
-  'cart_milestones'
-];
-
-export const SILVER_FEATURES = [
-  'ordering',
-  'loyalty',
-  'order_settings',
-  'whatsapp_orders',
-  'loyalty_insights',
-  'customer'
-];
+// Kept for backwards-compatible imports; the lists are no longer consulted
+// for gating because `getFeatureAccessStatus` always reports unlocked.
+export const GOLD_ONLY_FEATURES: string[] = [];
+export const SILVER_FEATURES: string[] = [];
 
 /**
- * Checks if a feature is accessible for a given plan.
- * 
- * @param plan The restaurant's current plan
- * @param feature The feature key to check
- * @returns { isLocked: boolean, requiredTier: PlanType | null }
+ * Returns the feature-access status for a given plan + feature.
+ *
+ * Under the single-tier model every feature is unlocked for every plan, so
+ * this always returns `{ isLocked: false, requiredTier: null }`. The
+ * signature is preserved for the dozens of call sites that already use it.
  */
-export function getFeatureAccessStatus(plan: PlanType, feature?: string) {
-  if (!feature) return { isLocked: false, requiredTier: null };
-
-  const normalizedPlan = plan.toUpperCase() as PlanType;
-  const isGold = normalizedPlan === 'GOLD';
-
-  if (isGold) {
-    return { isLocked: false, requiredTier: null };
-  }
-
-  // Check if it's explicitly a Silver feature
-  if (SILVER_FEATURES.includes(feature)) {
-    return { isLocked: false, requiredTier: null };
-  }
-
-  // Check if it's a Gold-only feature
-  if (GOLD_ONLY_FEATURES.includes(feature)) {
-    return { isLocked: true, requiredTier: 'GOLD' as PlanType };
-  }
-
-  // Default: if it's not explicitly Silver, assume it's Gold for safety
-  // or if it's in the GOLD_FEATURES list from Layout.tsx
-  return { isLocked: true, requiredTier: 'GOLD' as PlanType };
+export function getFeatureAccessStatus(_plan: PlanType, _feature?: string) {
+  return { isLocked: false, requiredTier: null as PlanType | null };
 }

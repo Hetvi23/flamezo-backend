@@ -1,15 +1,15 @@
 {
     "python.analysis.extraPaths": [
-        "/home/frappe/frappe-bench/apps/frappe",
-        "/home/frappe/frappe-bench/apps/erpnext",
-        "/home/frappe/frappe-bench/apps/flamezo_backend",
-        "/home/frappe/frappe-bench/env/lib/python3.12/site-packages"
+        "/Users/dhyeymehtaa/Documents/Flamezo-Project/frappe-bench/apps/frappe",
+        "/Users/dhyeymehtaa/Documents/Flamezo-Project/frappe-bench/apps/erpnext",
+        "/Users/dhyeymehtaa/Documents/Flamezo-Project/frappe-bench/apps/flamezo_backend",
+        "/Users/dhyeymehtaa/Documents/Flamezo-Project/frappe-bench/env/lib/python3.12/site-packages"
     ],
     "python.autoComplete.extraPaths": [
-        "/home/frappe/frappe-bench/apps/frappe",
-        "/home/frappe/frappe-bench/apps/erpnext",
-        "/home/frappe/frappe-bench/apps/flamezo_backend",
-        "/home/frappe/frappe-bench/env/lib/python3.12/site-packages"
+        "/Users/dhyeymehtaa/Documents/Flamezo-Project/frappe-bench/apps/frappe",
+        "/Users/dhyeymehtaa/Documents/Flamezo-Project/frappe-bench/apps/erpnext",
+        "/Users/dhyeymehtaa/Documents/Flamezo-Project/frappe-bench/apps/flamezo_backend",
+        "/Users/dhyeymehtaa/Documents/Flamezo-Project/frappe-bench/env/lib/python3.12/site-packages"
     ],
     "python.analysis.typeCheckingMode": "off",
     "python.analysis.diagnosticSeverityOverrides": {

@@ -236,15 +236,25 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
     }
   }, [selectedRestaurant])
 
-  // Extract subscription data from config
-  const planType = String(restaurantConfig?.subscription?.planType || 'SILVER').toUpperCase() as 'SILVER' | 'GOLD'
+  // Extract subscription data from config.
+  //
+  // May 2026 single-tier model: every onboarded restaurant is on GOLD. The
+  // backend `migrate_silver_to_gold_2026` patch flips any legacy SILVER row
+  // and `get_restaurant_config` always reports `planType: 'GOLD'`. We treat
+  // a missing / unknown plan as GOLD too — there is no other valid tier.
+  const rawPlan = String(restaurantConfig?.subscription?.planType || 'GOLD').toUpperCase()
+  const planType: 'SILVER' | 'GOLD' = rawPlan === 'SILVER' ? 'SILVER' : 'GOLD'
 
   const billingStatus = restaurantConfig?.subscription?.billingStatus || 'active'
   const coinsBalance = restaurantConfig?.subscription?.coinsBalance || 0
   const isActive = restaurantConfig?.subscription?.isActive ?? true
 
-  const isGold = planType === 'GOLD'
-  const isSilver = planType === 'SILVER'
+  // `isGold` / `isSilver` are retained for backwards compatibility with the
+  // dozens of components that import them, but under the single-tier model
+  // `isGold` is always true and `isSilver` is always false. Components are
+  // being incrementally simplified to drop these flags entirely.
+  const isGold = true
+  const isSilver = false
 
   // User role for the selected restaurant (populated by get_restaurant_config)
   const userRole = (restaurantConfig?.subscription?.userRole as 'Restaurant Admin' | 'Restaurant Staff' | null) ?? null
@@ -256,38 +266,42 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
   // isAdmin is true if they are a restaurant admin, or if they are a supervisor, or if no config is loaded yet (guest/admin)
   const isAdmin = isSupervisor || userRole === 'Restaurant Admin' || userRole === null 
   
+  // Under the single-tier model the backend reports every feature as `true`
+  // for every restaurant. The defaults below also resolve to `true` so the
+  // dashboard doesn't briefly render a "locked" state while config is
+  // loading.
   const features = restaurantConfig?.subscription?.features ? {
-    ordering: restaurantConfig.subscription.features.ordering ?? false,
-    videoUpload: restaurantConfig.subscription.features.videoUpload ?? false,
-    analytics: restaurantConfig.subscription.features.analytics ?? false,
-    aiRecommendations: restaurantConfig.subscription.features.aiRecommendations ?? false,
-    loyalty: restaurantConfig.subscription.features.loyalty ?? false,
-    coupons: restaurantConfig.subscription.features.coupons ?? false,
-    games: restaurantConfig.subscription.features.games ?? false,
-    tableBooking: restaurantConfig.subscription.features.tableBooking ?? false,
-    events: restaurantConfig.subscription.features.events ?? false,
-    offers: restaurantConfig.subscription.features.offers ?? false,
-    experience_lounge: restaurantConfig.subscription.features.experience_lounge ?? false,
-    marketing_studio: restaurantConfig.subscription.features.marketing_studio ?? false,
-    google_growth: restaurantConfig.subscription.features.google_growth ?? false,
-    whatsapp_orders: restaurantConfig.subscription.features.whatsapp_orders ?? false,
-    order_settings: restaurantConfig.subscription.features.order_settings ?? false,
+    ordering: restaurantConfig.subscription.features.ordering ?? true,
+    videoUpload: restaurantConfig.subscription.features.videoUpload ?? true,
+    analytics: restaurantConfig.subscription.features.analytics ?? true,
+    aiRecommendations: restaurantConfig.subscription.features.aiRecommendations ?? true,
+    loyalty: restaurantConfig.subscription.features.loyalty ?? true,
+    coupons: restaurantConfig.subscription.features.coupons ?? true,
+    games: restaurantConfig.subscription.features.games ?? true,
+    tableBooking: restaurantConfig.subscription.features.tableBooking ?? true,
+    events: restaurantConfig.subscription.features.events ?? true,
+    offers: restaurantConfig.subscription.features.offers ?? true,
+    experience_lounge: restaurantConfig.subscription.features.experience_lounge ?? true,
+    marketing_studio: restaurantConfig.subscription.features.marketing_studio ?? true,
+    google_growth: restaurantConfig.subscription.features.google_growth ?? true,
+    whatsapp_orders: restaurantConfig.subscription.features.whatsapp_orders ?? true,
+    order_settings: restaurantConfig.subscription.features.order_settings ?? true,
   } : {
-    ordering: false,
-    videoUpload: false,
-    analytics: false,
-    aiRecommendations: false,
-    loyalty: false,
-    coupons: false,
-    games: false,
-    tableBooking: false,
-    events: false,
-    offers: false,
-    experience_lounge: false,
-    marketing_studio: false,
-    google_growth: false,
-    whatsapp_orders: false,
-    order_settings: false,
+    ordering: true,
+    videoUpload: true,
+    analytics: true,
+    aiRecommendations: true,
+    loyalty: true,
+    coupons: true,
+    games: true,
+    tableBooking: true,
+    events: true,
+    offers: true,
+    experience_lounge: true,
+    marketing_studio: true,
+    google_growth: true,
+    whatsapp_orders: true,
+    order_settings: true,
   }
 
   const billingInfo = restaurantConfig?.subscription ? {

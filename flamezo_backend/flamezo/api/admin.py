@@ -458,7 +458,6 @@ def delete_restaurant(restaurant_id):
             "Game", "Event", "Home Feature", "Media Asset", "Media Upload Session", "Media Variant", "Product Media",
             "Coin Transaction", "Monthly Billing Ledger", "Monthly Revenue Ledger", "Razorpay Webhook Log",
             "Plan Change Log", "Referral Link", "Referral Visit", "OTP Verification Log",
-            "AI Credit Transaction",
             "Tokenization Attempt", "Menu Recommendation", "Menu Image Extractor", "Menu Image Item",
             "Extracted Category", "Extracted Dish",
             "Restaurant Loyalty Config", "Restaurant Loyalty Entry",
@@ -841,132 +840,33 @@ def send_onboarding_email(recipient, name, link):
 @frappe.whitelist()
 def admin_create_wallet_payment_link(restaurant_id, tier):
     """
-    Create a Razorpay Payment Link for wallet top-up based on subscription tier.
-    GOLD = ₹399 (Silver is free — no link).
-    On payment, the webhook (payment_link.paid) auto-credits the wallet.
+    Legacy endpoint — previously created a Razorpay Payment Link for the
+    ₹1,299 GOLD unlock fee. Under the May 2026 single-tier model GOLD
+    onboarding is free, so this endpoint is intentionally short-circuited.
+    It remains importable so existing client code that calls it doesn't 404.
 
-    Returns:
-        success (bool)
-        payment_link_url (str): short URL for the payment link
-        amount (int): amount in INR
-        owner_phone (str): restaurant owner's phone for WhatsApp
-        restaurant_name (str): display name
+    To charge a restaurant a one-off amount today, generate a Razorpay
+    Payment Link directly from the Frappe desk.
     """
     try:
-        # Admin access check
         access_check = check_admin_access()
         if not access_check.get('success') or not access_check.get('data', {}).get('allowed'):
             return {'success': False, 'error': 'Admin access required'}
 
-        # Fetch dynamic pricing from settings
-        settings = frappe.get_single("Flamezo Settings")
-        
-        if tier == 'GOLD':
-            base_amount = float(settings.gold_upgrade_barrier or 1299.0)
-        else:
-            # Silver is free, or fallback for other tiers
-            base_amount = 0.0
-            
-        if not base_amount and tier != 'SILVER':
-            frappe.throw(_("Invalid base amount for tier {0}").format(tier))
-        if not base_amount:
-            return {
-                'success': False,
-                'error': f'No payment required for {tier} tier'
-            }
-
-        # Calculate GST based on global settings
-        settings = frappe.get_single("Flamezo Settings")
-        charge_gst = bool(settings.charge_gst)
-        gst_rate = float(settings.gst_percent or 18.0) / 100.0 if charge_gst else 0.0
-        
-        gst_amount = round(base_amount * gst_rate, 2)
-        total_payable = base_amount + gst_amount
-        total_payable_paise = int(round(total_payable * 100))
-
-        # Get restaurant record
-        try:
-            restaurant = frappe.get_doc('Restaurant', {'restaurant_id': restaurant_id})
-        except Exception:
-            return {'success': False, 'error': 'Restaurant not found'}
-
-        # Build Razorpay Payment Link
-        client = get_razorpay_client()
-
-        # Clean phone: Razorpay requires digits only, 10-digit Indian format
-        raw_phone = (restaurant.owner_phone or '').strip()
-        clean_phone = ''.join(filter(str.isdigit, raw_phone))
-        # Normalize: strip leading 91/+91
-        if clean_phone.startswith('91') and len(clean_phone) == 12:
-            clean_phone = clean_phone[2:]
-
-        plink_payload = {
-            "amount": total_payable_paise,          # paise
-            "currency": "INR",
-            "accept_partial": False,
-            "description": f"Flamezo Wallet Top-up — {tier} Plan (₹{base_amount} + ₹{gst_amount} GST)",
-            "customer": {
-                "name": restaurant.owner_name or restaurant.restaurant_name,
-                "email": restaurant.owner_email or "",
-                "contact": clean_phone or ""
-            },
-            # Do NOT auto-notify — admin controls delivery via WhatsApp
-            "notify": {"sms": False, "email": False},
-            "reminder_enable": False,
-            "notes": {
-                "restaurant": restaurant.name,       # Frappe doc name (used by webhook)
-                "restaurant_id": restaurant_id,
-                "tier": tier,
-                "type": "wallet_topup_plink",         # Sentinel for webhook handler
-                "base_amount": base_amount,
-                "gst_amount": gst_amount,
-                "total_payable": total_payable
-            },
-            # Redirect merchant page on completion (no strict callback needed)
-            "callback_url": "https://backend.flamezo_backend.com",
-            "callback_method": "get"
-        }
-
-        plink = client.payment_link.create(plink_payload)
-
-        # ── Automated WhatsApp Delivery ──────────────────────────────────
-        whatsapp_sent = False
-        whatsapp_error = None
-        
-        try:
-            from flamezo_backend.flamezo.utils.whatsapp_utils import send_whatsapp_message
-            
-            # Construct message
-            gst_text = f" (Incl. {settings.gst_percent}% GST)" if charge_gst else ""
-            msg_text = (
-                f"Hi! 👋 Welcome to Flamezo.\n\n"
-                f"To activate your *{tier}* plan, please complete your wallet top-up of *₹{total_payable:,.2f}*{gst_text} using the secure payment link below:\n\n"
-                f"💳 {plink.get('short_url')}\n\n"
-                f"Once paid, your wallet will be automatically credited and you're good to go! 🚀"
-            )
-            
-            success, err = send_whatsapp_message(raw_phone, msg_text)
-            if success:
-                whatsapp_sent = True
-            else:
-                whatsapp_error = err
-        except Exception as wa_err:
-            whatsapp_error = str(wa_err)
+        # Silence unused-arg lints — the legacy signature is preserved for
+        # any out-of-tree clients still calling this endpoint.
+        _ = (restaurant_id, tier)
 
         return {
-            'success': True,
-            'payment_link_url': plink.get('short_url') or plink.get('id'),
-            'payment_link_id': plink.get('id'),
-            'amount': total_payable,
-            'base_amount': base_amount,
-            'owner_phone': raw_phone,
-            'restaurant_name': restaurant.restaurant_name,
-            'whatsapp_sent': whatsapp_sent,
-            'whatsapp_error': whatsapp_error
+            'success': False,
+            'error': (
+                f'No upgrade payment required for {tier} tier. '
+                f'Under the new business model GOLD onboarding is free — '
+                f'restaurants pay only the 1.5% commission plus the monthly floor.'
+            ),
         }
-
     except Exception as e:
-        frappe.log_error(f"admin_create_wallet_payment_link failed for {restaurant_id}: {str(e)}", "Admin Payment Link")
+        frappe.log_error("Admin Wallet Payment Link Error", str(e))
         return {'success': False, 'error': str(e)}
 
 @frappe.whitelist()
@@ -985,7 +885,9 @@ def get_platform_settings():
             'gst_percent': float(settings.gst_percent or 18.0),
             'gold_monthly_fee': float(settings.gold_monthly_fee or 399.0),
             'gold_commission_percent': float(settings.gold_commission_percent or 1.5),
-            'gold_upgrade_barrier': float(settings.gold_upgrade_barrier or 1299.0)
+            # Retired under the single-tier model — kept in the response as
+            # 0.0 so old admin UIs that read it don't break.
+            'gold_upgrade_barrier': 0.0,
         }
     }
 
