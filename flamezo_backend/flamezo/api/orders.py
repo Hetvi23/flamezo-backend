@@ -37,7 +37,7 @@ from datetime import datetime
 
 @frappe.whitelist(allow_guest=True)
 @require_plan('SILVER', 'GOLD')
-def create_order(restaurant_id, items, cooking_requests=None, customer_info=None, delivery_info=None, session_id=None, table_number=None, coupon_code=None, payment_method=None, order_type=None, packaging_fee=None, delivery_fee=None, pickup_time=None, loyalty_coins_redeemed=0, referral_id=None, tax=None, cgst=None, sgst=None, tax_percent=None):
+def create_order(restaurant_id, items, cooking_requests=None, customer_info=None, delivery_info=None, session_id=None, table_number=None, coupon_code=None, payment_method=None, order_type=None, packaging_fee=None, delivery_fee=None, pickup_time=None, loyalty_coins_redeemed=0, referral_id=None, tax=None, cgst=None, sgst=None, tax_percent=None, acquisition_source=None):
 	"""
 	POST /api/v1/orders
 	Place a new order
@@ -46,6 +46,9 @@ def create_order(restaurant_id, items, cooking_requests=None, customer_info=None
 	Optional: payment_method - 'pay_at_counter' | 'pay_online'
 	  - pay_at_counter: status = Pending Verification, not pushed to KOT until staff accepts
 	  - pay_online or omit: order goes through payment flow (create_payment_order), status set on payment
+	Optional: acquisition_source - how the customer reached this order. One of
+	  `qr_direct`, `flamezo_discovery`, `whatsapp`, `pos`, `admin`. Defaults to
+	  `qr_direct` (a customer scanning a table QR is the assumed origin).
 	"""
 	try:
 		# Validate restaurant
@@ -280,14 +283,9 @@ def create_order(restaurant_id, items, cooking_requests=None, customer_info=None
 				order_payment_method = "pay_at_counter"
 				initial_status = "pending_verification"
 			elif pm in ("pay_online", "pay online"):
-				if restaurant_doc.plan_type == "SILVER":
-					return {
-						"success": False,
-						"error": {
-							"code": "PLAN_RESTRICTED",
-							"message": "Online payments are only available for GOLD plan restaurants. Please pay at the counter."
-						}
-					}
+				# Online payment is available to every onboarded restaurant under
+				# the single-tier model. The only refusal path is now an inactive
+				# / suspended account, which is enforced in `create_payment_order`.
 				order_payment_method = "pay_online"
 				initial_status = "confirmed"
 		
@@ -340,7 +338,12 @@ def create_order(restaurant_id, items, cooking_requests=None, customer_info=None
 			"estimated_delivery": estimated_delivery,
 			"loyalty_coins_redeemed": loyalty_coins,
 			"loyalty_discount": loyalty_discount,
-			"referral_link": frappe.db.get_value("Referral Link", {"identifier": referral_id}, "name") if referral_id else None
+			"referral_link": frappe.db.get_value("Referral Link", {"identifier": referral_id}, "name") if referral_id else None,
+			# Acquisition tagging: caller may pass `flamezo_discovery` when the
+			# order originated from the FLAMEZO consumer app, `whatsapp` for
+			# WhatsApp ordering flows, `pos` for staff-entered orders, or `admin`
+			# for back-office entries. Default `qr_direct` covers table/menu QR.
+			"acquisition_source": (str(acquisition_source).strip().lower() if acquisition_source else "qr_direct"),
 		})
 		
 		# Add order items

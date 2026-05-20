@@ -524,10 +524,10 @@
    "fieldtype": "Select",
    "label": "Plan Tier",
    "options": "\nSILVER\nGOLD",
-   "default": "SILVER",
+   "default": "GOLD",
    "in_list_view": 1,
    "reqd": 1,
-   "description": "Subscription plan tier (SILVER: Free - QR menu + ordering + loyalty, GOLD: Full automation 1.5% commission + CRM + marketing)"
+   "description": "Subscription plan tier. GOLD is the only active tier (free onboarding, ₹399/mo floor, 1.5% commission). SILVER retained for legacy records only."
   },
   {
    "fieldname": "plan_activated_on",

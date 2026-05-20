@@ -63,16 +63,19 @@ def create_linked_account(*args, **kwargs):
 
 
 @frappe.whitelist(allow_guest=True)
-def create_payment_order(restaurant_id, order_items, total_amount, subtotal=None, packaging_fee=0, delivery_fee=0, customer_name=None, customer_email=None, customer_phone=None, table_number=None, existing_order_id=None, idempotency_key=None, order_type=None, coupon_code=None, loyalty_coins_redeemed=0, delivery_info=None, pickup_time=None, tax=None, cgst=None, sgst=None, tax_percent=None):
+def create_payment_order(restaurant_id, order_items, total_amount, subtotal=None, packaging_fee=0, delivery_fee=0, customer_name=None, customer_email=None, customer_phone=None, table_number=None, existing_order_id=None, idempotency_key=None, order_type=None, coupon_code=None, loyalty_coins_redeemed=0, delivery_info=None, pickup_time=None, tax=None, cgst=None, sgst=None, tax_percent=None, acquisition_source=None):
 	"""Create or update a Razorpay order for customer payment (SaaS model: no Route/transfers)."""
 	try:
 		_restaurant_name = validate_restaurant_for_api(restaurant_id)
 		restaurant = frappe.get_doc("Restaurant", cast(str, _restaurant_name))
 
-		if restaurant.plan_type == "SILVER":
+		# Active-restaurant gate (replaces legacy SILVER-plan payment block).
+		# New model: every onboarded restaurant gets online payments. The only
+		# reason to refuse is the account being inactive / suspended for billing.
+		if not restaurant.is_active:
 			return {
 				"success": False,
-				"error": "Online payments are not available for SILVER plan. Please use pay at counter."
+				"error": "This restaurant is currently inactive. Please contact support."
 			}
 
 		# Parse delivery info if string
@@ -153,6 +156,15 @@ def create_payment_order(restaurant_id, order_items, total_amount, subtotal=None
 			})
 
 		# Update basic info
+		# Acquisition tagging: only stamp on first write (i.e. when the order is
+		# being created here, not when an existing pending order is reused). The
+		# consumer / FLAMEZO app passes `flamezo_discovery`; other callers can
+		# pass `qr_direct`, `whatsapp`, `pos`, `admin`.
+		normalized_source = (
+			str(acquisition_source).strip().lower()
+			if acquisition_source
+			else "qr_direct"
+		)
 		order_doc.update({
 			"customer_name": customer_name,
 			"customer_email": customer_email,
@@ -166,6 +178,10 @@ def create_payment_order(restaurant_id, order_items, total_amount, subtotal=None
 			"payment_method": "online",
 			"platform_fee_amount": platform_fee_paise,
 			"idempotency_key": idempotency_key,
+			# Only set acquisition_source if the order doesn't already have one
+			# (i.e. on first insert). Reusing an existing pending order shouldn't
+			# overwrite its origin tag.
+			"acquisition_source": order_doc.get("acquisition_source") or normalized_source,
 			"delivery_address": delivery_info.get("address"),
 			"delivery_landmark": delivery_info.get("landmark"),
 			"delivery_city": delivery_info.get("city"),
@@ -209,8 +225,9 @@ def create_payment_order(restaurant_id, order_items, total_amount, subtotal=None
 					if redeemed_coins > balance:
 						redeemed_coins = balance
 
-					# Plan-tiered redemption cap: GOLD 30%, SILVER 20%
-					plan = frappe.db.get_value("Restaurant", _restaurant_name, "plan_type") or "SILVER"
+					# Plan-tiered redemption cap: GOLD 30% (single active tier; SILVER
+					# kept in the helper for legacy rows only).
+					plan = frappe.db.get_value("Restaurant", _restaurant_name, "plan_type") or "GOLD"
 					max_redeem_pct = get_max_redemption_percent(plan) / 100.0
 					loyalty_discount = float(redeemed_coins)  # coin_value_in_inr is always 1
 					max_ld = orig_subtotal * max_redeem_pct

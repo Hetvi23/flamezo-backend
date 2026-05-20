@@ -54,6 +54,7 @@
   "instagram_link",
   "facebook_link",
   "website_link",
+  "google_review_link",
   "menu_link",
   "section_break_media",
   "menu_photos",
@@ -321,6 +322,12 @@
    "fieldname": "website_link",
    "fieldtype": "Data",
    "label": "Website Link",
+   "options": "URL"
+  },
+  {
+   "fieldname": "google_review_link",
+   "fieldtype": "Data",
+   "label": "Google Review Link",
    "options": "URL"
   },
   {

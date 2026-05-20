@@ -251,9 +251,13 @@ scheduler_events = {
 		"30 3 * * *": [
 			"flamezo_backend.flamezo.tasks.marketing_tasks.generate_daily_seo_blog"
 		],
-		"59 23 * * *": [  # Run daily at 23:59 for floor recovery and lite renewals
+		"59 23 * * *": [  # Run daily at 23:59 for floor recovery
 			"flamezo_backend.flamezo.tasks.subscription_tasks.process_daily_subscription_floors",
-			"flamezo_backend.flamezo.tasks.subscription_tasks.process_silver_feature_renewals",
+			# `process_silver_feature_renewals` retired under the May 2026
+			# single-tier model — it is now a no-op that only clears legacy
+			# `menu_theme_paid_until` markers. Removed from the scheduler so
+			# we don't waste a daily run; the function itself is kept
+			# importable for any out-of-tree callers.
 		],
 		"1 0 * * *": [    # Run daily at 00:01 for plan switches
 			"flamezo_backend.flamezo.tasks.subscription_tasks.apply_deferred_plan_changes",

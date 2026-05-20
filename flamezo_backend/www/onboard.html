@@ -690,6 +690,10 @@
                         <label>Website URL (If any)</label>
                         <input type="url" id="website_link" placeholder="www.example.com">
                     </div>
+                    <div class="form-group">
+                        <label>Google Review Link</label>
+                        <input type="url" id="google_review_link" placeholder="https://g.page/r/...">
+                    </div>
                 </div>
             </div>
 
@@ -813,6 +817,7 @@
                     if (data.instagram_link) document.getElementById('instagram_link').value = data.instagram_link;
                     if (data.facebook_link) document.getElementById('facebook_link').value = data.facebook_link;
                     if (data.website_link) document.getElementById('website_link').value = data.website_link;
+                    if (data.google_review_link) document.getElementById('google_review_link').value = data.google_review_link;
                     
                     if (data.logo) {
                         formData.logo = data.logo;
@@ -858,7 +863,7 @@
             const fields = [
                 'owner_name', 'owner_email', 'owner_phone', 'whatsapp_number', 
                 'address', 'city', 'state', 'zip_code', 'google_map_url',
-                'tagline', 'subtitle', 'description', 'instagram_link', 'facebook_link', 'website_link', 'menu_link',
+                'tagline', 'subtitle', 'description', 'instagram_link', 'facebook_link', 'website_link', 'google_review_link', 'menu_link',
                 'fssai_number', 'gst_number', 'tax_rate', 'pan_number',
                 'opening_time', 'closing_time', 'swiggy_link', 'zomato_link',
                 'default_theme', 'menu_layout'

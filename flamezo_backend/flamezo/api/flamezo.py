@@ -167,7 +167,7 @@ def get_all_restaurants(latitude=None, longitude=None, search=None, city=None, p
 				"latitude": r.latitude,
 				"longitude": r.longitude,
 				"city": r.city or "",
-				"plan_type": r.plan_type or "SILVER",
+				"plan_type": r.plan_type or "GOLD",
 				"primaryColor": primary_color,
 				"tagline": r.description or "",
 				"distance_km": distance_km,
@@ -209,7 +209,7 @@ def get_cross_restaurant_offers(city=None, page=1, limit=30):
 	"""
 	GET /api/method/flamezo_backend.flamezo.api.flamezo.get_cross_restaurant_offers
 
-	Returns active coupons/offers across all GOLD-plan FLAMEZO restaurants.
+	Returns active coupons/offers across all active FLAMEZO restaurants.
 	Sorted by discount value desc (best deals first).
 
 	Parameters:
@@ -230,8 +230,9 @@ def get_cross_restaurant_offers(city=None, page=1, limit=30):
 
 		today_date = getdate(today())
 
-		# Get all active GOLD restaurants (only GOLD has offers feature)
-		restaurant_filters: dict = {"is_active": 1, "plan_type": "GOLD"}
+		# New model: every onboarded restaurant has the offers feature, so we no
+		# longer filter by plan_type. Discovery feed = all active restaurants.
+		restaurant_filters: dict = {"is_active": 1}
 		if city:
 			restaurant_filters["city"] = ["like", f"%{city}%"]
 
@@ -657,13 +658,15 @@ def get_restaurant_summary(restaurant_id):
 				"tagline": config.get("tagline") or "",
 				"logo": restaurant.logo or "",
 				"city": restaurant.city or "",
-				"plan_type": restaurant.plan_type or "SILVER",
+				"plan_type": restaurant.plan_type or "GOLD",
 				"primary_color": config.get("primary_color") or "#DB782F",
 				"default_theme": config.get("default_theme") or "dark",
 				"latitude": restaurant.latitude,
 				"longitude": restaurant.longitude,
 				"active_offers_count": active_offers,
-				"is_gold": restaurant.plan_type == "GOLD",
+				# is_gold retained for backwards compatibility; under the new model
+				# every restaurant is effectively GOLD.
+				"is_gold": True,
 			}
 		}
 

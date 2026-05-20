@@ -2,20 +2,19 @@
 # For license information, please see license.txt
 
 """
-E2E Test Suite: 2-Plan Model (SILVER vs GOLD)
+LEGACY E2E Test Suite: 2-Plan Model (SILVER vs GOLD)
 
-Covers all critical paths introduced by the Diamond → Gold plan restructuring:
+These tests describe the legacy two-plan world (SILVER vs GOLD, ₹1,299 unlock
+barrier, SILVER feature blocks, etc.). Under the May 2026 single-tier model
+every onboarded restaurant is GOLD, so the assertions in this file no longer
+match production behavior — e.g. SILVER restaurants no longer exist as a
+target plan, `update_subscription_plan` rejects SILVER, and feature_gate
+returns access for every feature.
 
-  1. Staff Seat Limits     — SILVER=0, GOLD=6
-  2. Feature Gate          — GOLD-only, SILVER+GOLD features
-  3. Billing Logic         — GOLD daily floor, monthly floor, commission, SILVER exemption
-  4. Plan Change           — SILVER↔GOLD upgrade/downgrade billing defaults
-  5. Migration Patch       — No DIAMOND references remain in DB after patch
-  6. Restaurant Config     — Feature flags match plan on creation and upgrade
-  7. Plan-Aware Billing    — Subscription update rejects invalid plans
-
-Run with:
-    bench run-tests --app flamezo_backend --module flamezo_backend.flamezo.tests.test_plan_restructuring
+The module-level skip below disables the whole suite. Keep the file around so
+the historical coverage is recoverable if we ever re-introduce a paid tier.
+When that happens, rewrite the assertions against the new tier semantics and
+remove the skip.
 """
 
 import unittest
@@ -31,6 +30,19 @@ from flamezo_backend.flamezo.tests.utils import (
 )
 
 _PREFIX = "TEST-PR"
+
+# Skip the entire module — the assertions encode the legacy two-plan model.
+pytestmark = unittest.skip(
+    "Legacy two-plan (SILVER/GOLD) test suite — superseded by the May 2026 "
+    "single-tier model. See `migrate_silver_to_gold_2026` patch."
+)
+
+
+def load_tests(loader, standard_tests, pattern):
+    """unittest hook: emit an empty suite so the module is fully skipped even
+    when run via `bench run-tests` (which doesn't honor pytest's `pytestmark`).
+    """
+    return unittest.TestSuite()
 
 
 # ─── 1. Staff Seat Limits ─────────────────────────────────────────────────────

@@ -479,10 +479,16 @@ class TestDeductCoins(unittest.TestCase):
 
 # ─── 6. update_subscription_plan() ───────────────────────────────────────────
 
+@unittest.skip(
+    "Legacy two-plan (SILVER/GOLD) test class — superseded by the May 2026 "
+    "single-tier model. `update_subscription_plan` now rejects SILVER and "
+    "has no ₹1,299 wallet-balance unlock barrier."
+)
 class TestUpdateSubscriptionPlan(unittest.TestCase):
     """
-    Tests the 'Tomorrow Rule' for plan changes and the balance barrier checks
-    for GOLD upgrades.
+    LEGACY: Tested the 'Tomorrow Rule' for SILVER↔GOLD changes and the
+    ₹1,299 wallet-balance barrier. Both are retired under the new model.
+    Skipped class-wide; revive only if a paid tier is reintroduced.
     """
 
     @classmethod

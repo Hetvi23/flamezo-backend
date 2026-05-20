@@ -4,9 +4,38 @@ import { cn } from '@/lib/utils'
 import { useNavigate } from 'react-router-dom'
 import { format } from 'date-fns'
 
+/**
+ * BillingNotificationBar
+ *
+ * Top-of-page alert ribbon that surfaces wallet / autopay / mandate /
+ * suspension state for the currently selected restaurant.
+ *
+ * May 2026 single-tier model
+ * -------------------------
+ * Every onboarded restaurant is on the only available plan (Flamezo, ₹399/mo
+ * floor + 1.5% commission). The legacy two-tier copy ("upgrade to GOLD",
+ * "SILVER features may be disabled", `${planType} requires mandate", etc.)
+ * has been replaced with neutral language that doesn't expose internal tier
+ * names. The `planType` and `isPremium` flags are gone — every account is
+ * treated as the live tier.
+ *
+ * The component still receives `planType` in its props because dozens of
+ * call sites pass it. We accept it for backwards-compatibility and ignore it.
+ */
+
+const SUPPORT_EMAIL = 'hello@onomatrix.com'
+const SUSPENSION_COPY =
+  'Account suspended due to a billing issue. Please clear dues or contact support to reactivate.'
+
 interface BillingNotificationBarProps {
   billingInfo: {
     coins_balance: number
+    /**
+     * Retained for backwards compatibility. Under the single-tier model the
+     * only legitimate deferred change is no-op SILVER→GOLD migration which
+     * the patch handles; future scheduled changes won't write a tier label
+     * we want to surface to the merchant.
+     */
     deferred_plan_type?: 'SILVER' | 'GOLD' | null
     plan_change_date?: string | null
     mandate_active: boolean
@@ -19,17 +48,20 @@ interface BillingNotificationBarProps {
     onboarding_date?: string | null
     last_auto_recharge_date?: string | null
   } | null
-  planType: 'SILVER' | 'GOLD'
+  /** Accepted for legacy callers; not read under the single-tier model. */
+  planType?: 'SILVER' | 'GOLD'
   isActive?: boolean
 }
 
-export const BillingNotificationBar: React.FC<BillingNotificationBarProps> = ({ billingInfo, planType, isActive = true }) => {
-  const isGold = planType === 'GOLD'
-  const isPremium = isGold
+export const BillingNotificationBar: React.FC<BillingNotificationBarProps> = ({
+  billingInfo,
+  planType: _planType,
+  isActive = true,
+}) => {
   const navigate = useNavigate()
   const [isDismissed, setIsDismissed] = useState(false)
 
-  // Check for dismissal on mount
+  // Check for dismissal on mount (sticky for 24h via localStorage)
   useEffect(() => {
     const dismissedUntil = localStorage.getItem('billing_bar_dismissed_until')
     if (dismissedUntil) {
@@ -52,19 +84,21 @@ export const BillingNotificationBar: React.FC<BillingNotificationBarProps> = ({ 
 
   if (!billingInfo || isDismissed) return null
 
-  // When restaurant is inactive, show deactivation notice as highest priority
+  // Inactive restaurant takes priority over every other state.
   if (!isActive) {
     return (
-      <div className={cn(
-        "w-full py-2 px-4 flex items-center justify-center gap-4 text-xs font-semibold animate-in slide-in-from-top-4 duration-500 shadow-inner",
-        "bg-gradient-to-r from-red-600 via-red-500 to-orange-500 text-white border-red-400"
-      )}>
+      <div
+        className={cn(
+          'w-full py-2 px-4 flex items-center justify-center gap-4 text-xs font-semibold animate-in slide-in-from-top-4 duration-500 shadow-inner',
+          'bg-gradient-to-r from-red-600 via-red-500 to-orange-500 text-white border-red-400'
+        )}
+      >
         <div className="flex items-center gap-2 max-w-7xl w-full">
           <div className="flex items-center gap-2 flex-grow overflow-hidden">
             <div className="p-1 rounded-md bg-white/20 shrink-0">
               <ShieldAlert className="h-4 w-4" />
             </div>
-            <span className="truncate">Account suspended due to security reason. Please contact support to reactivate.</span>
+            <span className="truncate">{SUSPENSION_COPY}</span>
           </div>
           <button
             onClick={() => navigate('/account')}
@@ -78,36 +112,56 @@ export const BillingNotificationBar: React.FC<BillingNotificationBarProps> = ({ 
     )
   }
 
-  const notifications = []
+  const notifications: Array<{
+    id: string
+    type: 'critical' | 'warning' | 'info'
+    icon: React.ReactNode
+    message: string
+    action?: { label: string; onClick: () => void }
+  }> = []
 
-  // 1. Account Status (Suspended/Overdue)
+  // 1. Account Status (Suspended / Overdue)
   if (billingInfo.billing_status === 'suspended') {
     notifications.push({
       id: 'suspended',
       type: 'critical',
       icon: <ShieldAlert className="h-4 w-4" />,
-      message: "Account suspended due to security reason. Please contact support to reactivate.",
-      action: { label: 'Contact Support', onClick: () => window.location.href = 'mailto:support@flamezo_backend.ono.menu' }
+      message: SUSPENSION_COPY,
+      action: {
+        label: 'Contact Support',
+        onClick: () => {
+          window.location.href = `mailto:${SUPPORT_EMAIL}`
+        },
+      },
     })
   } else if (billingInfo.billing_status === 'overdue') {
     notifications.push({
       id: 'overdue',
       type: 'critical',
       icon: <AlertCircle className="h-4 w-4" />,
-      message: "Payment overdue! Your account is at risk of suspension shortly.",
-      action: { label: 'Pay Now', onClick: () => navigate('/autopay-setup?buy=true') }
+      message:
+        'Payment overdue. Your account will be suspended shortly if the balance is not cleared.',
+      action: { label: 'Pay Now', onClick: () => navigate('/autopay-setup?buy=true') },
     })
   }
 
   // 2. Scheduled Plan Change
+  //
+  // Under the single-tier model `deferred_plan_type` is no longer used for
+  // legitimate switches (admins can still set it from the desk for ops
+  // reasons). We surface the banner if it's present but no longer name a
+  // tier in the message — the only thing the owner cares about is that a
+  // change is pending and when it takes effect.
   if (billingInfo.deferred_plan_type) {
-    const formattedDate = billingInfo.plan_change_date ? format(new Date(billingInfo.plan_change_date), 'do MMMM') : 'tomorrow'
+    const formattedDate = billingInfo.plan_change_date
+      ? format(new Date(billingInfo.plan_change_date), 'do MMMM')
+      : 'tomorrow'
     notifications.push({
       id: 'plan-change',
       type: 'info',
       icon: <Calendar className="h-4 w-4" />,
-      message: `Your plan is scheduled to change to ${billingInfo.deferred_plan_type} on ${formattedDate} at 12:00 AM.`,
-      action: { label: 'Manage', onClick: () => navigate('/autopay-setup') }
+      message: `A plan change is scheduled to take effect on ${formattedDate} at 12:00 AM.`,
+      action: { label: 'Manage', onClick: () => navigate('/autopay-setup') },
     })
   }
 
@@ -117,127 +171,139 @@ export const BillingNotificationBar: React.FC<BillingNotificationBarProps> = ({ 
       id: 'account-risk',
       type: 'critical',
       icon: <ShieldAlert className="h-4 w-4" />,
-      message: `Your account is at risk of being disabled due to negative balance. Recharge immediately.`,
-      action: { label: 'Pay Now', onClick: () => navigate('/autopay-setup?buy=true') }
+      message:
+        'Your wallet is in negative. Recharge immediately to avoid suspension.',
+      action: { label: 'Recharge Now', onClick: () => navigate('/autopay-setup?buy=true') },
     })
   }
 
-  // 4. Autopay Daily Limit Warning / Reached
+  // 4. Autopay Daily Limit (Warning / Reached)
   if (billingInfo.auto_recharge_enabled) {
     if (billingInfo.current_daily_vol >= billingInfo.daily_limit) {
-       notifications.push({
+      notifications.push({
         id: 'daily-limit-reached',
         type: 'critical',
         icon: <ShieldAlert className="h-4 w-4" />,
-        message: `Daily safety limit of ₹${billingInfo.daily_limit.toLocaleString()} reached. Automatic recharges are paused.`,
-        action: { label: 'Increase Limit', onClick: () => navigate('/autopay-setup') }
+        message: `Daily safety limit of ₹${billingInfo.daily_limit.toLocaleString()} reached. Automatic recharges are paused until tomorrow.`,
+        action: { label: 'Increase Limit', onClick: () => navigate('/autopay-setup') },
       })
     } else if (billingInfo.current_daily_vol >= billingInfo.daily_limit * 0.8) {
-       notifications.push({
+      notifications.push({
         id: 'daily-limit-near',
         type: 'warning',
         icon: <AlertCircle className="h-4 w-4" />,
-        message: `Approaching daily autopay safety limit (Used: ₹${billingInfo.current_daily_vol.toLocaleString()}).`,
-        action: { label: 'Settings', onClick: () => navigate('/autopay-setup') }
+        message: `Approaching daily autopay safety limit (used ₹${billingInfo.current_daily_vol.toLocaleString()} of ₹${billingInfo.daily_limit.toLocaleString()}).`,
+        action: { label: 'Settings', onClick: () => navigate('/autopay-setup') },
       })
     }
   }
 
-  // 5. Low Balance Alert (Intelligent)
+  // 5. Low Balance Alert
+  //
+  // Single-tier model: every restaurant gets the same warning ladder. We
+  // describe the failure mode in plain terms ("commission deductions may
+  // pause and AI / messaging features may be interrupted") instead of
+  // referencing a tier name.
   if (billingInfo.coins_balance >= 0 && billingInfo.coins_balance < 300) {
-    const isAutopayComing = billingInfo.auto_recharge_enabled && billingInfo.mandate_active && (billingInfo.current_daily_vol < billingInfo.daily_limit)
-    
-    let message = isPremium 
-      ? `Wallet balance is dangerously low (₹${billingInfo.coins_balance.toLocaleString()}). ${planType} features may be disabled soon.` 
-      : `Wallet balance is dangerously low (₹${billingInfo.coins_balance.toLocaleString()}). AI and Order flow may be interrupted.`
-    
-    if (isAutopayComing) {
-      message = `Low balance (₹${billingInfo.coins_balance.toLocaleString()}). Automatic top-up of ₹${billingInfo.auto_recharge_amount.toLocaleString()} will be triggered shortly.`
-    }
+    const isAutopayComing =
+      billingInfo.auto_recharge_enabled &&
+      billingInfo.mandate_active &&
+      billingInfo.current_daily_vol < billingInfo.daily_limit
+
+    const message = isAutopayComing
+      ? `Low wallet balance (₹${billingInfo.coins_balance.toLocaleString()}). An automatic top-up of ₹${billingInfo.auto_recharge_amount.toLocaleString()} will be triggered shortly.`
+      : `Wallet balance is critically low (₹${billingInfo.coins_balance.toLocaleString()}). Commission deductions, AI tools, and messaging may be paused soon.`
 
     notifications.push({
       id: 'low-balance',
       type: isAutopayComing ? 'info' : 'critical',
-      icon: isAutopayComing ? <Loader2 className="h-4 w-4 animate-spin text-white" /> : <ShieldAlert className="h-4 w-4" />,
-      message: message,
-      action: { label: isAutopayComing ? 'Settings' : 'Top up Now', onClick: () => navigate(isAutopayComing ? '/autopay-setup' : '/autopay-setup?buy=true') }
+      icon: isAutopayComing
+        ? <Loader2 className="h-4 w-4 animate-spin text-white" />
+        : <ShieldAlert className="h-4 w-4" />,
+      message,
+      action: {
+        label: isAutopayComing ? 'Settings' : 'Top up Now',
+        onClick: () => navigate(isAutopayComing ? '/autopay-setup' : '/autopay-setup?buy=true'),
+      },
     })
-  } else if (isPremium && billingInfo.coins_balance < 1000) {
+  } else if (billingInfo.coins_balance < 1000) {
     notifications.push({
       id: 'mid-balance',
       type: 'warning',
       icon: <Wallet className="h-4 w-4" />,
-      message: `Maintain at least ₹1000 balance to keep ${planType} enabled without interruption.`,
-      action: { label: 'Top up Wallet', onClick: () => navigate('/autopay-setup?buy=true') }
+      message: 'Maintain at least ₹1,000 in your wallet to keep Flamezo features running without interruption.',
+      action: { label: 'Top up Wallet', onClick: () => navigate('/autopay-setup?buy=true') },
     })
   }
 
-  // 6. Mandate/Autopay Logic
-  if (isPremium) {
-    if (!billingInfo.mandate_active) {
-      notifications.push({
-        id: 'no-mandate',
-        type: 'warning',
-        icon: <AlertCircle className="h-4 w-4" />,
-        message: `${planType} requires active mandate. Set up Autopay now for seamless operation.`,
-        action: { label: 'Set Up', onClick: () => navigate('/autopay-setup') }
-      })
-    } else if (!billingInfo.auto_recharge_enabled) {
-      notifications.push({
-        id: 'autopay-off',
-        type: 'info',
-        icon: <ShieldAlert className="h-4 w-4" />,
-        message: "Mandate active! Enable Autopay to avoid manual top-ups.",
-        action: { label: 'Enable', onClick: () => navigate('/autopay-setup') }
-      })
-    }
+  // 6. Mandate / Autopay Setup
+  //
+  // Every restaurant under the single-tier model needs an active Razorpay
+  // mandate for monthly floor recovery + commission settlement. We surface
+  // it as a generic billing requirement, not as a "tier requirement".
+  if (!billingInfo.mandate_active) {
+    notifications.push({
+      id: 'no-mandate',
+      type: 'warning',
+      icon: <AlertCircle className="h-4 w-4" />,
+      message: 'Set up Autopay to keep monthly billing and floor recovery running automatically.',
+      action: { label: 'Set Up', onClick: () => navigate('/autopay-setup') },
+    })
+  } else if (!billingInfo.auto_recharge_enabled) {
+    notifications.push({
+      id: 'autopay-off',
+      type: 'info',
+      icon: <ShieldAlert className="h-4 w-4" />,
+      message: 'Mandate active. Enable Autopay to avoid manual top-ups when your balance runs low.',
+      action: { label: 'Enable', onClick: () => navigate('/autopay-setup') },
+    })
   }
 
-  // 7. Recent Successful Recharge (Last 24h)
+  // 7. Recent Successful Recharge (Last 24h) — celebratory info banner
   if (billingInfo.last_auto_recharge_date) {
     const lastRecharge = new Date(billingInfo.last_auto_recharge_date)
-    const isRecent = (new Date().getTime() - lastRecharge.getTime()) < 24 * 60 * 60 * 1000
+    const isRecent = new Date().getTime() - lastRecharge.getTime() < 24 * 60 * 60 * 1000
     if (isRecent) {
-       notifications.push({
+      notifications.push({
         id: 'recent-success',
         type: 'info',
         icon: <Wallet className="h-4 w-4" />,
-        message: `Success! ₹${billingInfo.auto_recharge_amount.toLocaleString()} was automatically added to your wallet.`,
-        action: { label: 'History', onClick: () => navigate('/ledger') }
+        message: `₹${billingInfo.auto_recharge_amount.toLocaleString()} was automatically added to your wallet.`,
+        action: { label: 'History', onClick: () => navigate('/ledger') },
       })
     }
   }
 
   if (notifications.length === 0) return null
 
-  // Priority logic for multiple notes
-  // Suspended > Critical > Warning > Info
-  const activeNote = notifications.find(n => n.id === 'suspended') ||
-                     notifications.find(n => n.type === 'critical') || 
-                     notifications.find(n => n.type === 'warning') || 
-                     notifications[0]
+  // Priority: Suspended > Critical > Warning > Info
+  const activeNote =
+    notifications.find((n) => n.id === 'suspended') ||
+    notifications.find((n) => n.type === 'critical') ||
+    notifications.find((n) => n.type === 'warning') ||
+    notifications[0]
 
-  const variantStyles = {
-    critical: "bg-gradient-to-r from-red-600 via-red-500 to-orange-500 text-white border-red-400",
-    warning: "bg-gradient-to-r from-amber-500 via-orange-500 to-red-500 text-white border-amber-400",
-    info: "bg-gradient-to-r from-blue-600 via-indigo-500 to-primary text-white border-blue-400"
+  const variantStyles: Record<'critical' | 'warning' | 'info', string> = {
+    critical: 'bg-gradient-to-r from-red-600 via-red-500 to-orange-500 text-white border-red-400',
+    warning: 'bg-gradient-to-r from-amber-500 via-orange-500 to-red-500 text-white border-amber-400',
+    info: 'bg-gradient-to-r from-blue-600 via-indigo-500 to-primary text-white border-blue-400',
   }
 
   return (
-    <div className={cn(
-      "w-full py-1.5 sm:py-2 px-3 sm:px-4 flex items-center justify-center gap-2 sm:gap-4 text-[10px] sm:text-xs font-semibold animate-in slide-in-from-top-4 duration-500 shadow-inner",
-      variantStyles[activeNote.type as keyof typeof variantStyles]
-    )}>
+    <div
+      className={cn(
+        'w-full py-1.5 sm:py-2 px-3 sm:px-4 flex items-center justify-center gap-2 sm:gap-4 text-[10px] sm:text-xs font-semibold animate-in slide-in-from-top-4 duration-500 shadow-inner',
+        variantStyles[activeNote.type]
+      )}
+    >
       <div className="flex items-center gap-2 max-w-7xl w-full">
         <div className="flex items-center gap-2 flex-grow overflow-hidden">
-          <div className="p-1 rounded-md bg-white/20 shrink-0">
-            {activeNote.icon}
-          </div>
+          <div className="p-1 rounded-md bg-white/20 shrink-0">{activeNote.icon}</div>
           <span className="truncate">{activeNote.message}</span>
         </div>
-        
+
         {activeNote.action && (
-          <button 
+          <button
             onClick={activeNote.action.onClick}
             className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-white text-black hover:bg-white/90 transition-all shrink-0 active:scale-95"
           >

@@ -74,11 +74,8 @@ def resolve_qr_branding(restaurant_doc, override_background_url=None):
 	if not logo_url and restaurant_doc.logo:
 		logo_url = get_url(restaurant_doc.logo) if restaurant_doc.logo.startswith("/") else restaurant_doc.logo
 
-	# For SILVER users, ALWAYS use Flamezo logo (override any custom logo)
-	if restaurant_doc.plan_type == 'SILVER':
-		logo_url = "/files/flamezo_backend-logoddffe5.svg"
-		if not frappe.db.exists("File", {"file_url": logo_url}):
-			logo_url = "/flamezo_backend/images/flamezo_backend-logo.svg"
+	# Under the single-tier model every restaurant gets its own logo on the QR
+	# code — no Flamezo watermark override.
 
 	# ─────────────────────────────────────────────────────────────────
 	# LEGACY BACKGROUND LOGIC REMOVED

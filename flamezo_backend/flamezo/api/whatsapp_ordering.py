@@ -426,6 +426,7 @@ def log_whatsapp_order(
             "status":           "pending_verification",
             "payment_status":   "pending",
             "is_whatsapp_order": 1,
+            "acquisition_source": "whatsapp",
             "estimated_delivery": estimated_delivery,
             # Pricing fields passed from the frontend (Shadow totals)
             "subtotal":         flt(subtotal),

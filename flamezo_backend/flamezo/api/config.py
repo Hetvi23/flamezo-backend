@@ -193,17 +193,12 @@ def get_restaurant_config(restaurant_id):
 		# Get currency info with symbol
 		currency_info = get_restaurant_currency_info(restaurant)
 		
-		# Monetization Enforcement
-		plan_type = restaurant_doc.plan_type or "SILVER"
+		# Menu theme background is included in the platform for every restaurant
+		# under the new single-tier model — no monetization gate, just honor the
+		# owner's toggle. `plan_type` is still computed because downstream code
+		# in this function references it.
+		plan_type = restaurant_doc.plan_type or "GOLD"
 		menu_theme_background_enabled = bool(config.get("menu_theme_background_enabled", 1))
-		
-		# Premium themes/backgrounds are coin-purchased for SILVER; free for GOLD
-		if plan_type == "SILVER" and menu_theme_background_enabled:
-			from frappe.utils import getdate, today
-			paid_until = getdate(config.get("menu_theme_paid_until")) if config.get("menu_theme_paid_until") else None
-			if not paid_until or paid_until < getdate(today()):
-				# Period expired, treat as disabled for customer app
-				menu_theme_background_enabled = False
 		
 		# Include restaurant basic info and location (google map URL from restaurant context)
 		response_data = {
@@ -285,7 +280,7 @@ def get_restaurant_config(restaurant_id):
 				"zomatoLink": config.get("zomato_link", "")
 			},
 			"subscription": {
-				"planType": restaurant_doc.plan_type or "SILVER",
+				"planType": restaurant_doc.plan_type or "GOLD",
 				"billingStatus": restaurant_doc.billing_status or "active",
 				"coinsBalance": float(restaurant_doc.coins_balance or 0),
 				"referral_code": restaurant_doc.referral_code,
@@ -305,37 +300,46 @@ def get_restaurant_config(restaurant_id):
 				"plan_defaults": {
 					"gold_floor": float(frappe.db.get_single_value("Flamezo Settings", "gold_monthly_fee") or 399.0),
 					"gold_commission": float(frappe.db.get_single_value("Flamezo Settings", "gold_commission_percent") or 1.5),
-					"gold_barrier": float(frappe.db.get_single_value("Flamezo Settings", "gold_upgrade_barrier") or 1299.0)
+					# Retired in the single-tier model — no GOLD unlock barrier.
+					# Kept in the response as `0.0` for client backwards compat.
+					"gold_barrier": 0.0,
 				},
 				# Current user's role for this restaurant (Admin vs Staff)
 				"userRole": _get_user_role_for_restaurant(frappe.session.user, restaurant),
 				"features": {
-					# SILVER + GOLD: ordering and loyalty are tied together on Silver
-					# (Silver loyalty OFF = ordering OFF; Gold always has both)
-					"ordering": plan_type == "GOLD",
-					"loyalty": plan_type in ["SILVER", "GOLD"],
-					"order_settings": plan_type in ["SILVER", "GOLD"],
-					"whatsapp_orders": plan_type in ["SILVER", "GOLD"],
-					"games": plan_type == "GOLD",
-					"tableBooking": plan_type == "GOLD",
-					"events": plan_type == "GOLD",
-					"offers": plan_type == "GOLD",
-					"experience_lounge": plan_type == "GOLD",
-					"google_growth": plan_type == "GOLD",
-					"marketing_studio": plan_type == "GOLD",
-					"videoUpload": plan_type == "GOLD",
-					"analytics": plan_type in ["SILVER", "GOLD"],
-					"customer": plan_type in ["SILVER", "GOLD"],
-					"aiRecommendations": plan_type == "GOLD",
-					"customBranding": plan_type == "GOLD",
+					# Single-tier model: every onboarded restaurant has access to
+					# every feature on day one. Per-feature visibility is now
+					# driven solely by the owner's Restaurant Config toggles
+					# (`enable_table_booking`, `enable_offers`, etc.) checked
+					# downstream — not by plan tier.
+					"ordering": True,
+					"loyalty": True,
+					"order_settings": True,
+					"whatsapp_orders": True,
+					"games": True,
+					"tableBooking": True,
+					"events": True,
+					"offers": True,
+					"experience_lounge": True,
+					"google_growth": True,
+					"marketing_studio": True,
+					"videoUpload": True,
+					"analytics": True,
+					"customer": True,
+					"aiRecommendations": True,
+					"customBranding": True,
 				}
 			},
 			# placeholder for feature cards (will be populated below)
 			"homeFeatures": []
 		}
 
-		# Fetch active coupons for this restaurant with a minimum order amount if GOLD plan
-		if plan_type == "GOLD":
+		# Active coupons are available to every restaurant under the
+		# single-tier model — the legacy `if plan_type == "GOLD":` gate was
+		# turned into an unconditional branch (kept as `if True:` to avoid a
+		# large dedent in this very long function). Do not remove the
+		# conditional without also dedenting the entire block below.
+		if True:
 			# Fetch active coupons — include all combo fields
 			coupons = frappe.db.get_list("Coupon",
 				filters={
@@ -637,14 +641,9 @@ def get_home_features(restaurant_id):
 			
 			formatted_features.append(feature_data)
 
-		# Filter features based on subscription plan
-		plan_type = frappe.db.get_value("Restaurant", restaurant, "plan_type") or "SILVER"
-		if plan_type == "SILVER":
-			# Only GOLD gets: offers-events, dine-play, book-table
-
-
-			restricted_ids = ["book-table", "offers-events", "dine-play"]
-			formatted_features = [f for f in formatted_features if f["id"] not in restricted_ids]
+		# Under the single-tier model every restaurant has access to all home
+		# features; visibility is now driven solely by the owner's per-feature
+		# `is_enabled` toggle below.
 
 		# De-duplicate by feature id so each restaurant has at most one
 		# card per logical home feature (menu, book-table, etc.).

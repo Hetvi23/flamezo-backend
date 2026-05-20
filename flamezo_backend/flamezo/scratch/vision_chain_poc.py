@@ -32,7 +32,7 @@ from flamezo_backend.flamezo.services.ai.menu_extraction import MenuExtractor, M
 
 def vision_chain_gemini_test(image_path):
     os.chdir(sites_path)
-    frappe.init(site="dine_matters", sites_path=".")
+    frappe.init(site="flamezo", sites_path=".")
     frappe.connect()
     
     # API Keys

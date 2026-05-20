@@ -8,9 +8,9 @@ interface SuspendedOverlayProps {
   reason?: string
 }
 
-export const SuspendedOverlay: React.FC<SuspendedOverlayProps> = ({ 
-  restaurantName, 
-  reason = "Your account has been suspended due to a security reason. Please contact support for reactivation." 
+export const SuspendedOverlay: React.FC<SuspendedOverlayProps> = ({
+  restaurantName,
+  reason = 'Your account has been suspended due to a billing issue. Please clear dues and contact support to reactivate.',
 }) => {
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-background/80 backdrop-blur-md animate-in fade-in duration-500">
@@ -39,7 +39,7 @@ export const SuspendedOverlay: React.FC<SuspendedOverlayProps> = ({
               
               <div className="grid gap-2">
                 <Button className="w-full gap-2 bg-foreground hover:bg-foreground/90 text-background h-11" asChild>
-                   <a href="mailto:support@flamezo_backend.ono.menu">
+                   <a href="mailto:hello@onomatrix.com">
                       <Mail className="h-4 w-4" />
                       Contact Billing Support
                    </a>

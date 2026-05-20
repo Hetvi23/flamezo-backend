@@ -279,18 +279,14 @@ export const WIZARD_FIELD_GATE: Record<WizardStepId, StepFieldGate> = {
 
 /**
  * Returns the list of fields to pass to DynamicForm's hideFields prop.
- * Combines alwaysHidden + plan-filtered goldOnly/silverOnly fields.
+ *
+ * Under the May 2026 single-tier model every restaurant is on GOLD, so the
+ * SILVER-side filtering is dead — `silverOnly` fields are always hidden
+ * (their SILVER-specific UI controls are no longer relevant) and `goldOnly`
+ * fields are always shown. The `planType` parameter is retained for the
+ * existing call-site signature but is no longer consulted.
  */
-export function getHiddenFields(stepId: WizardStepId, planType: 'SILVER' | 'GOLD'): string[] {
+export function getHiddenFields(stepId: WizardStepId, _planType: 'SILVER' | 'GOLD'): string[] {
   const gate = WIZARD_FIELD_GATE[stepId]
-  const hidden = [...gate.alwaysHidden]
-
-  if (planType === 'SILVER') {
-    hidden.push(...gate.goldOnly)
-  }
-  if (planType === 'GOLD') {
-    hidden.push(...gate.silverOnly)
-  }
-
-  return hidden
+  return [...gate.alwaysHidden, ...gate.silverOnly]
 }

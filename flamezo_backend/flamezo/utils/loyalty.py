@@ -114,7 +114,7 @@ def earn_loyalty_coins(customer, restaurant, amount_paid, reason="Order", ref_do
 		return 0
 
 	# ── Platform-Constant Rates (no DB read for earn config) ──────────────────
-	plan_type    = frappe.db.get_value("Restaurant", restaurant, "plan_type") or "SILVER"
+	plan_type    = frappe.db.get_value("Restaurant", restaurant, "plan_type") or "GOLD"
 	min_order    = get_min_order_to_earn()     # ₹100
 	max_cap      = get_max_coins_per_order(plan_type)
 	expiry_months = get_expiry_months()        # 6

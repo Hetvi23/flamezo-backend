@@ -122,30 +122,12 @@ export default function AutopaySetupPage() {
     }
   }, [searchParams, setSearchParams])
 
-  const handlePlanToggle = async (newPlan: 'SILVER' | 'GOLD') => {
-    if (!selectedRestaurant || newPlan === planType) return
-
-    // 1. Check for pending changes
-    if (billingInfo?.deferred_plan_type) {
-      toast.error('A plan change is already scheduled for tomorrow.')
-      return
-    }
-
-    // 2. Entrance Barrier Check (wallet must have ₹1299 to unlock GOLD)
-    const goldBarrier = billingInfo?.plan_defaults?.gold_barrier || 1299;
-
-    if (newPlan === 'GOLD' && (billingInfo?.coins_balance || 0) < goldBarrier) {
-      toast.error('Insufficient Balance', {
-        description: `You need at least ₹${goldBarrier} in your wallet to unlock GOLD.`
-      })
-      setShowRecharge(true)
-      return
-    }
-
-
-    // 3. Trigger Modern Confirmation Dialog
-    setNewPlanSelection(newPlan)
-    setShowConfirm(true)
+  const handlePlanToggle = async (_newPlan: 'SILVER' | 'GOLD') => {
+    // Plan toggling is retired under the May 2026 single-tier model — every
+    // onboarded restaurant is already on the only available plan (GOLD), so
+    // there is nothing to toggle. The handler is kept as a no-op so the
+    // existing UI surfaces compile until they're fully removed.
+    toast.info('You are already on the only available plan.')
   }
 
   const confirmPlanChange = async () => {
@@ -311,8 +293,7 @@ export default function AutopaySetupPage() {
             <div className="flex-1">
               <h4 className="text-sm font-black uppercase tracking-tight text-primary">Plan switch scheduled</h4>
               <p className="text-xs text-muted-foreground">
-                Your {billingInfo.deferred_plan_type} plan will be effective from <b>{format(new Date(billingInfo.plan_change_date!), 'do MMMM')} at 12:00 AM</b>.
-                {billingInfo.deferred_plan_type === 'GOLD' && " Premium features will unlock then."}
+                A plan change is scheduled and will take effect from <b>{format(new Date(billingInfo.plan_change_date!), 'do MMMM')} at 12:00 AM</b>.
               </p>
             </div>
             <Badge variant="outline" className="border-primary/30 text-primary">
@@ -387,13 +368,13 @@ export default function AutopaySetupPage() {
                   className="gap-2 bg-foreground text-background hover:bg-foreground/90 font-bold px-6 h-9 rounded-lg shadow-sm"
                 >
                   <Zap className="h-3.5 w-3.5" />
-                  Manage Plan
+                  View Plan
                 </Button>
                 <button
                   onClick={() => setShowComparison(true)}
                   className="text-[9px] text-muted-foreground hover:text-foreground font-bold uppercase tracking-widest transition-colors"
                 >
-                  Compare Tiers
+                  Plan details
                 </button>
               </div>
             </div>
@@ -576,7 +557,9 @@ export default function AutopaySetupPage() {
         planDefaults={{
           gold_floor: billingInfo?.plan_defaults.gold_floor ?? 399,
           gold_commission: billingInfo?.plan_defaults.gold_commission ?? 1.5,
-          gold_barrier: billingInfo?.plan_defaults.gold_barrier ?? 1299,
+          // Retired in the single-tier model — kept here as 0 so the legacy
+          // prop signature still type-checks for callers that pass it through.
+          gold_barrier: 0,
         }}
       />
 

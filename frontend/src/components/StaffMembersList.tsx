@@ -250,10 +250,14 @@ export default function StaffMembersList({ restaurantId, onAdd }: StaffMembersLi
               style={{ width: seatLimit > 0 ? `${Math.min(100, (seatsUsed / seatLimit) * 100)}%` : '0%' }}
             />
           </div>
-          {seatsRemaining === 0 && planType !== 'GOLD' && (
+          {/* Single-tier model: every restaurant gets the GOLD seat limit (6).
+              `planType !== 'GOLD'` is always false now, so the legacy "upgrade
+              to unlock more seats" copy has been removed. If the owner does
+              hit the seat cap, contact support for an override. */}
+          {seatsRemaining === 0 && (
             <div className="mt-3 flex items-center gap-2 text-xs text-amber-600 dark:text-amber-400">
               <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
-              <span>Seat limit reached. Upgrade to GOLD for 6 staff seats.</span>
+              <span>Seat limit reached — contact support if you need additional staff seats.</span>
             </div>
           )}
         </div>

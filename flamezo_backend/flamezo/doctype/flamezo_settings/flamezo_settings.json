@@ -146,10 +146,11 @@
    "label": "GOLD Commission Percent"
   },
   {
-   "default": "1299",
+   "default": "0",
    "fieldname": "gold_upgrade_barrier",
    "fieldtype": "Float",
-   "label": "GOLD Upgrade Barrier (₹)"
+   "label": "GOLD Upgrade Barrier (Legacy)",
+   "description": "Legacy ₹1,299 wallet-balance unlock barrier. Retired in the May 2026 single-tier model — GOLD onboarding is now free. Default kept as 0.0 so legacy clients reading this value receive a no-op."
   },
   {
    "fieldname": "section_evolution_api",

@@ -217,6 +217,11 @@ class TestDailySubscriptionFloors(unittest.TestCase):
         txn = get_latest_transaction(name, "Monthly GOLD Floor")
         self.assertIsNone(txn, "Floor recovery must be skipped when flag is off")
 
+    @unittest.skip(
+        "Legacy two-plan model — SILVER restaurants no longer exist as a "
+        "live tier under the May 2026 single-tier model; the floor task "
+        "still filters on plan_type='GOLD' so the assertion is implicit."
+    )
     def test_silver_restaurants_are_not_billed(self):
         """SILVER plan must never receive a floor deduction."""
         name = f"{_PREFIX}-DSF-X-{self._sfx}"
@@ -271,6 +276,11 @@ class TestDailySubscriptionFloors(unittest.TestCase):
 
 # ─── 2. sync_restaurant_subscription() ───────────────────────────────────────
 
+@unittest.skip(
+    "Legacy two-plan model — these tests cover SILVER→GOLD deferred "
+    "transitions which are no longer reachable (SILVER is not a valid "
+    "target under the May 2026 single-tier model)."
+)
 class TestSyncRestaurantSubscription(unittest.TestCase):
     """Validates the JIT plan-switch fail-safe function."""
 
@@ -360,6 +370,11 @@ class TestSyncRestaurantSubscription(unittest.TestCase):
 
 # ─── 3. apply_deferred_plan_changes() ────────────────────────────────────────
 
+@unittest.skip(
+    "Legacy two-plan model — these tests cover batch SILVER→GOLD deferred "
+    "transitions which are no longer reachable under the May 2026 "
+    "single-tier model."
+)
 class TestApplyDeferredPlanChanges(unittest.TestCase):
     """Batch midnight task: flip all due restaurants to their new plans."""
 
@@ -407,9 +422,15 @@ class TestApplyDeferredPlanChanges(unittest.TestCase):
 
 # ─── 4. process_silver_feature_renewals() ────────────────────────────────────
 
+@unittest.skip(
+    "Legacy two-plan model — `process_silver_feature_renewals` is now a "
+    "no-op under the May 2026 single-tier model (menu-theme background "
+    "is free for every restaurant, no coin deduction)."
+)
 class TestSilverFeatureRenewals(unittest.TestCase):
     """
-    Daily task that renews paid menu-theme features for SILVER restaurants.
+    LEGACY: Daily task that charged SILVER restaurants 100 coins / 30 days
+    for the menu-theme background feature. Retired in the single-tier model.
 
     Charged:   100 coins / 30 days
     Skipped:   non-GOLD plans
