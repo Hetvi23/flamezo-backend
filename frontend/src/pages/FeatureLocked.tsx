@@ -63,7 +63,7 @@ export default function FeatureLocked() {
           <CardContent className="space-y-6">
             <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 border border-blue-200 dark:border-blue-800">
               <p className="text-sm text-blue-800 dark:text-blue-200">
-                You're currently on the <span className="font-semibold">{planType || 'SILVER'}</span> plan.
+                You're currently on the <span className="font-semibold">{planType || 'GOLD'}</span> plan.
                 Upgrade to {requiredPlan} to unlock this feature and more.
               </p>
             </div>
@@ -160,8 +160,8 @@ function getFeatureDetails(path: string): { featureName: string; requiredPlan: '
     'bookings': { name: 'Table Bookings', plan: 'GOLD' },
     'customers': { name: 'Customer Management', plan: 'GOLD' },
     'coupons': { name: 'Coupons Management', plan: 'GOLD' },
-    'loyalty-settings': { name: 'Loyalty Program', plan: 'GOLD' },   // shouldn't be hit — loyalty is SILVER
-    'loyalty-insights': { name: 'Loyalty Insights', plan: 'GOLD' },  // shouldn't be hit — loyalty is SILVER
+    'loyalty-settings': { name: 'Loyalty Program', plan: 'GOLD' },
+    'loyalty-insights': { name: 'Loyalty Insights', plan: 'GOLD' },
     'pos-integration': { name: 'POS Integration', plan: 'GOLD' },
     'recommendations-engine': { name: 'AI Recommendations', plan: 'GOLD' },
     'payment-stats': { name: 'Payment Analytics', plan: 'GOLD' },

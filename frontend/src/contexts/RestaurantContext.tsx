@@ -12,6 +12,23 @@ interface Restaurant {
   logo?: string
 }
 
+/**
+ * Razorpay Route hybrid settlement state for a restaurant. Mirrors the
+ * `payments` section of `get_restaurant_config`. The merchant dashboard
+ * uses this for:
+ *   • the Success Share Settlement panel (outstanding paise, throttle)
+ *   • route_mode badges (flamezo_hold / direct_split / disabled)
+ *   • the Route KYC status indicator
+ */
+export interface RestaurantPayments {
+  routeMode: 'flamezo_hold' | 'direct_split' | 'disabled'
+  razorpayKycStatus: '' | 'under_review' | 'needs_clarification' | 'activated' | 'suspended' | 'rejected'
+  outstandingSuccessSharePaise: number
+  cashPaymentsDisabledUntil: string | null
+  cashSweepFailureCount: number
+  lastCashSweepError: string
+}
+
 interface RestaurantContextType {
   selectedRestaurant: string | null
   setSelectedRestaurant: (restaurantId: string | null) => void
@@ -21,7 +38,7 @@ interface RestaurantContextType {
   restaurantConfig?: any | null
   setRestaurantConfig?: (cfg: any | null) => void
   refreshConfig: () => Promise<void>
-  planType: 'SILVER' | 'GOLD'
+  planType: 'GOLD'
   isGold: boolean
   isSilver: boolean
   coinsBalance: number
@@ -45,6 +62,12 @@ interface RestaurantContextType {
     order_settings: boolean
   }
   billingInfo: any | null
+  /**
+   * Razorpay Route hybrid payment-settlement state for the selected
+   * restaurant. Populated from the `payments` section of
+   * `get_restaurant_config`. `null` until the config has loaded.
+   */
+  payments: RestaurantPayments | null
   googleMapsApiKey: string | null
   referralCode: string | null
   /** Role of the current user for the selected restaurant */
@@ -236,23 +259,10 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
     }
   }, [selectedRestaurant])
 
-  // Extract subscription data from config.
-  //
-  // May 2026 single-tier model: every onboarded restaurant is on GOLD. The
-  // backend `migrate_silver_to_gold_2026` patch flips any legacy SILVER row
-  // and `get_restaurant_config` always reports `planType: 'GOLD'`. We treat
-  // a missing / unknown plan as GOLD too — there is no other valid tier.
-  const rawPlan = String(restaurantConfig?.subscription?.planType || 'GOLD').toUpperCase()
-  const planType: 'SILVER' | 'GOLD' = rawPlan === 'SILVER' ? 'SILVER' : 'GOLD'
-
+  const planType = 'GOLD' as const
   const billingStatus = restaurantConfig?.subscription?.billingStatus || 'active'
   const coinsBalance = restaurantConfig?.subscription?.coinsBalance || 0
   const isActive = restaurantConfig?.subscription?.isActive ?? true
-
-  // `isGold` / `isSilver` are retained for backwards compatibility with the
-  // dozens of components that import them, but under the single-tier model
-  // `isGold` is always true and `isSilver` is always false. Components are
-  // being incrementally simplified to drop these flags entirely.
   const isGold = true
   const isSilver = false
 
@@ -304,6 +314,18 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
     order_settings: true,
   }
 
+  // Map the backend `payments` block onto our context shape. The backend
+  // always emits this section (with safe defaults like routeMode='flamezo_hold')
+  // so `null` here is really "config not loaded yet".
+  const payments: RestaurantPayments | null = restaurantConfig?.payments ? {
+    routeMode: (restaurantConfig.payments.routeMode || 'flamezo_hold') as RestaurantPayments['routeMode'],
+    razorpayKycStatus: (restaurantConfig.payments.razorpayKycStatus || '') as RestaurantPayments['razorpayKycStatus'],
+    outstandingSuccessSharePaise: Number(restaurantConfig.payments.outstandingSuccessSharePaise || 0),
+    cashPaymentsDisabledUntil: restaurantConfig.payments.cashPaymentsDisabledUntil || null,
+    cashSweepFailureCount: Number(restaurantConfig.payments.cashSweepFailureCount || 0),
+    lastCashSweepError: restaurantConfig.payments.lastCashSweepError || '',
+  } : null
+
   const billingInfo = restaurantConfig?.subscription ? {
     coins_balance: restaurantConfig.subscription.coinsBalance,
     deferred_plan_type: restaurantConfig.subscription.deferredPlanType,
@@ -340,6 +362,7 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
         isActive,
         features,
         billingInfo,
+        payments,
         googleMapsApiKey,
         referralCode: restaurantConfig?.subscription?.referral_code || null,
         userRole,

@@ -225,7 +225,7 @@ export function AiRechargeModal({ open, onClose, restaurant, onSuccess }: CoinRe
             Top up Wallet
           </DialogTitle>
           <DialogDescription>
-            Your wallet balance is used for AI services and platform commissions.
+            Your wallet balance is used for AI services and to cover Flamezo's Success Share when cash orders accrue.
           </DialogDescription>
         </DialogHeader>
 

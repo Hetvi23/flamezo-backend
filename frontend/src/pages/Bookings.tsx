@@ -8,7 +8,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { toast } from 'sonner'
 import CalendarPicker from '@/components/CalendarPicker'
-import { LockedFeature } from '@/components/FeatureGate/LockedFeature'
 import {
   Dialog,
   DialogContent,
@@ -37,7 +36,7 @@ interface Booking {
 const SELECTED_DATE_KEY = 'flamezo_backend-bookings-selected-date'
 
 export default function Bookings() {
-  const { selectedRestaurant, isGold, isSilver } = useRestaurant()
+  const { selectedRestaurant } = useRestaurant()
   const [bookings, setBookings] = useState<Booking[]>([])
   const [loading, setLoading] = useState(true)
   const [showPastBookings, setShowPastBookings] = useState(false)
@@ -265,10 +264,6 @@ export default function Bookings() {
         </div>
       </div>
     )
-  }
-
-  if (isSilver) {
-    return <LockedFeature feature="table_booking" requiredPlan={['GOLD', 'GOLD']} />
   }
 
   return (

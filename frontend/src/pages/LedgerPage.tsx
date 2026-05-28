@@ -475,7 +475,7 @@ export default function LedgerPage() {
           <p className="text-[11px] text-muted-foreground leading-relaxed font-medium">
             Every transaction is recorded with a unique audit ID and balance snapshot. 
             {platformSettings.charge_gst ? `For top-ups, ${platformSettings.gst_percent}% GST is collected upfront and visible in the transaction details.` : 'Top-ups are currently GST-exempt.'} 
-            Deductions for AI usage and commissions are calculated based on your current plans.
+            Deductions for AI usage and Success Share are calculated based on your current plans.
           </p>
         </div>
       </div>

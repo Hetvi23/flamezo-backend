@@ -42,10 +42,10 @@ const AIGalleryPage = lazy(() => import('./pages/AIGalleryPage'))
 const AIMenuThemeBackgroundPage = lazy(() => import('./pages/AIMenuThemeBackgroundPage'))
 const AIMenuThemeHistoryPage = lazy(() => import('./pages/AIMenuThemeHistoryPage'))
 const AutopaySetupPage = lazy(() => import('./pages/AutopaySetupPage'))
+const RouteKycPage = lazy(() => import('./pages/RouteKycPage'))
 const LoyaltySettings = lazy(() => import('./pages/LoyaltySettings'))
 const CustomerInsights = lazy(() => import('./pages/CustomerInsights'))
 const LoyaltyAnalytics = lazy(() => import('./pages/LoyaltyAnalytics'))
-const PaymentConfiguration = lazy(() => import('./pages/PaymentConfiguration'))
 const POSIntegration = lazy(() => import('./pages/POSIntegration'))
 const LedgerPage = lazy(() => import('./pages/LedgerPage'))
 const WhatsAppOrders = lazy(() => import('./pages/WhatsAppOrders'))
@@ -60,6 +60,10 @@ const GoogleGrowth = lazy(() => import('./pages/GoogleGrowth'))
 const GoogleGrowthSync = lazy(() => import('./pages/GoogleGrowthSync'))
 const GoogleGrowthReviews = lazy(() => import('./pages/GoogleGrowthReviews'))
 const TeamManagement = lazy(() => import('./pages/TeamManagement'))
+const BoostOverview = lazy(() => import('./pages/BoostOverview'))
+const BoostNewCampaign = lazy(() => import('./pages/BoostNewCampaign'))
+const BoostCampaignDetail = lazy(() => import('./pages/BoostCampaignDetail'))
+const BoostRedeem = lazy(() => import('./pages/BoostRedeem'))
 const MenuManagement = lazy(() => import('./pages/MenuManagement'))
 const GalleryManagement = lazy(() => import('./pages/GalleryManagement'))
 
@@ -160,10 +164,16 @@ function AppContent() {
 									<Route path="/google-growth/reviews" element={<GoogleGrowthReviews />} />
 								</Route>
 
+								{/* Boost — Ad campaign management */}
+								<Route path="/boost" element={<BoostOverview />} />
+								<Route path="/boost/new" element={<BoostNewCampaign />} />
+								<Route path="/boost/campaign" element={<BoostCampaignDetail />} />
+								<Route path="/boost/redeem" element={<BoostRedeem />} />
+
 								<Route path="/billing" element={<PaymentSettings />} />
-								<Route path="/billing/configure" element={<PaymentConfiguration />} />
 								<Route path="/ledger" element={<LedgerPage />} />
 								<Route path="/autopay-setup" element={<AutopaySetupPage />} />
+								<Route path="/route-kyc" element={<RouteKycPage />} />
 								<Route path="/team" element={<TeamManagement />} />
 
 								<Route path="/menu" element={<MenuManagement />} />
@@ -182,7 +192,7 @@ function AppContent() {
 								<Route path="/logistics-hub" element={<LogisticsHub />} />
 								<Route path="/restaurant/:restaurantId/payment" element={<Payment />} />
 								<Route path="/restaurant/:restaurantId/billing" element={<PaymentSettings />} />
-								<Route path="/restaurant/:restaurantId/billing/configure" element={<PaymentConfiguration />} />
+								<Route path="/restaurant/:restaurantId/route-kyc" element={<RouteKycPage />} />
 								<Route path="/:doctype/:docname" element={<ModuleDetail />} />
 							</Route>
 						</Route>

@@ -54,6 +54,10 @@
   "is_whatsapp_order",
   "platform_fee_amount",
   "restaurant_transfer_amount",
+  "settlement_mode",
+  "razorpay_transfer_id",
+  "commission_ledger_entry",
+  "cash_netoff_applied_paise",
   "section_break_delivery",
   "estimated_delivery",
   "delivery_partner",
@@ -379,16 +383,48 @@
   {
    "fieldname": "platform_fee_amount",
    "fieldtype": "Int",
-   "label": "Platform Fee Amount (Paise)",
+   "label": "Success Share Amount (Paise)",
    "read_only": 1,
-   "description": "Platform fee amount in paise (1.5% of total)"
+   "description": "Success Share in paise (1.5% of total)"
   },
   {
    "fieldname": "restaurant_transfer_amount",
    "fieldtype": "Int",
    "label": "Restaurant Transfer Amount (Paise)",
    "read_only": 1,
-   "description": "Amount transferred to restaurant in paise"
+   "description": "Amount transferred to restaurant in paise (for Route direct_split orders)"
+  },
+  {
+   "fieldname": "settlement_mode",
+   "fieldtype": "Select",
+   "label": "Settlement Mode",
+   "options": "\nroute_split\nflamezo_hold\ncash_deferred\ncash_settled\nmerchant_direct",
+   "read_only": 1,
+   "in_standard_filter": 1,
+   "description": "How the platform fee for this order was/will be collected. route_split = Razorpay Route auto-split. flamezo_hold = full amount in Flamezo, manual settlement. cash_deferred = cash order with open Commission Ledger Entry. cash_settled = cash order, commission recovered. merchant_direct = restaurant uses own Razorpay keys."
+  },
+  {
+   "fieldname": "razorpay_transfer_id",
+   "fieldtype": "Data",
+   "label": "Razorpay Transfer ID",
+   "read_only": 1,
+   "description": "Route transfer ID for direct_split orders. Needed for refund reversal."
+  },
+  {
+   "fieldname": "commission_ledger_entry",
+   "fieldtype": "Link",
+   "label": "Success Share Ledger Entry",
+   "options": "Commission Ledger Entry",
+   "read_only": 1,
+   "description": "Linked Success Share ledger entry for cash orders (one per order)"
+  },
+  {
+   "fieldname": "cash_netoff_applied_paise",
+   "fieldtype": "Int",
+   "label": "Cash Success Share Netoff (Paise)",
+   "read_only": 1,
+   "default": "0",
+   "description": "How much of the platform's split for this online order went toward settling prior cash Success Share (Tier 1 net-off)."
   },
   {
    "fieldname": "acquisition_source",

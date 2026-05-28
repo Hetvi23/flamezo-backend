@@ -7,7 +7,9 @@ from flamezo_backend.flamezo.api.webhooks import (
     handle_payment_failed,
     handle_subscription_event,
     handle_dispute_event,
-    handle_operational_event
+    handle_operational_event,
+    handle_account_status,
+    handle_transfer_event,
 )
 
 
@@ -86,6 +88,34 @@ def process_webhook_log(webhook_log_name=None, webhook_log_doc=None, **kwargs):
         'payment.downtime.updated': handle_operational_event,
         'payment.downtime.resolved': handle_operational_event,
         
+        # Route Linked Account KYC lifecycle.
+        # As of 2026 the Razorpay dashboard event picker on Standard accounts
+        # only surfaces 7 of these (the ones marked ✓). `account.suspended` is
+        # documented but only emitted on Partner/Aggregator tier — on Standard
+        # tier, suspension arrives as `account.updated` with
+        # `entity.status == "suspended"`, which `handle_account_status`
+        # already handles by falling through to the status-field branch.
+        # We keep `account.suspended` mapped here as forward-compat in case
+        # the tier is upgraded or Razorpay starts emitting it directly.
+        'account.under_review': handle_account_status,             # ✓ Standard
+        'account.needs_clarification': handle_account_status,      # ✓ Standard
+        'account.activated': handle_account_status,                # ✓ Standard
+        'account.instantly_activated': handle_account_status,      # ✓ Standard
+        'account.activated_kyc_pending': handle_account_status,    # ✓ Standard
+        'account.rejected': handle_account_status,                 # ✓ Standard
+        'account.updated': handle_account_status,                  # ✓ Standard
+        'account.suspended': handle_account_status,                # Partner-tier only
+
+        # Route transfer lifecycle (split payments). Razorpay Standard only
+        # emits transfer.processed and transfer.failed; the other two are
+        # kept defensively (Partner-tier and forward-compat). transfer_id is
+        # captured from the payment.captured payload's `transfers[]` array,
+        # so transfer.created is not on the critical path.
+        'transfer.processed': handle_transfer_event,               # ✓ Standard
+        'transfer.failed': handle_transfer_event,                  # ✓ Standard
+        'transfer.created': handle_transfer_event,                 # Partner-tier only
+        'transfer.reversed': handle_transfer_event,                # Partner-tier only
+
         # Others
         'payment_link.partially_paid': handle_payment_link_paid,
         'order.notification.delivered': handle_operational_event

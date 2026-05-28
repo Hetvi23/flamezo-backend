@@ -11,7 +11,12 @@ from frappe import _
 from frappe.utils import flt, getdate, today, now_datetime, get_datetime
 from flamezo_backend.flamezo.utils.api_helpers import validate_restaurant_for_api, get_restaurant_from_id
 from flamezo_backend.flamezo.utils.feature_gate import require_plan
-from flamezo_backend.flamezo.utils.customer_helpers import get_customer_token, get_customer_from_token
+from flamezo_backend.flamezo.utils.customer_helpers import (
+	get_customer_token,
+	get_customer_from_token,
+	has_active_customer_session,
+	normalize_phone,
+)
 import json
 import csv
 import io
@@ -206,17 +211,44 @@ def get_coupon_details(restaurant, coupon_code, cart_total=0, customer_id=None, 
 	}
 
 @frappe.whitelist(allow_guest=True)
-def validate_coupon(restaurant_id, coupon_code, cart_total=0, customer_id=None, cart_items=None):
-	"""API wrapper for get_coupon_details"""
+def validate_coupon(restaurant_id, coupon_code, cart_total=0, customer_id=None, cart_items=None, phone=None):
+	"""API wrapper for get_coupon_details.
+
+	Coupons are a Savings-Corner feature — gated behind verification. Requires
+	an X-Customer-Token in headers bound to ``phone``. If the caller doesn't
+	pass a phone (legacy callers), we fall back to identifying via the token
+	alone, but we still reject if the token is missing/invalid.
+	"""
 	try:
 		restaurant = validate_restaurant_for_api(restaurant_id)
-		
-		# Production Auth: Prioritize identity from session token for secure usage limit checks
+
+		# Verification gate. Two paths:
+		#   1. Modern client: passes phone + token → strict phone/token match check.
+		#   2. Legacy client: token only → derive identity from token, still requires a valid one.
 		token = get_customer_token()
+		if phone:
+			normalized = normalize_phone(phone)
+			if not has_active_customer_session(normalized):
+				return {
+					"success": False,
+					"error": {
+						"code": "COUPON_REQUIRES_VERIFICATION",
+						"message": "Verify your phone with OTP to use coupons."
+					}
+				}
 		token_customer_id = get_customer_from_token(token)
 		if token_customer_id:
 			customer_id = token_customer_id
-			
+		elif not phone:
+			# No token AND no phone — definitely unverified.
+			return {
+				"success": False,
+				"error": {
+					"code": "COUPON_REQUIRES_VERIFICATION",
+					"message": "Verify your phone with OTP to use coupons."
+				}
+			}
+
 		result = get_coupon_details(restaurant, coupon_code, cart_total, customer_id, cart_items)
 		
 		if not result.get("success"):

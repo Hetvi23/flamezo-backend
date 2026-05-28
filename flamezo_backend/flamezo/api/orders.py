@@ -27,6 +27,9 @@ from flamezo_backend.flamezo.utils.customer_helpers import (
 	get_phone_variants_for_lookup,
 	is_phone_verified,
 	get_customer_token,
+	has_active_customer_session,
+	can_use_savings_features,
+	can_use_loyalty,
 )
 import json
 import random
@@ -114,24 +117,49 @@ def create_order(restaurant_id, items, cooking_requests=None, customer_info=None
 					}
 				}
 		
-		# OTP/Session gate: require verified phone + valid session token when verify_my_user is on
+		# ── Verification gates (backend-controlled, single GOLD plan) ─────────
+		# Basic ordering (name + phone, no coupon, no loyalty) is ALWAYS open —
+		# no OTP required. Verification is only enforced for Savings-Corner
+		# features so verification becomes a clear reward for the customer.
 		phone = customer_info.get("phone")
+		normalized_pm_check = (str(payment_method or "").strip().lower())
+
 		if phone:
-			# Check if verification is active for this restaurant
-			config = frappe.db.get_value("Restaurant Config", {"restaurant": restaurant_id}, "verify_my_user")
-			if config:
-				# Secure Session Check: Validate the customer token from headers
-				session_token = get_customer_token()
-				if not validate_customer_session(phone, session_token):
+			# Coupon usage requires a verified session for this phone.
+			if coupon_code and not can_use_savings_features(phone):
+				return {
+					"success": False,
+					"error": {
+						"code": "COUPON_REQUIRES_VERIFICATION",
+						"message": "Verify your phone with OTP to use coupons."
+					}
+				}
+			# Loyalty redemption requires verified session AND online payment.
+			if cint(loyalty_coins_redeemed) > 0:
+				if not has_active_customer_session(phone):
 					return {
 						"success": False,
-						"error": {"code": "PHONE_NOT_VERIFIED", "message": "Secure session expired or invalid. Please verify with OTP again."}
+						"error": {
+							"code": "LOYALTY_REQUIRES_VERIFICATION",
+							"message": "Verify your phone with OTP to redeem Flamezo Cash."
+						}
+					}
+				if normalized_pm_check != "pay_online":
+					return {
+						"success": False,
+						"error": {
+							"code": "LOYALTY_REQUIRES_ONLINE_PAYMENT",
+							"message": "Pay online to redeem Flamezo Cash. Cashback cannot be used on cash orders."
+						}
 					}
 
 		platform_customer = None
 		if phone:
 			cust = get_or_create_customer(phone, customer_info.get("name"), customer_info.get("email"))
 			platform_customer = cust.name if cust else None
+
+		# Cache the session-verified state so pricing + earn paths see the same answer.
+		session_verified = has_active_customer_session(phone) if phone else False
 		
 		# Get user
 		user = frappe.session.user if frappe.session.user != "Guest" else None
@@ -234,7 +262,9 @@ def create_order(restaurant_id, items, cooking_requests=None, customer_info=None
 			coupon_code=coupon_code,
 			loyalty_coins=cint(loyalty_coins_redeemed),
 			customer=platform_customer,
-			delivery_type=delivery_type
+			delivery_type=delivery_type,
+			payment_method=payment_method,
+			session_verified=session_verified
 		)
 
 		# Validate Serviceability (Distance Check)
@@ -378,15 +408,20 @@ def create_order(restaurant_id, items, cooking_requests=None, customer_info=None
 			
 			loyalty_prog = frappe.get_doc("Restaurant Loyalty Config", {"restaurant": restaurant, "is_active": 1})
 			if loyalty_prog and platform_customer:
-				# 1. Earn points on current order (10% on total)
-				earn_loyalty_coins(
-					customer=platform_customer,
-					restaurant=restaurant,
-					amount_paid=order_doc.total,
-					reason="Order",
-					ref_doctype="Order",
-					ref_name=order_doc.name
-				)
+				# 1. Earn cashback — gated to (verified session + pay_online).
+				# earn_loyalty_coins() itself checks payment_method=='pay_online' for
+				# Order-sourced entries; we add the session check here so an
+				# unverified guest paying online still earns 0.
+				if session_verified:
+					earn_loyalty_coins(
+						customer=platform_customer,
+						restaurant=restaurant,
+						amount_paid=order_doc.total,
+						reason="Order",
+						ref_doctype="Order",
+						ref_name=order_doc.name,
+						payment_method=order_payment_method
+					)
 				
 				# 2. Handle Referral Conversion Reward
 				if order_doc.referral_link:

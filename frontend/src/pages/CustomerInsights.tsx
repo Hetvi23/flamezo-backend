@@ -8,7 +8,7 @@ import { NumberInput } from "@/components/ui/number-input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
-import { Users, Search, PlusCircle, MinusCircle, User, History, Loader2, ArrowUpRight, ArrowDownLeft, Coins } from 'lucide-react'
+import { Users, Search, PlusCircle, MinusCircle, User, History, Loader2, ArrowUpRight, ArrowDownLeft } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -37,28 +37,6 @@ export default function CustomerInsights() {
   const { call: getInsights } = useFrappePostCall('flamezo_backend.flamezo.api.loyalty.get_customer_insights')
   const { call: adjustPoints } = useFrappePostCall('flamezo_backend.flamezo.api.loyalty.adjust_customer_points')
   const { call: getTransactions } = useFrappePostCall('flamezo_backend.flamezo.api.loyalty.get_customer_transactions')
-  const { restaurantConfig, isSilver, planType } = useRestaurant()
-
-  const { call: unlockCustomerApi } = useFrappePostCall('flamezo_backend.flamezo.api.customers.unlock_customer_data')
-
-  const handleUnlockCustomer = async (customerId: string) => {
-    try {
-      const res = await unlockCustomerApi({
-        restaurant_id: selectedRestaurant,
-        customer_id: customerId
-      })
-      const body = (res as any)?.message || res
-      if (body.success) {
-        toast.success(body.message || 'Profile unlocked!')
-        fetchInsights()
-      } else {
-        toast.error(body.error || 'Failed to unlock profile')
-      }
-    } catch (err) {
-      toast.error('Internal error occurred')
-    }
-  }
-
   const fetchInsights = async () => {
     if (!selectedRestaurant) return
     setLoading(true)
@@ -191,20 +169,10 @@ export default function CustomerInsights() {
                 ) : (
                   customers.map((customer) => (
                     <TableRow key={customer.id}>
-                      <TableCell className="font-medium text-sm">
-                        <div className={!customer.is_unlocked && isSilver ? "select-none opacity-40 brightness-50" : ""}>
-                          {customer.name}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-sm">
-                        <div className={!customer.is_unlocked && isSilver ? "select-none opacity-40 brightness-50" : ""}>
-                          {customer.phone || 'N/A'}
-                        </div>
-                      </TableCell>
+                      <TableCell className="font-medium text-sm">{customer.name}</TableCell>
+                      <TableCell className="text-sm">{customer.phone || 'N/A'}</TableCell>
                       <TableCell className="text-xs text-muted-foreground">
-                        <div className={!customer.is_unlocked && isSilver ? "select-none opacity-40 brightness-50" : ""}>
-                          {customer.birthday && customer.birthday !== '********' ? new Date(customer.birthday).toLocaleDateString() : '—'}
-                        </div>
+                        {customer.birthday && customer.birthday !== '********' ? new Date(customer.birthday).toLocaleDateString() : '—'}
                       </TableCell>
                       <TableCell>
                         <Badge variant={customer.balance > 0 ? "default" : "secondary"} className="gap-1">
@@ -233,23 +201,11 @@ export default function CustomerInsights() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
-                          {!customer.is_unlocked && isSilver && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleUnlockCustomer(customer.id)}
-                              className="h-8 rounded-lg bg-primary/5 hover:bg-primary/10 border-primary/20 text-primary font-bold transition-all hover:scale-[1.02] active:scale-[0.98] group"
-                            >
-                              <Coins className="h-3.5 w-3.5 mr-1.5 group-hover:rotate-12 transition-transform" />
-                              5 Credits
-                            </Button>
-                          )}
                           <Button
                             variant="outline"
                             size="sm"
                             className="h-8 gap-1"
                             onClick={() => fetchHistory(customer)}
-                            disabled={!customer.is_unlocked && isSilver}
                           >
                             <History className="w-3.5 h-3.5" />
                             History
@@ -263,7 +219,6 @@ export default function CustomerInsights() {
                               setAdjustType('Earn')
                               setAdjustModalOpen(true)
                             }}
-                            disabled={!customer.is_unlocked && isSilver}
                           >
                             <PlusCircle className="w-3.5 h-3.5" />
                             Give Cash
@@ -277,7 +232,6 @@ export default function CustomerInsights() {
                               setAdjustType('Redeem')
                               setAdjustModalOpen(true)
                             }}
-                            disabled={!customer.is_unlocked && isSilver}
                           >
                             <MinusCircle className="w-3.5 h-3.5" />
                             Deduct

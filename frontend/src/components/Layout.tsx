@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate, Outlet } from 'react-router-dom'
-import { Home, ShoppingCart, Package, Truck, FolderTree, Grid3x3, Sparkles, Star, Store, X, Lock, LockOpen, ChevronDown, ChevronRight, TrendingUp, TrendingDown, DollarSign, AlertCircle, Activity, Moon, Sun, ExternalLink, Eye, Plus, Loader2, QrCode, Clock, User, Users, LogOut, LayoutDashboard, CheckCircle2, Calendar, Tag, Shield, ShieldAlert, Wallet, Crown, CreditCard, Settings, MessageSquare, Megaphone, Send, Zap, BarChart3, Menu, Search, Globe, Mail, Smartphone, ClipboardCopy, PartyPopper } from 'lucide-react'
+import { Home, ShoppingCart, Package, Truck, FolderTree, Grid3x3, Sparkles, Star, Store, X, Lock, LockOpen, ChevronDown, ChevronRight, TrendingUp, TrendingDown, DollarSign, AlertCircle, Activity, Moon, Sun, ExternalLink, Eye, Plus, Loader2, QrCode, Clock, User, Users, LogOut, LayoutDashboard, CheckCircle2, Calendar, Tag, Shield, ShieldAlert, Wallet, Crown, CreditCard, Settings, MessageSquare, Megaphone, Send, Zap, BarChart3, Menu, Search, Globe, Mail, Smartphone, ClipboardCopy, PartyPopper, Landmark } from 'lucide-react'
 import { cn, copyToClipboard } from '@/lib/utils'
 import { useFrappeGetDocList, useFrappePostCall, useFrappeAuth, useFrappeGetCall } from '@/lib/frappe'
 import { AiRechargeModal } from '@/components/AiRechargeModal'
@@ -188,6 +188,17 @@ const navigation: NavItem[] = [
   },
   {
     type: 'group',
+    id: 'boost',
+    name: 'Boost',
+    icon: Zap,
+    children: [
+      { name: 'Overview', href: '/boost', icon: Megaphone },
+      { name: 'New Campaign', href: '/boost/new', icon: Plus },
+      { name: 'Redeem Coupon', href: '/boost/redeem', icon: Tag },
+    ],
+  },
+  {
+    type: 'group',
     id: 'setup-config',
     name: 'Setup & Config',
     icon: Store,
@@ -205,6 +216,7 @@ const navigation: NavItem[] = [
     ],
   },
   { type: 'link', name: 'Customer pay & Usage', href: '/billing', icon: CreditCard, feature: 'customer_pay_and_usage' },
+  { type: 'link', name: 'Direct Bank Payouts', href: '/route-kyc', icon: Landmark },
   // Admin-only link - will be filtered by admin check in render
   { type: 'link', name: 'Restaurant Management', href: '/admin/restaurants', icon: Shield, adminOnly: true },
 ]
@@ -214,7 +226,7 @@ export default function Layout({ children }: LayoutProps) {
   const location = useLocation()
   const navigate = useNavigate()
   const { theme, toggleTheme } = useTheme()
-  const { selectedRestaurant, setSelectedRestaurant, restaurants, isGold, isSilver, planType, coinsBalance, billingStatus, isActive, refreshConfig, billingInfo, isAdmin: isRestaurantAdmin, restaurantConfig } = useRestaurant()
+  const { selectedRestaurant, setSelectedRestaurant, restaurants, isGold, planType, coinsBalance, billingStatus, isActive, refreshConfig, billingInfo, isAdmin: isRestaurantAdmin, restaurantConfig } = useRestaurant()
   const orderChannel: 'Realtime' | 'WhatsApp' = restaurantConfig?.settings?.order_settings?.order_channel || 'Realtime'
   const { formatAmountNoDecimals } = useCurrency()
   const [sidebarOpen, setSidebarOpen] = useState(false) // Mobile sidebar
@@ -329,8 +341,7 @@ export default function Layout({ children }: LayoutProps) {
   })
   const [isCreating, setIsCreating] = useState(false)
   const [sendOnboarding, setSendOnboarding] = useState(false)
-  const [sendPaymentInfo, setSendPaymentInfo] = useState(false)
-  const [paymentTier, setPaymentTier] = useState<'SILVER' | 'GOLD'>('SILVER')
+  const [sendPaymentInfo] = useState(false)
 
   // API calls
   const { call: createRestaurant } = useFrappePostCall('frappe.client.insert')
@@ -443,59 +454,16 @@ export default function Layout({ children }: LayoutProps) {
           }
         }
 
-        // ── Post-creation: Send Payment Info via WhatsApp ───────────────
-        if (sendPaymentInfo && paymentTier !== 'SILVER') {
-          try {
-            const plinkRes = await createPaymentLink({
-              restaurant_id: restaurantId,
-              tier: paymentTier
-            }) as any
-
-            if (plinkRes?.message?.success) {
-              const { payment_link_url, amount, owner_phone, whatsapp_sent, whatsapp_error } = plinkRes.message
-              const phone = normalizePhone(owner_phone || newRestaurantData.owner_phone || '')
-
-              const waText = encodeURIComponent(
-                `Hi! 👋 Welcome to Flamezo.\n\n` +
-                `To activate your *${paymentTier}* plan, please complete your wallet top-up of *₹${amount.toLocaleString()}* (Incl. 18% GST) using the secure payment link below:\n\n` +
-                `💳 ${payment_link_url}\n\n` +
-                `Once paid, your wallet will be automatically credited and you're good to go! 🚀`
-              )
-
-              if (whatsapp_sent) {
-                toast.success(`WhatsApp sent!`, {
-                  description: `Payment link for ₹${amount.toLocaleString()} sent automatically via Evolution API.`
-                })
-              } else if (phone) {
-                // Fallback to manual wa.me if auto-send failed or wasn't attempted
-                window.open(`https://wa.me/${phone}?text=${waText}`, '_blank', 'noopener,noreferrer')
-                toast.success(`WhatsApp opened!`, {
-                  description: whatsapp_error
-                    ? `Auto-send failed (${whatsapp_error}). Manual link ready.`
-                    : `Payment link for ₹${amount.toLocaleString()} (${paymentTier}) ready to send.`
-                })
-              } else {
-                // No phone — show link modal as fallback
-                setLinkToCopy(payment_link_url || '')
-                setIsLinkModalOpen(true)
-              }
-            } else {
-              toast.error('Could not create payment link', {
-                description: plinkRes?.message?.error || 'Please create it from the restaurant details page.'
-              })
-            }
-          } catch (err) {
-            console.error('Payment link error:', err)
-            toast.error('Payment link creation failed')
-          }
-        }
+        // Retired: legacy WhatsApp "send wallet top-up link" tied to the
+        // ₹1,299 GOLD upgrade barrier. Single-tier GOLD onboarding is now
+        // free — no link needs to be sent. The block has been removed; the
+        // restaurant doc is created and the owner gets the password-setup
+        // email above which is sufficient to complete onboarding.
 
         // ── Close & Navigate ────────────────────────────────────────────
         setShowCreateModal(false)
         setNewRestaurantData({ restaurant_name: '', owner_email: '', owner_phone: '', referral_code: '' })
         setSendOnboarding(false)
-        setSendPaymentInfo(false)
-        setPaymentTier('SILVER')
 
         setSelectedRestaurant(restaurantDocName)
         window.dispatchEvent(new CustomEvent('restaurant-selected'))
@@ -523,7 +491,7 @@ export default function Layout({ children }: LayoutProps) {
   // Fetch only the fields needed from Restaurant doc (avoids fetching huge description field)
   const { data: restaurantDocList } = useFrappeGetDocList('Restaurant', {
     filters: selectedRestaurant ? [['name', '=', selectedRestaurant]] : [],
-    fields: ['name', 'slug', 'restaurant_id', 'restaurant_name'],
+    fields: ['name', 'slug', 'restaurant_id', 'restaurant_name', 'base_url'],
     limit: 1,
   })
   const restaurantDoc = restaurantDocList?.[0] || null
@@ -754,14 +722,17 @@ export default function Layout({ children }: LayoutProps) {
                       <span className="text-[13px] font-medium text-sidebar-foreground truncate min-w-0">
                         {currentRestaurant?.restaurant_name || restaurantDoc?.restaurant_name || restaurants[0]?.restaurant_name || 'Select Restaurant'}
                       </span>
-                      {isGold ? (
-                        <span className="inline-flex shrink-0 items-center gap-0.5 px-1.5 py-0.5 text-[9px] font-black rounded-sm"
+                      {planType === 'GOLD' || isGold ? (
+                        <span
+                          className="inline-flex shrink-0 items-center gap-0.5 px-1.5 py-0.5 text-[9px] font-black rounded-sm"
                           style={{ background: 'linear-gradient(135deg, #F59E0B 0%, #B45309 100%)', color: '#FFF8E7' }}
                         >
                           <Crown className="h-2 w-2" />GOLD
                         </span>
                       ) : (
-                        <span className="inline-flex shrink-0 items-center px-1.5 py-0.5 text-[9px] font-bold bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400 rounded-sm">
+                        <span
+                          className="inline-flex shrink-0 items-center px-1.5 py-0.5 text-[9px] font-bold bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400 rounded-sm"
+                        >
                           SILVER
                         </span>
                       )}
@@ -897,10 +868,6 @@ export default function Layout({ children }: LayoutProps) {
             {isActive && navigation
               .filter((item) => {
                 if (item.adminOnly && !isSystemAdmin) {
-                  return false
-                }
-                // WhatsApp Orders visibility: only GOLD and SILVER
-                if (item.feature === 'whatsapp_orders' && !isGold && !isSilver) {
                   return false
                 }
                 if (item.type === 'group') {
@@ -1043,7 +1010,7 @@ export default function Layout({ children }: LayoutProps) {
                             hasActiveChild ? "text-primary" : "text-muted-foreground hover:text-sidebar-foreground",
                             isGroupFullyLocked && "opacity-60"
                           )}
-                          title={`${group.name}${isWhatsAppChannelLocked ? ' (WhatsApp channel active)' : isGroupFullyLocked ? ' (Locked)' : ''}`}
+                          title={`${group.name}${(group.id === 'google-growth' || group.id === 'boost') ? ' (Beta)' : ''}${isWhatsAppChannelLocked ? ' (WhatsApp channel active)' : isGroupFullyLocked ? ' (Locked)' : ''}`}
                         >
                           <Icon className="h-4 w-4" />
                           {isGroupFullyLocked && (
@@ -1140,7 +1107,14 @@ export default function Layout({ children }: LayoutProps) {
                       )} />
                       {showExpanded && (
                         <>
-                          <span className="flex-1 text-left">{group.name}</span>
+                          <span className="flex-1 text-left flex items-center gap-1.5">
+                            {group.name}
+                            {(group.id === 'google-growth' || group.id === 'boost') && (
+                              <span className="inline-flex items-center px-1.5 py-0.5 text-[9px] font-black tracking-wider rounded-sm bg-orange-500/10 text-orange-600 border border-orange-500/20 dark:bg-orange-500/20 dark:text-orange-400 dark:border-orange-400/20">
+                                BETA
+                              </span>
+                            )}
+                          </span>
                           {isGroupFullyLocked && (
                             GroupLockIcon
                           )}
@@ -1159,6 +1133,7 @@ export default function Layout({ children }: LayoutProps) {
                       {!showExpanded && (
                         <span className="absolute left-full ml-2 px-2 py-1 rounded-md bg-foreground text-background text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none z-50 shadow-lg">
                           {group.name}
+                          {(group.id === 'google-growth' || group.id === 'boost') && ' (Beta)'}
                           {isGroupFullyLocked && ' 🔒'}
                           {showBadge && ` (${groupBadgeCount} pending)`}
                         </span>
@@ -1245,7 +1220,7 @@ export default function Layout({ children }: LayoutProps) {
                   variant="outline"
                   size="sm"
                   onClick={() => {
-                    const baseUrl = restaurantDoc?.base_url || 'https://backend.flamezo.in/'
+                    const baseUrl = restaurantDoc?.base_url || 'https://app.flamezo.in/'
                     const url = baseUrl.replace(/\/$/, '') + '/' + previewPath
                     window.open(url, '_blank', 'noopener,noreferrer')
                   }}
@@ -1333,7 +1308,7 @@ export default function Layout({ children }: LayoutProps) {
                     variant="outline"
                     size="sm"
                     onClick={() => {
-                      const baseUrl = restaurantDoc?.base_url || 'https://backend.flamezo.in/'
+                      const baseUrl = restaurantDoc?.base_url || 'https://app.flamezo.in/'
                       const url = baseUrl.replace(/\/$/, '') + '/' + previewPath
                       window.open(url, '_blank', 'noopener,noreferrer')
                     }}
@@ -1546,7 +1521,7 @@ export default function Layout({ children }: LayoutProps) {
             </div>
           </div>
           {/* Global Billing Notifications */}
-          <BillingNotificationBar billingInfo={billingInfo} planType={planType} isActive={isActive} />
+          <BillingNotificationBar billingInfo={billingInfo} isActive={isActive} />
         </header>
 
         {/* Page Content */}
@@ -1555,7 +1530,7 @@ export default function Layout({ children }: LayoutProps) {
             {(!isActive && location.pathname !== '/account') ? (
               <div className="flex flex-col items-center justify-center min-h-[60vh] h-full text-center space-y-6">
                 {/* Billing Notification Banner inside deactivation overlay */}
-                {billingInfo && planType === 'GOLD' && !billingInfo.mandate_active && (
+                {billingInfo && !billingInfo.mandate_active && (
                   <div className="w-full max-w-lg animate-in slide-in-from-top-4 duration-500">
                     <div className="w-full py-3 px-4 flex items-center justify-center gap-4 text-xs font-semibold rounded-xl shadow-inner bg-gradient-to-r from-amber-500 via-orange-500 to-red-500 text-white">
                       <div className="flex items-center gap-2 w-full">
@@ -1563,7 +1538,7 @@ export default function Layout({ children }: LayoutProps) {
                           <div className="p-1 rounded-md bg-white/20 shrink-0">
                             <AlertCircle className="h-4 w-4" />
                           </div>
-                          <span className="truncate">{planType} requires active mandate. Set up Autopay now for seamless operation.</span>
+                          <span className="truncate">Active mandate required. Set up Autopay now for seamless operation.</span>
                         </div>
                         <button
                           onClick={() => navigate('/autopay-setup')}
@@ -1753,8 +1728,6 @@ export default function Layout({ children }: LayoutProps) {
           setShowCreateModal(open)
           if (!open) {
             setSendOnboarding(false)
-            setSendPaymentInfo(false)
-            setPaymentTier('SILVER')
           }
         }
       }}>
@@ -1856,94 +1829,6 @@ export default function Layout({ children }: LayoutProps) {
                 </div>
               </div>
 
-              {/* Checkbox 2: Send Payment Info */}
-              <div className={cn(
-                "flex items-start gap-3 rounded-xl border p-3 mt-2 transition-all cursor-pointer",
-                sendPaymentInfo
-                  ? "bg-green-500/5 border-green-200 dark:border-green-800"
-                  : "bg-muted/30 border-border hover:bg-muted/50"
-              )}
-                onClick={() => !isCreating && setSendPaymentInfo(v => !v)}
-              >
-                <Checkbox
-                  id="send_payment_info"
-                  checked={sendPaymentInfo}
-                  onCheckedChange={(v) => setSendPaymentInfo(!!v)}
-                  disabled={isCreating}
-                  className="mt-0.5 shrink-0"
-                />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <Smartphone className="h-4 w-4 text-green-500 shrink-0" />
-                    <Label htmlFor="send_payment_info" className="text-sm font-semibold cursor-pointer">
-                      Send Payment Info via WhatsApp
-                    </Label>
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    Opens WhatsApp with a wallet purchase link based on the selected plan.
-                  </p>
-
-                  {/* Tier Selector — only visible when checkbox is checked */}
-                  {sendPaymentInfo && (
-                    <div className="mt-3" onClick={(e) => e.stopPropagation()}>
-                      <RadioGroup
-                        value={paymentTier}
-                        onValueChange={(v: string) => setPaymentTier(v as 'SILVER' | 'GOLD')}
-                        className="flex flex-col gap-2"
-                        disabled={isCreating}
-                      >
-                        {/* Silver */}
-                        <label
-                          htmlFor="tier_silver"
-                          className={cn(
-                            "flex items-center gap-3 rounded-lg border px-3 py-2 cursor-pointer transition-all",
-                            paymentTier === 'SILVER'
-                              ? "bg-slate-100 dark:bg-slate-800 border-slate-400"
-                              : "border-border hover:bg-muted/50"
-                          )}
-                        >
-                          <RadioGroupItem value="SILVER" id="tier_silver" />
-                          <div className="flex items-center gap-2 flex-1">
-                            <Shield className="h-3.5 w-3.5 text-slate-500" />
-                            <span className="text-sm font-medium">Silver</span>
-                            <span className="ml-auto text-xs text-muted-foreground">Free — no link sent</span>
-                          </div>
-                        </label>
-
-                        {/* Gold */}
-                        <label
-                          htmlFor="tier_gold"
-                          className={cn(
-                            "flex items-center gap-3 rounded-lg border px-3 py-2 cursor-pointer transition-all",
-                            paymentTier === 'GOLD'
-                              ? "bg-amber-50 dark:bg-amber-950/30 border-amber-400"
-                              : "border-border hover:bg-muted/50"
-                          )}
-                        >
-                          <RadioGroupItem value="GOLD" id="tier_gold" />
-                          <div className="flex items-center gap-2 flex-1">
-                            <Star className="h-3.5 w-3.5 text-amber-500" />
-                            <span className="text-sm font-medium">Gold</span>
-                            <span className="ml-auto text-xs font-semibold text-amber-600">
-                              {platformSettings
-                                ? `₹${(platformSettings.gold_upgrade_barrier * (platformSettings.charge_gst ? (1 + platformSettings.gst_percent / 100) : 1)).toLocaleString('en-IN', { maximumFractionDigits: 2 })}${platformSettings.charge_gst ? ' inkl. GST' : ''}`
-                                : '₹1,299'}
-                            </span>
-                          </div>
-                        </label>
-
-                      </RadioGroup>
-
-                      {paymentTier !== 'SILVER' && (
-                        <p className="text-[10px] text-muted-foreground mt-2 flex items-center gap-1">
-                          <Smartphone className="h-3 w-3" />
-                          WhatsApp will open with the payment link pre-filled. Just hit Send.
-                        </p>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
             </div>
           </div>
 

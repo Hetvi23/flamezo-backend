@@ -2,30 +2,31 @@ import { useState, useEffect } from 'react'
 import { useRestaurant } from '@/contexts/RestaurantContext'
 import { useFrappePostCall, useFrappeGetDoc, useFrappeGetCall } from '@/lib/frappe'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
 import {
   Trophy, Zap, Globe, Gift, Users, ShieldCheck,
-  TrendingUp, Percent, ArrowLeftRight, Info, Star, Clock, AlertTriangle
+  TrendingUp, Percent, ArrowLeftRight, Info, Star, Clock
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Switch } from '@/components/ui/switch'
 import { Badge } from '@/components/ui/badge'
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter
-} from '@/components/ui/dialog'
 
 // ── Flamezo Platform Constants (display only — actual enforcement is backend) ─
-// Plan-tiered: SILVER vs GOLD restaurants get different earn rates, caps, expiry, redemption limits.
+//
+// Single-tier model (May 2026): every onboarded restaurant is GOLD. Loyalty
+// constants are no longer plan-tiered; what used to be the GOLD value is
+// simply "the default".
+//
+// The `tier:` block at the bottom is unrelated — those are **customer**
+// loyalty tiers (Bronze / Silver / Gold / Platinum) based on lifetime spend,
+// not the restaurant subscription plan.
 const PLATFORM = {
-  // Plan-tiered
-  earn_percentage:          { silver: 5,   gold: 7   },
-  max_coins_per_order:      { silver: 500, gold: 700 },
-  max_redemption_percent:   { silver: 20,  gold: 30  },
-  loyalty_expiry_months:    { silver: 3,   gold: 6   },
-  birthday_bonus_coins:     { silver: 50,  gold: 100 },
-  // Plan-independent
+  earn_percentage:            7,
+  max_coins_per_order:        700,
+  max_redemption_percent:     30,
+  loyalty_expiry_months:      6,
+  birthday_bonus_coins:       100,
   coin_value_in_inr:          1,
   min_order_to_earn:          100,
   min_redemption_threshold:   100,
@@ -34,37 +35,36 @@ const PLATFORM = {
   welcome_reward_coins:       75,
   referral_share_coins:       40,
   max_opens_per_cycle:        10,
+  // Customer loyalty tiers (NOT restaurant plan).
   tier: { silver: 500, gold: 2000, platinum: 5000 },
 }
 
 export default function LoyaltySettings() {
-  const { selectedRestaurant, isSilver } = useRestaurant()
+  const { selectedRestaurant } = useRestaurant()
   const [saving, setSaving] = useState(false)
   const [enableLoyalty, setEnableLoyalty] = useState(false)
-  const [showDisableConfirm, setShowDisableConfirm] = useState(false)
 
   const { data: restaurantDoc, mutate: mutateRestaurant } = useFrappeGetDoc(
     'Restaurant', selectedRestaurant || '',
     selectedRestaurant ? `Restaurant-${selectedRestaurant}` : null
   )
 
-  // Fetch loyalty config to get plan_type and plan-tiered constants
-  const { data: loyaltyConfigRes } = useFrappeGetCall(
+  // Kept for backwards compatibility with the loyalty config endpoint
+  // (some platform constants are still surfaced via the API for future
+  // per-restaurant customisation hooks).
+  useFrappeGetCall(
     'flamezo_backend.flamezo.api.loyalty.get_loyalty_config',
     selectedRestaurant ? { restaurant_id: selectedRestaurant } : undefined,
     selectedRestaurant ? `LoyaltyConfig-${selectedRestaurant}` : undefined
   )
-  const loyaltyConfig = (loyaltyConfigRes as any)?.message?.data || (loyaltyConfigRes as any)?.data || null
-  const isGold = loyaltyConfig?.is_gold || !isSilver
 
-  // Plan-resolved display values
-  const plan = isGold ? 'gold' : 'silver'
+  // Resolved display values. Single-tier model → no `gold`/`silver` lookup.
   const p = {
-    earn_percentage:        PLATFORM.earn_percentage[plan],
-    max_coins_per_order:    PLATFORM.max_coins_per_order[plan],
-    max_redemption_percent: PLATFORM.max_redemption_percent[plan],
-    expiry_months:          PLATFORM.loyalty_expiry_months[plan],
-    birthday_bonus:         PLATFORM.birthday_bonus_coins[plan],
+    earn_percentage:        PLATFORM.earn_percentage,
+    max_coins_per_order:    PLATFORM.max_coins_per_order,
+    max_redemption_percent: PLATFORM.max_redemption_percent,
+    expiry_months:          PLATFORM.loyalty_expiry_months,
+    birthday_bonus:         PLATFORM.birthday_bonus_coins,
   }
 
   const { call: updateLoyaltyConfig } = useFrappePostCall('flamezo_backend.flamezo.api.loyalty.update_loyalty_config')
@@ -100,75 +100,14 @@ export default function LoyaltySettings() {
     }
   }
 
-  // For Silver restaurants: intercept toggle-OFF with a confirmation modal
-  const handleLoyaltyToggle = (checked: boolean) => {
-    if (!checked && isSilver) {
-      setShowDisableConfirm(true)
-    } else {
-      saveSettings(checked)
-    }
-  }
-
-  const confirmDisableLoyalty = () => {
-    setShowDisableConfirm(false)
-    saveSettings(false)
-  }
+  // Single-tier model: loyalty toggle is a plain save. The legacy
+  // "Silver — disabling loyalty also turns off ordering" warning is gone
+  // because every onboarded restaurant has ordering on by default and
+  // it's not coupled to loyalty.
+  const handleLoyaltyToggle = (checked: boolean) => saveSettings(checked)
 
   return (
     <div className="max-w-5xl mx-auto space-y-6 pb-12">
-
-      {/* ── Silver: disable loyalty confirmation modal ───────────────── */}
-      <Dialog open={showDisableConfirm} onOpenChange={setShowDisableConfirm}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <div className="flex items-center gap-3 mb-1">
-              <div className="w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
-                <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400" />
-              </div>
-              <DialogTitle>Turn off loyalty?</DialogTitle>
-            </div>
-            <DialogDescription asChild>
-              <div className="space-y-3 text-sm text-muted-foreground pt-1">
-                <p>Disabling loyalty on your Silver plan will also:</p>
-                <ul className="space-y-2">
-                  <li className="flex items-start gap-2">
-                    <span className="mt-0.5 text-red-500">✕</span>
-                    <span><strong>Turn off ordering</strong> — customers won't be able to place orders via your QR menu.</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="mt-0.5 text-red-500">✕</span>
-                    <span><strong>Remove you from Flamezo Club</strong> — customers browsing the Club app won't find your restaurant.</span>
-                  </li>
-                </ul>
-                <p className="pt-1 text-xs border-t border-border mt-2">
-                  You can still use your Flamezo QR menu as a digital menu for customers.
-                  Re-enable loyalty any time to restore ordering and Club listing.
-                </p>
-              </div>
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button variant="outline" onClick={() => setShowDisableConfirm(false)}>
-              Keep loyalty on
-            </Button>
-            <Button variant="destructive" onClick={confirmDisableLoyalty}>
-              Yes, disable loyalty & ordering
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* ── Silver: info banner ──────────────────────────────────────── */}
-      {isSilver && (
-        <div className="flex items-start gap-3 p-4 rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20">
-          <Info className="w-4 h-4 text-blue-500 mt-0.5 shrink-0" />
-          <p className="text-sm text-blue-700 dark:text-blue-300">
-            On your Silver plan, <strong>loyalty and ordering are linked</strong>. Keeping loyalty on lets customers
-            earn Flamezo Cash, place orders via your QR menu, and discover you on the Club app — all for free.
-          </p>
-        </div>
-      )}
-
       {/* ── Header ──────────────────────────────────────────────────── */}
       <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
         <div className="space-y-1">
@@ -178,11 +117,6 @@ export default function LoyaltySettings() {
             <Badge variant="secondary" className="text-xs font-semibold px-2 py-0.5 bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400 border border-orange-200 dark:border-orange-800">
               Flamezo Network
             </Badge>
-            {isGold && (
-              <Badge className="text-xs font-semibold px-2 py-0.5 bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400 border border-yellow-300 dark:border-yellow-800">
-                Gold Plan
-              </Badge>
-            )}
           </div>
           <p className="text-muted-foreground mt-2">
             Platform-wide loyalty that rewards customers across every restaurant in the Flamezo network.
@@ -276,44 +210,6 @@ export default function LoyaltySettings() {
             </div>
           </CardContent>
         </Card>
-
-        {/* ── Gold vs Silver Advantage (shown for Gold) ────────────────── */}
-        {isGold && (
-          <Card className="border-2 border-yellow-300/60 dark:border-yellow-700/40 bg-gradient-to-br from-yellow-50/60 via-background to-amber-50/30 dark:from-yellow-900/10 dark:to-amber-900/5">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Trophy className="w-4 h-4 text-yellow-500" />
-                Your Gold Plan Advantage
-              </CardTitle>
-              <CardDescription>Gold restaurants offer better rewards — customers prefer and return to you over Silver restaurants</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                {[
-                  { label: 'Earn Rate',       silver: '5%',      gold: '7%',      icon: <Percent className="w-3.5 h-3.5" /> },
-                  { label: 'Max per Order',   silver: '₹500',    gold: '₹700',    icon: <Zap className="w-3.5 h-3.5" /> },
-                  { label: 'Redeem up to',    silver: '20%',     gold: '30%',     icon: <Gift className="w-3.5 h-3.5" /> },
-                  { label: 'Cash Valid for',  silver: '3 months',gold: '6 months',icon: <Clock className="w-3.5 h-3.5" /> },
-                ].map(({ label, silver, gold, icon }) => (
-                  <div key={label} className="flex flex-col gap-1.5 p-3 rounded-lg bg-background border">
-                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                      {icon}
-                      {label}
-                    </div>
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-xs line-through text-muted-foreground/60">{silver}</span>
-                      <span className="text-sm font-bold text-yellow-600 dark:text-yellow-400">{gold}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <p className="text-xs text-muted-foreground mt-3 flex items-center gap-1.5">
-                <Star className="w-3 h-3 text-yellow-500 shrink-0" />
-                Gold restaurants also give <strong>₹{PLATFORM.birthday_bonus_coins.gold} birthday bonuses</strong> (vs ₹{PLATFORM.birthday_bonus_coins.silver} Silver) — customers remember who treated them best.
-              </p>
-            </CardContent>
-          </Card>
-        )}
 
         {/* ── Platform Rates (Read-Only) ───────────────────────────────── */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

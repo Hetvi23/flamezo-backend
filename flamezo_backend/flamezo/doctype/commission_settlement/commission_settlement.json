@@ -1,0 +1,79 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "creation": "2026-05-22 12:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "istable": 1,
+ "field_order": [
+  "method",
+  "amount_paise",
+  "ref_doctype",
+  "ref_name",
+  "ref_payment_id",
+  "settled_at",
+  "note"
+ ],
+ "fields": [
+  {
+   "fieldname": "method",
+   "fieldtype": "Select",
+   "label": "Method",
+   "options": "wallet\nonline_netoff\nautopay_sweep\nmanual_admin\nrefund_reversal",
+   "in_list_view": 1,
+   "reqd": 1,
+   "description": "How this slice of the commission was recovered"
+  },
+  {
+   "fieldname": "amount_paise",
+   "fieldtype": "Int",
+   "label": "Amount (Paise)",
+   "in_list_view": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "ref_doctype",
+   "fieldtype": "Data",
+   "label": "Ref Doctype",
+   "description": "Doctype of the document that recorded the actual recovery (e.g. 'Order', 'Coin Transaction')"
+  },
+  {
+   "fieldname": "ref_name",
+   "fieldtype": "Data",
+   "label": "Ref Name",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "ref_payment_id",
+   "fieldtype": "Data",
+   "label": "Razorpay Payment ID",
+   "description": "Razorpay payment / transfer ID, when applicable"
+  },
+  {
+   "fieldname": "settled_at",
+   "fieldtype": "Datetime",
+   "label": "Settled At",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "note",
+   "fieldtype": "Small Text",
+   "label": "Note"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-05-22 12:00:00.000000",
+ "modified_by": "Administrator",
+ "label": "Success Share Settlement",
+ "module": "Flamezo",
+ "name": "Commission Settlement",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "sort_field": "settled_at",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0
+}

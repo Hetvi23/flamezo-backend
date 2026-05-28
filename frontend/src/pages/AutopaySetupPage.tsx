@@ -22,14 +22,12 @@ import {
   History,
   ShieldAlert,
   Trophy,
-  Smartphone,
   Download,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { AiRechargeModal } from '@/components/AiRechargeModal'
 import { SubscriptionComparisonModal } from '@/components/SubscriptionComparisonModal'
-import { ConfirmDialog } from '@/components/ui/confirm-dialog'
-import { format, addDays } from 'date-fns'
+import { format } from 'date-fns'
 
 interface BillingInfo {
   coins_balance: number
@@ -39,13 +37,13 @@ interface BillingInfo {
   mandate_active: boolean
   daily_limit: number
   current_daily_vol: number
-  deferred_plan_type?: 'SILVER' | 'GOLD' | null
+  deferred_plan_type?: 'GOLD' | null
   plan_change_date?: string | null
   monthly_minimum: number
   platform_fee_percent: number
   plan_defaults: {
     gold_floor: number      // GOLD monthly floor guarantee (₹399)
-    gold_commission: number // GOLD commission % (1.5%)
+    gold_commission: number // GOLD Success Share % (default 3.0 new / 1.5 grandfathered)
     gold_barrier: number    // Wallet balance needed to unlock GOLD (₹1299)
   }
 }
@@ -53,12 +51,11 @@ interface BillingInfo {
 export default function AutopaySetupPage() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
-  const { selectedRestaurant, restaurants, planType, refreshConfig } = useRestaurant()
+  const { selectedRestaurant, restaurants } = useRestaurant()
 
   const [billingInfo, setBillingInfo] = useState<BillingInfo | null>(null)
   const [loading, setLoading] = useState(true)
   const [isUpdating, setIsUpdating] = useState(false)
-  const [isChangingPlan, setIsChangingPlan] = useState(false)
   const [isSettingUpMandate, setIsSettingUpMandate] = useState(false)
   const [showRecharge, setShowRecharge] = useState(false)
 
@@ -67,19 +64,13 @@ export default function AutopaySetupPage() {
   const [threshold, setThreshold] = useState('200')
   const [amount, setAmount] = useState('1000')
 
-  // Plan change state
-  const [showConfirm, setShowConfirm] = useState(false)
   const [showComparison, setShowComparison] = useState(false)
-  const [newPlanSelection, setNewPlanSelection] = useState<'SILVER' | 'GOLD' | null>(null)
 
   const { call: getInfo } = useFrappePostCall<any>(
     'flamezo_backend.flamezo.api.coin_billing.get_coin_billing_info'
   )
   const { call: updateSettings } = useFrappePostCall<any>(
     'flamezo_backend.flamezo.api.coin_billing.update_autopay_settings'
-  )
-  const { call: updatePlan } = useFrappePostCall<any>(
-    'flamezo_backend.flamezo.api.coin_billing.update_subscription_plan'
   )
   const { call: createTokenOrder } = useFrappePostCall<any>(
     'flamezo_backend.flamezo.api.payments.create_tokenization_order'
@@ -121,42 +112,6 @@ export default function AutopaySetupPage() {
       setSearchParams(searchParams, { replace: true })
     }
   }, [searchParams, setSearchParams])
-
-  const handlePlanToggle = async (_newPlan: 'SILVER' | 'GOLD') => {
-    // Plan toggling is retired under the May 2026 single-tier model — every
-    // onboarded restaurant is already on the only available plan (GOLD), so
-    // there is nothing to toggle. The handler is kept as a no-op so the
-    // existing UI surfaces compile until they're fully removed.
-    toast.info('You are already on the only available plan.')
-  }
-
-  const confirmPlanChange = async () => {
-    if (!selectedRestaurant || !newPlanSelection) return
-
-    setIsChangingPlan(true)
-    try {
-      const res = await updatePlan({
-        restaurant: selectedRestaurant,
-        plan_type: newPlanSelection
-      })
-
-      if (res.message?.success) {
-        toast.success(`Success! Plan change scheduled.`, {
-          description: res.message.message
-        })
-      }
-
-      await loadInfo()
-      await refreshConfig()
-    } catch (error: any) {
-      toast.error('Failed to schedule plan change', { description: error.message })
-    } finally {
-      setIsChangingPlan(false)
-      setShowConfirm(false)
-      setShowComparison(false)
-      setNewPlanSelection(null)
-    }
-  }
 
   const handleSaveSettings = async () => {
     if (!selectedRestaurant) return
@@ -303,50 +258,38 @@ export default function AutopaySetupPage() {
         </Card>
       )}
 
-      {/* Subscription Tier Switcher - Concise Professional Redesign */}
       <Card className="border-none shadow-xl bg-card overflow-hidden ring-1 ring-border/50 relative">
-        <div className={cn(
-          "absolute -top-24 -right-24 w-48 h-48 blur-[80px] opacity-15 rounded-full",
-          planType === 'GOLD' ? "bg-primary" : "bg-muted"
-        )} />
+        <div className="absolute -top-24 -right-24 w-48 h-48 blur-[80px] opacity-15 rounded-full bg-primary" />
 
         <CardContent className="p-0 relative z-10">
           <div className="flex flex-col md:flex-row items-center divide-y md:divide-y-0 md:divide-x divide-border/40">
-            {/* Plan Info Section */}
             <div className="flex-1 p-5 flex items-center gap-4 w-full">
-              <div className={cn(
-                "w-12 h-12 rounded-xl flex items-center justify-center shrink-0 shadow-md",
-                planType === 'GOLD' ? "bg-primary text-white" : "bg-muted text-muted-foreground"
-              )}>
-                {planType === 'GOLD' ? <Trophy className="h-6 w-6" /> : <Smartphone className="h-6 w-6" />}
+              <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0 shadow-md bg-primary text-white">
+                <Trophy className="h-6 w-6" />
               </div>
 
               <div className="min-w-0">
                 <div className="flex items-center gap-2 mb-0.5">
-                  <h3 className="text-xl font-black tracking-tight truncate">{planType} PLAN</h3>
-                  <Badge className={cn(
-                    "px-2 py-0 text-[9px] font-black uppercase tracking-wider rounded-full h-4 shrink-0",
-                    planType === 'GOLD' ? "bg-primary/10 text-primary border border-primary/20" : "bg-muted text-muted-foreground"
-                  )} variant="outline">
+                  <h3 className="text-xl font-black tracking-tight truncate">FLAMEZO PLAN</h3>
+                  <Badge
+                    className="px-2 py-0 text-[9px] font-black uppercase tracking-wider rounded-full h-4 shrink-0 bg-primary/10 text-primary border border-primary/20"
+                    variant="outline"
+                  >
                     Active
                   </Badge>
                 </div>
                 <p className="text-xs text-muted-foreground font-medium truncate max-w-[280px]">
-                  {planType === 'GOLD' ? 'Professional digital growth tools.' :
-                      'Essential digital presence.'}
+                  Professional digital growth tools.
                 </p>
               </div>
             </div>
 
-            {/* Investment Section */}
             <div className="p-5 flex flex-col justify-center min-w-[160px] w-full md:w-auto">
               <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground mb-1">
-                {planType === 'GOLD' ? 'Monthly Floor Guarantee' : 'Daily Floor'}
+                Monthly Floor Guarantee
               </p>
               <p className="text-base font-bold">
-                {planType === 'SILVER' ? '₹0' :
-                  planType === 'GOLD' ? `₹${billingInfo?.plan_defaults?.gold_floor ?? 399}/mo floor` :
-                    '₹0'}
+                ₹{billingInfo?.plan_defaults?.gold_floor ?? 399}/mo floor
               </p>
             </div>
 
@@ -551,15 +494,9 @@ export default function AutopaySetupPage() {
       <SubscriptionComparisonModal
         open={showComparison}
         onClose={() => setShowComparison(false)}
-        currentPlan={planType as 'SILVER' | 'GOLD'}
-        onSelectPlan={handlePlanToggle}
-        isChangingPlan={isChangingPlan}
         planDefaults={{
           gold_floor: billingInfo?.plan_defaults.gold_floor ?? 399,
-          gold_commission: billingInfo?.plan_defaults.gold_commission ?? 1.5,
-          // Retired in the single-tier model — kept here as 0 so the legacy
-          // prop signature still type-checks for callers that pass it through.
-          gold_barrier: 0,
+          gold_commission: billingInfo?.plan_defaults.gold_commission ?? 3.0,
         }}
       />
 
@@ -568,18 +505,6 @@ export default function AutopaySetupPage() {
         onClose={() => setShowRecharge(false)}
         restaurant={selectedRestaurant!}
         onSuccess={loadInfo}
-      />
-
-      <ConfirmDialog
-        open={showConfirm}
-        onOpenChange={setShowConfirm}
-        title={`Switch to ${newPlanSelection} plan?`}
-        description={`Your ${newPlanSelection} plan will be effective from tomorrow ${format(addDays(new Date(), 1), 'do MMMM')} at 12:00 AM.`}
-        confirmText="Yes, Switch Now"
-        cancelText="Maybe Later"
-        variant="info"
-        onConfirm={confirmPlanChange}
-        loading={isChangingPlan}
       />
     </div>
   )

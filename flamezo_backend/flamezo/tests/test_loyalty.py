@@ -190,7 +190,8 @@ class TestEarnLoyaltyCoins(unittest.TestCase):
         """Earning on an 'Order' ref_doctype must create is_settled=0."""
         self.earn(
             self._customer.name, self._res, 1000.0,
-            reason="Order", ref_doctype="Order", ref_name="TEST-ORDER-001"
+            reason="Order", ref_doctype="Order", ref_name="TEST-ORDER-001",
+            payment_method="pay_online"
         )
         entry = frappe.db.get_value(
             "Restaurant Loyalty Entry",

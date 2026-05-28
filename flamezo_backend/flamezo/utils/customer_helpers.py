@@ -306,6 +306,49 @@ def require_verified_phone(restaurant_id: str, phone: str) -> bool:
 	return is_phone_verified(phone)
 
 
+# ─── Savings-Corner verification gates ────────────────────────────────────────
+# Backend-controlled (no per-restaurant toggle). Basic ordering is always open;
+# coupons / offers / loyalty live behind these gates so verification = a clear
+# reward for the customer.
+
+PAY_ONLINE_METHOD = "pay_online"
+
+
+def has_active_customer_session(phone: str) -> bool:
+	"""True if the current request carries a valid X-Customer-Token bound to ``phone``.
+
+	Reads the token from request headers (header-only — never trust a client-passed
+	token in the body). Returns False if no request context, no token, or token
+	mismatch. Slides expiry on the underlying Redis entry as a side-effect.
+	"""
+	token = get_customer_token()
+	if not token or not phone:
+		return False
+	return validate_customer_session(phone, token)
+
+
+def can_use_savings_features(phone: str) -> bool:
+	"""Gate for coupons + restaurant offers (auto-apply and manual).
+
+	Requires an active verified session. Payment method is irrelevant here —
+	only loyalty cashback has the online-only constraint.
+	"""
+	return has_active_customer_session(phone)
+
+
+def can_use_loyalty(phone: str, payment_method: str | None) -> bool:
+	"""Gate for loyalty cashback (both earn and redeem).
+
+	Two conditions, both required:
+	  1. Active verified session for this phone.
+	  2. Order payment_method is 'pay_online' (cash-on-counter never earns or redeems).
+	"""
+	if not has_active_customer_session(phone):
+		return False
+	normalized_pm = (payment_method or "").strip().lower()
+	return normalized_pm == PAY_ONLINE_METHOD
+
+
 def get_platform_customer_from_user(user_email: str):
 	if not user_email or user_email == "Guest":
 		return None

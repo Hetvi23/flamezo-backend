@@ -6,7 +6,7 @@ from flamezo_backend.flamezo.utils.platform_config import get_max_redemption_per
 import json
 from datetime import datetime
 
-def calculate_cart_totals(restaurant, items, coupon_code=None, loyalty_coins=0, customer=None, delivery_type="Dine-in", latitude=None, longitude=None):
+def calculate_cart_totals(restaurant, items, coupon_code=None, loyalty_coins=0, customer=None, delivery_type="Dine-in", latitude=None, longitude=None, payment_method=None, session_verified=False):
 	"""
 	Authoritative pricing calculation engine.
 	restaurant: Restaurant ID or name
@@ -15,7 +15,12 @@ def calculate_cart_totals(restaurant, items, coupon_code=None, loyalty_coins=0, 
 	loyalty_coins: Optional number of loyalty coins to redeem
 	customer: Optional Customer ID (for loyalty and coupon limits)
 	delivery_type: Optional (Dine-in, Takeaway, Delivery)
+	payment_method: 'pay_online' | 'pay_at_counter' | None — loyalty only applies on 'pay_online'
+	session_verified: bool — when False, all Savings Corner features (coupons, auto-offers, loyalty) are skipped.
 	"""
+	# Normalize the savings-feature gate inputs once; everything downstream reads these.
+	savings_unlocked = bool(session_verified)
+	loyalty_unlocked = savings_unlocked and (str(payment_method or "").strip().lower() == "pay_online")
 
 	# 0. Global Context
 	restaurant_doc = frappe.get_doc("Restaurant", restaurant)
@@ -94,21 +99,23 @@ def calculate_cart_totals(restaurant, items, coupon_code=None, loyalty_coins=0, 
 	applied_offers = []
 	total_item_discount = 0
 	total_delivery_discount = 0
-	
+
+	# Savings-Corner gate: when the customer is unverified, skip ALL coupons + auto-offers.
+	# This is the backend half of the "lock icon" UX on the cart page.
 	all_offers = frappe.get_all(
 		"Coupon",
 		filters={"restaurant": restaurant, "is_active": 1},
 		fields=["*"]
-	)
-	
+	) if savings_unlocked else []
+
 	eligible_offers = []
 	for offer in all_offers:
 		is_manual = (coupon_code and offer.code == coupon_code)
 		is_auto = (offer.offer_type == "auto")
-		
+
 		if not (is_manual or is_auto):
 			continue
-			
+
 		# Validate eligibility
 		# Pass delivery_type to validation so we can reject delivery-only offers if type is Dine-in
 		res = validate_offer_eligibility(offer, subtotal, customer, items, delivery_type, delivery_fee)
@@ -142,8 +149,11 @@ def calculate_cart_totals(restaurant, items, coupon_code=None, loyalty_coins=0, 
 	delivery_fee = max(0, delivery_fee - total_delivery_discount)
 
 	# 4. Apply Loyalty Discount
+	# Two gates, both required: verified session AND pay_online. Cash orders
+	# silently get loyalty_discount=0 (the frontend shows a "pay online to use
+	# cashback" hint so the user isn't surprised by the rejection).
 	loyalty_discount = 0
-	if loyalty_coins > 0 and customer and is_loyalty_enabled(restaurant):
+	if loyalty_unlocked and loyalty_coins > 0 and customer and is_loyalty_enabled(restaurant):
 		balance = get_loyalty_balance(customer)  # global balance — universal wallet
 		actual_coins = min(cint(loyalty_coins), balance)
 		# Plan-tiered per-order cap: GOLD 30% (sole active tier; SILVER 20%

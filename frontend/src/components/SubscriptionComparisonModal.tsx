@@ -10,31 +10,15 @@ import { Button } from '@/components/ui/button'
 import { CheckCircle2, Sparkles, Zap, ShieldCheck, X } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 
-/**
- * SubscriptionComparisonModal
- *
- * The legacy "Silver vs Gold" comparison modal. Under the May 2026
- * single-tier model there is no SILVER tier anymore — every onboarded
- * restaurant gets the same plan (Free onboarding, ₹399/mo floor, 1.5%
- * commission). The modal is kept around because several pages still mount
- * it, but its body now renders a single GOLD card and the "select plan"
- * buttons are no-ops.
- *
- * Props (`currentPlan`, `onSelectPlan`, `isChangingPlan`, `planDefaults`) are
- * preserved unchanged so call sites compile without edits.
- */
 interface SubscriptionComparisonModalProps {
   open: boolean
   onClose: () => void
-  currentPlan: 'SILVER' | 'GOLD'
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  onSelectPlan: (plan: 'SILVER' | 'GOLD') => void
-  isChangingPlan: boolean
+  currentPlan?: 'GOLD'
+  onSelectPlan?: (plan: 'GOLD') => void
+  isChangingPlan?: boolean
   planDefaults: {
     gold_floor: number
     gold_commission: number
-    /** Retired in the single-tier model. Kept for backwards-compatible callers. */
-    gold_barrier?: number
   }
 }
 
@@ -46,8 +30,6 @@ interface FeatureRow {
 export function SubscriptionComparisonModal({
   open,
   onClose,
-  currentPlan,
-  isChangingPlan,
   planDefaults,
 }: SubscriptionComparisonModalProps) {
   const FEATURES: FeatureRow[] = [
@@ -68,7 +50,7 @@ export function SubscriptionComparisonModal({
     { name: 'Delivery hub (Flash / Borzo)', gold: true },
     { name: 'Coupons & targeted offers', gold: true },
     { name: 'Data ownership', gold: 'You' },
-    { name: 'Commission on online orders', gold: `${planDefaults.gold_commission}%` },
+    { name: 'Success Share on online orders', gold: `${planDefaults.gold_commission}%` },
   ]
 
   const renderCell = (value: string | boolean) => {
@@ -77,12 +59,6 @@ export function SubscriptionComparisonModal({
     }
     return <span className="text-sm font-medium text-primary">{value}</span>
   }
-
-  // Both `currentPlan` and `isChangingPlan` are intentionally read to suppress
-  // unused-prop lints — the modal no longer branches on them, but call sites
-  // still pass them.
-  void currentPlan
-  void isChangingPlan
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
@@ -105,7 +81,7 @@ export function SubscriptionComparisonModal({
               One plan. Every feature unlocked.
             </DialogTitle>
             <DialogDescription className="text-base">
-              Free onboarding. ₹{planDefaults.gold_floor}/month floor once you go live online. {planDefaults.gold_commission}% commission per online order. No tiers to chase.
+              Free onboarding. ₹{planDefaults.gold_floor}/month floor once you go live online. {planDefaults.gold_commission}% Success Share per online order. No tiers to chase.
             </DialogDescription>
           </DialogHeader>
 
@@ -121,7 +97,7 @@ export function SubscriptionComparisonModal({
                   <span className="text-sm font-medium">/mo floor</span>
                 </p>
                 <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">
-                  + {planDefaults.gold_commission}% commission · Free onboarding
+                  + {planDefaults.gold_commission}% Success Share · Free onboarding
                 </p>
               </div>
               <Button size="sm" variant="ghost" className="w-full h-8 text-xs font-bold rounded-lg" disabled>
@@ -160,7 +136,7 @@ export function SubscriptionComparisonModal({
               </p>
             </div>
             <div className="shrink-0 bg-background p-4 rounded-2xl border border-primary/20 text-center shadow-sm">
-              <p className="text-[10px] font-black uppercase tracking-widest text-primary mb-1">Commission</p>
+              <p className="text-[10px] font-black uppercase tracking-widest text-primary mb-1">Success Share</p>
               <p className="text-3xl font-black tracking-tighter">{planDefaults.gold_commission}%</p>
               <p className="text-[10px] text-muted-foreground mt-1">per online order</p>
             </div>

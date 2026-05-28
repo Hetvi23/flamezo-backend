@@ -1,8 +1,15 @@
-import frappe
-from frappe import _
-from flamezo_backend.flamezo.utils.razorpay_utils import get_razorpay_client
-from flamezo_backend.flamezo.utils.roles import GLOBAL_ADMIN_ROLES, SUPERVISOR_ROLES, is_global_admin, is_supervisor
 import json
+
+import frappe
+
+from flamezo_backend.flamezo.utils.razorpay_utils import get_razorpay_client
+from flamezo_backend.flamezo.utils.roles import (
+    GLOBAL_ADMIN_ROLES,
+    SUPERVISOR_ROLES,
+    is_global_admin,
+    is_supervisor,
+)
+
 
 @frappe.whitelist()
 def check_admin_access():
@@ -15,11 +22,11 @@ def check_admin_access():
         # Allow System Managers, Administrators, and Supervisors
         user_roles = frappe.get_roles()
         has_admin_access = (
-            frappe.session.user == 'Administrator' or 
+            frappe.session.user == 'Administrator' or
             any(role in GLOBAL_ADMIN_ROLES or role in SUPERVISOR_ROLES for role in user_roles) or
             "Flamezo Admin" in user_roles
         )
-        
+
         return {
             'success': True,
             'data': {
@@ -27,7 +34,7 @@ def check_admin_access():
             }
         }
     except Exception as e:
-        frappe.log_error("Admin API Error", f"Error checking admin access: {str(e)}")
+        frappe.log_error("Admin API Error", f"Error checking admin access: {e!s}")
         return {
             'success': False,
             'error': str(e)
@@ -47,30 +54,42 @@ def get_all_restaurants(page=1, page_size=20, search=None, filters=None):
                 'success': False,
                 'error': 'Admin access required'
             }
-        
+
         page = int(page or 1)
         page_size = int(page_size or 20)
         limit_start = (page - 1) * page_size
-        
+
         # Build searching logic
         where_conditions = []
         params = []
-        
+
+        # Pull the global platform defaults up-front — the filter clauses
+        # below (success_share_tier in particular) need them to resolve
+        # "legacy 1.5%" vs "new default" against the COALESCE fallback.
+        settings = frappe.get_single("Flamezo Settings")
+
         if search:
             where_conditions.append("(r.restaurant_name LIKE %s OR r.restaurant_id LIKE %s OR r.owner_email LIKE %s)")
             search_val = f"%{search}%"
             params.extend([search_val, search_val, search_val])
-        
+
         if filters:
             if isinstance(filters, str):
-                import json
                 filters = json.loads(filters)
-            
+
             for f in filters:
                 if len(f) == 3:
                     fieldname, operator, value = f
-                    # Security: Only allow specific fields for filtering
-                    if fieldname in ['is_active', 'plan_type', 'enable_floor_recovery']:
+                    # Security: only allow specific fields for filtering.
+                    # New (May 2026): added mandate_status, razorpay_kyc_status,
+                    # route_mode for the admin restaurant-management filter
+                    # chips. Synthetic filters `success_share_tier` and
+                    # `throttled` are handled below.
+                    allowed_eq_fields = (
+                        'is_active', 'plan_type', 'enable_floor_recovery',
+                        'mandate_status', 'razorpay_kyc_status', 'route_mode',
+                    )
+                    if fieldname in allowed_eq_fields:
                         if operator == '=':
                             where_conditions.append(f"r.{fieldname} = %s")
                             params.append(value)
@@ -79,71 +98,106 @@ def get_all_restaurants(page=1, page_size=20, search=None, filters=None):
                                 placeholders = ', '.join(['%s'] * len(value))
                                 where_conditions.append(f"r.{fieldname} IN ({placeholders})")
                                 params.extend(value)
-            
+                    elif fieldname == 'success_share_tier' and operator == '=':
+                        # `legacy` = grandfathered at 1.5%; `new` = at the
+                        # current default; `custom` = anything else.
+                        cur_default = float(settings.gold_commission_percent or 3.0)
+                        if value == 'legacy':
+                            where_conditions.append("ABS(COALESCE(r.platform_fee_percent, %s) - 1.5) < 0.001")
+                            params.append(cur_default)
+                        elif value == 'new':
+                            where_conditions.append("ABS(COALESCE(r.platform_fee_percent, %s) - %s) < 0.001")
+                            params.append(cur_default)
+                            params.append(cur_default)
+                        elif value == 'custom':
+                            where_conditions.append(
+                                "ABS(COALESCE(r.platform_fee_percent, %s) - 1.5) >= 0.001 "
+                                "AND ABS(COALESCE(r.platform_fee_percent, %s) - %s) >= 0.001"
+                            )
+                            params.extend([cur_default, cur_default, cur_default])
+                    elif fieldname == 'throttled' and operator == '=':
+                        if value in ('yes', True, 1, '1'):
+                            where_conditions.append(
+                                "(r.cash_payments_disabled_until IS NOT NULL AND r.cash_payments_disabled_until >= CURDATE())"
+                            )
+                        else:
+                            where_conditions.append(
+                                "(r.cash_payments_disabled_until IS NULL OR r.cash_payments_disabled_until < CURDATE())"
+                            )
+                    elif fieldname == 'has_outstanding' and operator == '=':
+                        if value in ('yes', True, 1, '1'):
+                            where_conditions.append("COALESCE(r.outstanding_commission_paise, 0) > 0")
+                        else:
+                            where_conditions.append("COALESCE(r.outstanding_commission_paise, 0) = 0")
+
         where_clause = " WHERE " + " AND ".join(where_conditions) if where_conditions else ""
-        
+
         # Check if RestaurantConfig table exists
         config_table_exists = frappe.db.table_exists('RestaurantConfig')
-        
-        # Fetch dynamic defaults
-        settings = frappe.get_single("Flamezo Settings")
-        def_comm = float(settings.gold_commission_percent or 1.5)
+
+        # Dynamic defaults (settings already fetched above for filter math).
+        def_comm = float(settings.gold_commission_percent or 3.0)
         def_floor = float(settings.gold_monthly_fee or 399.0)
-        
+
+        # Common columns the admin restaurant-management table needs.
+        # `mandate_status`, `outstanding_commission_paise`,
+        # `cash_payments_disabled_until`, `razorpay_kyc_status`, `route_mode`,
+        # `owner_phone`, `cash_sweep_failure_count` were added so the
+        # frontend can render filter chips + the Success Share / KYC /
+        # throttle indicators without a second round-trip.
+        _select_cols = f"""
+            r.name,
+            r.restaurant_id,
+            r.restaurant_name,
+            r.owner_email,
+            r.owner_phone,
+            r.is_active,
+            r.creation,
+            r.modified,
+            COALESCE(r.coins_balance, 0) as coins_balance,
+            COALESCE(r.platform_fee_percent, {def_comm}) as platform_fee_percent,
+            COALESCE(r.monthly_minimum, {def_floor}) as monthly_minimum,
+            COALESCE(r.enable_floor_recovery, 1) as enable_floor_recovery,
+            COALESCE(r.mandate_status, '') as mandate_status,
+            COALESCE(r.outstanding_commission_paise, 0) as outstanding_commission_paise,
+            r.cash_payments_disabled_until,
+            COALESCE(r.cash_sweep_failure_count, 0) as cash_sweep_failure_count,
+            COALESCE(r.razorpay_kyc_status, '') as razorpay_kyc_status,
+            COALESCE(r.route_mode, '') as route_mode
+        """
+
         if config_table_exists:
             query = f"""
-                SELECT 
-                    r.name,
-                    r.restaurant_id,
-                    r.restaurant_name,
-                    r.owner_email,
-                    r.is_active,
-                    r.creation,
-                    r.modified,
-                    COALESCE(r.coins_balance, 0) as coins_balance,
-                    COALESCE(r.platform_fee_percent, {def_comm}) as platform_fee_percent,
-                    COALESCE(r.monthly_minimum, {def_floor}) as monthly_minimum,
-                    COALESCE(r.enable_floor_recovery, 1) as enable_floor_recovery,
+                SELECT {_select_cols},
                     COALESCE(rc.subscription_plan, r.plan_type, 'SILVER') as plan_type
                 FROM `tabRestaurant` r
                 LEFT JOIN `tabRestaurantConfig` rc ON r.name = rc.parent
-                {{where_clause}}
+                {where_clause}
                 ORDER BY r.creation DESC
-                LIMIT {{limit_start}}, {{page_size}}
-            """.format(where_clause=where_clause, limit_start=limit_start, page_size=page_size)
+                LIMIT {limit_start}, {page_size}
+            """
             count_query = f"SELECT COUNT(*) FROM `tabRestaurant` r {where_clause}"
         else:
             query = f"""
-                SELECT 
-                    r.name,
-                    r.restaurant_id,
-                    r.restaurant_name,
-                    r.owner_email,
-                    r.is_active,
-                    r.creation,
-                    r.modified,
-                    COALESCE(r.coins_balance, 0) as coins_balance,
-                    COALESCE(r.platform_fee_percent, {def_comm}) as platform_fee_percent,
-                    COALESCE(r.monthly_minimum, {def_floor}) as monthly_minimum,
-                    COALESCE(r.enable_floor_recovery, 1) as enable_floor_recovery,
+                SELECT {_select_cols},
                     COALESCE(r.plan_type, 'SILVER') as plan_type
                 FROM `tabRestaurant` r
-                {{where_clause}}
+                {where_clause}
                 ORDER BY r.creation DESC
-                LIMIT {{limit_start}}, {{page_size}}
-            """.format(where_clause=where_clause, limit_start=limit_start, page_size=page_size)
+                LIMIT {limit_start}, {page_size}
+            """
             count_query = f"SELECT COUNT(*) FROM `tabRestaurant` r {where_clause}"
-        
+
         restaurants = frappe.db.sql(query, tuple(params), as_dict=True)
         total_count = frappe.db.sql(count_query, tuple(params))[0][0]
-        
+
         # Convert is_active to integer for consistency
         for restaurant in restaurants:
             restaurant['is_active'] = int(restaurant['is_active'] or 0)
             # Ensure plan_type is valid
             if restaurant['plan_type'] not in ['SILVER', 'GOLD']:
                 restaurant['plan_type'] = 'SILVER'
-        
+
         return {
             'success': True,
             'data': {
@@ -153,13 +207,56 @@ def get_all_restaurants(page=1, page_size=20, search=None, filters=None):
                 'page_size': page_size
             }
         }
-        
+
     except Exception as e:
-        frappe.log_error("Admin API Error", f"Error getting all restaurants: {str(e)}")
+        frappe.log_error("Admin API Error", f"Error getting all restaurants: {e!s}")
         return {
             'success': False,
             'error': str(e)
         }
+
+@frappe.whitelist()
+def get_admin_restaurants_stats():
+    """
+    Aggregate stats strip for the admin Restaurant Management page.
+
+    Returns counts + sums across every restaurant so the admin can see
+    fleet-wide health at a glance without paginating. Cheap query (one
+    aggregate scan of `tabRestaurant`).
+    """
+    try:
+        access_check = check_admin_access()
+        if not access_check.get('success') or not access_check.get('data', {}).get('allowed'):
+            return {'success': False, 'error': 'Admin access required'}
+
+        row = frappe.db.sql(
+            """
+            SELECT
+              COUNT(*) AS total,
+              SUM(CASE WHEN is_active = 1 THEN 1 ELSE 0 END) AS active,
+              SUM(CASE WHEN is_active = 0 THEN 1 ELSE 0 END) AS inactive,
+              SUM(CASE WHEN mandate_status = 'active' THEN 1 ELSE 0 END) AS mandate_active,
+              SUM(CASE WHEN COALESCE(mandate_status, '') <> 'active' THEN 1 ELSE 0 END) AS mandate_missing,
+              SUM(CASE WHEN razorpay_kyc_status = 'activated' THEN 1 ELSE 0 END) AS kyc_activated,
+              SUM(CASE WHEN razorpay_kyc_status IN ('under_review','needs_clarification') THEN 1 ELSE 0 END) AS kyc_pending,
+              SUM(CASE WHEN razorpay_kyc_status IN ('rejected','suspended') THEN 1 ELSE 0 END) AS kyc_blocked,
+              SUM(CASE WHEN cash_payments_disabled_until IS NOT NULL AND cash_payments_disabled_until >= CURDATE() THEN 1 ELSE 0 END) AS throttled,
+              SUM(CASE WHEN COALESCE(outstanding_commission_paise, 0) > 0 THEN 1 ELSE 0 END) AS owing,
+              COALESCE(SUM(COALESCE(outstanding_commission_paise, 0)), 0) AS total_outstanding_paise,
+              COALESCE(SUM(COALESCE(coins_balance, 0)), 0) AS total_coins
+            FROM `tabRestaurant`
+            """,
+            as_dict=True,
+        )[0]
+
+        # Coerce SUM() NULLs (empty table) to 0.
+        out = {k: int(v) if v is not None and k != 'total_coins' else (float(v or 0) if k == 'total_coins' else 0) for k, v in row.items()}
+        out['total_outstanding_rupees'] = round(out.get('total_outstanding_paise', 0) / 100.0, 2)
+        return {'success': True, 'data': out}
+    except Exception as e:
+        frappe.log_error("Admin Stats Error", f"get_admin_restaurants_stats failed: {e!s}")
+        return {'success': False, 'error': str(e)}
+
 
 @frappe.whitelist()
 def get_restaurant_details(restaurant_id):
@@ -175,7 +272,7 @@ def get_restaurant_details(restaurant_id):
                 'success': False,
                 'error': 'Admin access required'
             }
-        
+
         # Get restaurant record
         restaurant = frappe.get_doc('Restaurant', {'restaurant_id': restaurant_id})
         if not restaurant:
@@ -183,10 +280,10 @@ def get_restaurant_details(restaurant_id):
                 'success': False,
                 'error': 'Restaurant not found'
             }
-        
+
         # Convert password fields to stars/placeholder to protect secrets but allow checking if they exist
         restaurant_dict = restaurant.as_dict()
-        
+
         return {
             'success': True,
             'data': {
@@ -194,7 +291,7 @@ def get_restaurant_details(restaurant_id):
             }
         }
     except Exception as e:
-        frappe.log_error("Admin API Error", f"Error in get_restaurant_details: {str(e)}")
+        frappe.log_error("Admin API Error", f"Error in get_restaurant_details: {e!s}")
         return {
             'success': False,
             'error': str(e)
@@ -215,14 +312,14 @@ def update_restaurant_plan(restaurant_id, plan_type):
                 'success': False,
                 'error': 'Admin access required'
             }
-        
+
         # Validate plan_type
         if plan_type not in ['SILVER', 'GOLD']:
             return {
                 'success': False,
                 'error': 'Invalid plan type. Must be SILVER or GOLD'
             }
-        
+
         # Get restaurant record
         restaurant = frappe.get_doc('Restaurant', {'restaurant_id': restaurant_id})
         if not restaurant:
@@ -230,7 +327,7 @@ def update_restaurant_plan(restaurant_id, plan_type):
                 'success': False,
                 'error': 'Restaurant not found'
             }
-        
+
         # Check if RestaurantConfig table exists
         if not frappe.db.table_exists('RestaurantConfig'):
             # Update the Restaurant table directly since RestaurantConfig doesn't exist
@@ -242,7 +339,7 @@ def update_restaurant_plan(restaurant_id, plan_type):
                     restaurant.plan_activated_on = frappe.utils.now()
                 restaurant.save(ignore_permissions=True)
                 frappe.db.commit()
-                
+
                 return {
                     'success': True,
                     'data': {
@@ -253,12 +350,12 @@ def update_restaurant_plan(restaurant_id, plan_type):
                     }
                 }
             except Exception as e:
-                frappe.log_error("Plan Update Error", f"Error updating restaurant plan: {str(e)}")
+                frappe.log_error("Plan Update Error", f"Error updating restaurant plan: {e!s}")
                 return {
                     'success': False,
-                    'error': f'Failed to update plan: {str(e)}'
+                    'error': f'Failed to update plan: {e!s}'
                 }
-        
+
         # Get or create restaurant config
         config = frappe.get_doc('RestaurantConfig', restaurant.name)
         if not config:
@@ -268,10 +365,10 @@ def update_restaurant_plan(restaurant_id, plan_type):
             config.parenttype = 'Restaurant'
             config.parentfield = 'config'
             config.insert()
-        
+
         # Update subscription plan
         config.subscription_plan = plan_type
-        
+
         # Update subscription features based on plan
         if plan_type == 'GOLD':
             config.subscription_features = {
@@ -299,15 +396,15 @@ def update_restaurant_plan(restaurant_id, plan_type):
                 'table_booking': False,
                 'experience_lounge': False
             }
-        
+
         config.save(ignore_permissions=True)
         frappe.db.commit()
-        
+
         # Log the change
         frappe.logger().info(
             f"Restaurant {restaurant_id} plan updated to {plan_type} by {frappe.session.user}"
         )
-        
+
         return {
             'success': True,
             'data': {
@@ -316,9 +413,9 @@ def update_restaurant_plan(restaurant_id, plan_type):
                 'updated_by': frappe.session.user
             }
         }
-        
+
     except Exception as e:
-        frappe.log_error("Admin API Error", f"Error updating restaurant plan: {str(e)}")
+        frappe.log_error("Admin API Error", f"Error updating restaurant plan: {e!s}")
         frappe.db.rollback()
         return {
             'success': False,
@@ -339,14 +436,14 @@ def toggle_restaurant_status(restaurant_id, is_active):
                 'success': False,
                 'error': 'Admin access required'
             }
-        
+
         # Validate is_active
         if is_active not in [0, 1]:
             return {
                 'success': False,
                 'error': 'Invalid status. Must be 0 (inactive) or 1 (active)'
             }
-        
+
         # Get restaurant record
         restaurant = frappe.get_doc('Restaurant', {'restaurant_id': restaurant_id})
         if not restaurant:
@@ -354,13 +451,13 @@ def toggle_restaurant_status(restaurant_id, is_active):
                 'success': False,
                 'error': 'Restaurant not found'
             }
-        
+
         # Update restaurant status
         try:
             restaurant.is_active = is_active
             restaurant.save(ignore_permissions=True)
             frappe.db.commit()
-            
+
             return {
                 'success': True,
                 'data': {
@@ -371,14 +468,14 @@ def toggle_restaurant_status(restaurant_id, is_active):
                 }
             }
         except Exception as e:
-            frappe.log_error("Status Update Error", f"Error updating restaurant status: {str(e)}")
+            frappe.log_error("Status Update Error", f"Error updating restaurant status: {e!s}")
             return {
                 'success': False,
-                'error': f'Failed to update status: {str(e)}'
+                'error': f'Failed to update status: {e!s}'
             }
-        
+
     except Exception as e:
-        frappe.log_error("Admin API Error", f"Error in toggle_restaurant_status: {str(e)}")
+        frappe.log_error("Admin API Error", f"Error in toggle_restaurant_status: {e!s}")
         return {
             'success': False,
             'error': str(e)
@@ -399,7 +496,7 @@ def delete_restaurant(restaurant_id):
                 'success': False,
                 'error': 'Restricted: Only Global Administrators can purge restaurants'
             }
-        
+
         # Get restaurant record
         restaurant = frappe.get_doc('Restaurant', {'restaurant_id': restaurant_id})
         if not restaurant:
@@ -407,25 +504,25 @@ def delete_restaurant(restaurant_id):
                 'success': False,
                 'error': f'Restaurant {restaurant_id} not found'
             }
-        
+
         restaurant_name = restaurant.name
         cleanup_report = []
 
         # 1. Clear User Permissions (Crucial for Frappe integrity)
         try:
             # User Permissions link via 'allow'="Restaurant" and 'for_value'="[doc_name]"
-            user_perms = frappe.get_all("User Permission", 
-                filters={"allow": "Restaurant", "for_value": restaurant_name}, 
+            user_perms = frappe.get_all("User Permission",
+                filters={"allow": "Restaurant", "for_value": restaurant_name},
                 pluck="name")
-            
+
             for perm in user_perms:
                 frappe.delete_doc("User Permission", perm, ignore_permissions=True)
-            
+
             if user_perms:
                 cleanup_report.append(f"Deleted {len(user_perms)} User Permissions")
         except Exception as e:
-            frappe.log_error("Restaurant Delete Error", f"Error clearing User Permissions: {str(e)}")
-            cleanup_report.append(f"FAILED to clear User Permissions: {str(e)}")
+            frappe.log_error("Restaurant Delete Error", f"Error clearing User Permissions: {e!s}")
+            cleanup_report.append(f"FAILED to clear User Permissions: {e!s}")
 
         # 2. Clear Core Frappe Records (Comments, Communications, Logs, Versions)
         # These tables are often linked and can block deletion
@@ -453,7 +550,7 @@ def delete_restaurant(restaurant_id):
         doctypes_to_clear = [
             "Restaurant Config", "Restaurant Media", "Restaurant Social Link",
             "Menu Category", "Menu Product", "Menu Product Addon", "Customization Option", "Customization Question",
-            "Order", "Order Item", "Table Booking", "Banquet Booking", "Restaurant Table", 
+            "Order", "Order Item", "Table Booking", "Banquet Booking", "Restaurant Table",
             "Cart Entry", "Restaurant User", "Coupon", "Coupon Usage", "Offer", "Auto Offer", "Combo Offer", "Promo",
             "Game", "Event", "Home Feature", "Media Asset", "Media Upload Session", "Media Variant", "Product Media",
             "Coin Transaction", "Monthly Billing Ledger", "Monthly Revenue Ledger", "Razorpay Webhook Log",
@@ -476,16 +573,17 @@ def delete_restaurant(restaurant_id):
 
         # 5. Iteratively clear all linked records
         for dt in all_linked_dts:
-            if dt == "Restaurant": continue
+            if dt == "Restaurant":
+                continue
             try:
                 # Check if the doctype exists in this installation
                 if not frappe.db.table_exists(dt):
                     continue
-                
+
                 # Determine the correct field name that links to Restaurant
                 meta = frappe.get_meta(dt)
                 link_field = None
-                
+
                 if meta.has_field("restaurant"):
                     link_field = "restaurant"
                 else:
@@ -494,23 +592,23 @@ def delete_restaurant(restaurant_id):
                         if df.fieldtype == "Link" and df.options == "Restaurant":
                             link_field = df.fieldname
                             break
-                
+
                 if not link_field:
                     continue
 
                 # Find all records linked to this restaurant
                 records = frappe.get_all(dt, filters={link_field: restaurant_name}, pluck='name')
-                
+
                 if records:
                     for record_name in records:
                         # Use delete_doc to handle hooks and sub-records
                         frappe.delete_doc(dt, record_name, ignore_permissions=True, delete_permanently=True)
-                    
+
                     cleanup_report.append(f"Deleted {len(records)} records from {dt}")
-                    
+
             except Exception as inner_e:
-                frappe.log_error("Restaurant Delete Error", f"Error deleting from {dt}: {str(inner_e)}")
-                cleanup_report.append(f"FAILED to delete from {dt}: {str(inner_e)}")
+                frappe.log_error("Restaurant Delete Error", f"Error deleting from {dt}: {inner_e!s}")
+                cleanup_report.append(f"FAILED to delete from {dt}: {inner_e!s}")
 
         # Special handling for RestaurantConfig (linked via parent)
         if frappe.db.table_exists('RestaurantConfig'):
@@ -521,7 +619,7 @@ def delete_restaurant(restaurant_id):
                 if configs:
                     cleanup_report.append(f"Deleted {len(configs)} RestaurantConfig records")
             except Exception as e:
-                frappe.log_error("Restaurant Delete Error", f"Error deleting RestaurantConfig: {str(e)}")
+                frappe.log_error("Restaurant Delete Error", f"Error deleting RestaurantConfig: {e!s}")
 
         # 6. Finally, delete the Restaurant record itself
         frappe.delete_doc('Restaurant', restaurant_name, ignore_permissions=True, delete_permanently=True)
@@ -537,11 +635,11 @@ def delete_restaurant(restaurant_id):
         }
 
     except Exception as e:
-        frappe.log_error("Admin API Error", f"Error in delete_restaurant API: {str(e)}")
+        frappe.log_error("Admin API Error", f"Error in delete_restaurant API: {e!s}")
         frappe.db.rollback()
         return {
             'success': False,
-            'error': f"Failed to delete restaurant: {str(e)}",
+            'error': f"Failed to delete restaurant: {e!s}",
             'partial_report': cleanup_report if 'cleanup_report' in locals() else []
         }
 
@@ -556,37 +654,37 @@ def admin_give_coins(restaurant_id, amount, reason="Admin Grant"):
         access_check = check_admin_access()
         if not access_check.get('success') or not access_check.get('data', {}).get('allowed'):
             return {'success': False, 'error': 'Admin access required'}
-            
+
         # Validate amount
         try:
             amount = float(amount)
-        except:
+        except (TypeError, ValueError):
             return {'success': False, 'error': 'Invalid amount'}
-            
+
         # Get restaurant
         restaurant = frappe.get_doc('Restaurant', {'restaurant_id': restaurant_id})
         if not restaurant:
             return {'success': False, 'error': 'Restaurant not found'}
-            
+
         # Update balance and log the transaction (audit trail)
         from flamezo_backend.flamezo.api.coin_billing import record_transaction
-        
+
         description = f"Admin {'Grant' if amount >= 0 else 'Deduction'}: {reason}"
-        
+
         new_bal = record_transaction(
             restaurant=restaurant.name,
             txn_type="Admin Adjustment",
             amount=amount,
             description=description
         )
-        
+
         return {
             'success': True,
             'message': f"Successfully credited {amount} coins to {restaurant_id}",
             'new_balance': new_bal
         }
     except Exception as e:
-        frappe.log_error("Admin API Error", f"Error in admin_give_coins: {str(e)}")
+        frappe.log_error("Admin API Error", f"Error in admin_give_coins: {e!s}")
         frappe.db.rollback()
         return {'success': False, 'error': str(e)}
 
@@ -600,18 +698,17 @@ def admin_update_restaurant_settings(restaurant_id, updates):
         access_check = check_admin_access()
         if not access_check.get('success') or not access_check.get('data', {}).get('allowed'):
             return {'success': False, 'error': 'Admin access required'}
-            
+
         # Get restaurant
         restaurant = frappe.get_doc('Restaurant', {'restaurant_id': restaurant_id})
         if not restaurant:
             return {'success': False, 'error': 'Restaurant not found'}
-        
+
         # Parse updates if it's a string
         if isinstance(updates, str):
-            import json
             updates = json.loads(updates)
-            
-        # Prevent non-admin fields from being updated here if needed, 
+
+        # Prevent non-admin fields from being updated here if needed,
         # but for now we follow the user's request for platform_fee_percent
         # Allow most fields for admin updates
         allowed_fields = [
@@ -622,30 +719,30 @@ def admin_update_restaurant_settings(restaurant_id, updates):
             'tax_rate', 'gst_number', 'default_delivery_fee', 'default_packaging_fee', 'minimum_order_value',
             'estimated_prep_time', 'timezone', 'currency', 'tables', 'description', 'google_map_url'
         ]
-        
+
         for field, value in updates.items():
             if field in allowed_fields:
                 # Handle type conversions for numeric/boolean fields
-                if field in ['platform_fee_percent', 'monthly_minimum', 'tax_rate', 'default_delivery_fee', 
+                if field in ['platform_fee_percent', 'monthly_minimum', 'tax_rate', 'default_delivery_fee',
                             'default_packaging_fee', 'minimum_order_value']:
                     try:
                         value = float(value)
-                    except:
+                    except (TypeError, ValueError):
                         continue
-                elif field in ['is_active', 'enable_loyalty', 'enable_takeaway', 'enable_delivery', 
+                elif field in ['is_active', 'enable_loyalty', 'enable_takeaway', 'enable_delivery',
                               'enable_dine_in', 'no_ordering', 'pos_enabled', 'enable_floor_recovery']:
                     value = 1 if value in [True, 1, '1', 'true'] else 0
                 elif field in ['tables', 'estimated_prep_time']:
                     try:
                         value = int(value)
-                    except:
+                    except (TypeError, ValueError):
                         continue
-                
+
                 setattr(restaurant, field, value)
-        
+
         restaurant.save(ignore_permissions=True)
         frappe.db.commit()
-        
+
         return {
             'success': True,
             'message': f"Restaurant settings updated successfully for {restaurant_id}",
@@ -655,7 +752,7 @@ def admin_update_restaurant_settings(restaurant_id, updates):
             }
         }
     except Exception as e:
-        frappe.log_error("Admin API Error", f"Error in admin_update_restaurant_settings: {str(e)}")
+        frappe.log_error("Admin API Error", f"Error in admin_update_restaurant_settings: {e!s}")
         frappe.db.rollback()
         return {'success': False, 'error': str(e)}
 
@@ -689,8 +786,11 @@ def admin_onboard_restaurant_owner(restaurant_id, owner_name, owner_email):
         # 2. Look up or create Frappe User
         user_id = frappe.db.get_value("User", {"email": owner_email}, "name")
         first_name = owner_name.split()[0] if owner_name else "Owner"
-        
-        from flamezo_backend.flamezo.utils.permissions import assign_user_to_restaurant, create_restaurant_user_permission
+
+        from flamezo_backend.flamezo.utils.permissions import (
+            assign_user_to_restaurant,
+            create_restaurant_user_permission,
+        )
 
         is_new = False
         onboard_link = None
@@ -707,12 +807,12 @@ def admin_onboard_restaurant_owner(restaurant_id, owner_name, owner_email):
             user_doc.insert(ignore_permissions=True)
             user_id = user_doc.name
             is_new = True
-            
+
             # Generate link manually and fix protocol
             onboard_link = user_doc.reset_password(send_email=False)
             if onboard_link and onboard_link.startswith("http://"):
                 onboard_link = onboard_link.replace("http://", "https://", 1)
-            
+
             try:
                 send_onboarding_email(owner_email, first_name, onboard_link)
                 email_sent = True
@@ -724,16 +824,16 @@ def admin_onboard_restaurant_owner(restaurant_id, owner_name, owner_email):
             onboard_link = user_doc.reset_password(send_email=False)
             if onboard_link and onboard_link.startswith("http://"):
                 onboard_link = onboard_link.replace("http://", "https://", 1)
-            
+
             try:
                 send_onboarding_email(owner_email, first_name, onboard_link)
                 email_sent = True
             except Exception:
                 frappe.log_error("Password Reset Email Failed", f"Failed to send reset email to {owner_email}. Link: {onboard_link}")
-        
+
         # 3. Add necessary roles
         roles_to_add = ["System User", "Restaurant Staff"]
-        
+
         has_changes = False
         for role in roles_to_add:
             if frappe.db.exists("Role", role):
@@ -750,7 +850,7 @@ def admin_onboard_restaurant_owner(restaurant_id, owner_name, owner_email):
 
         # create_restaurant_user_permission maps Frappe User Permissions
         create_restaurant_user_permission(user_id, restaurant.name, is_default=is_default_flag)
-        
+
         # Check if already in 'Restaurant User' doctype
         if not frappe.db.exists("Restaurant User", {"user": user_id, "restaurant": restaurant.name}):
             assign_user_to_restaurant(user_id, restaurant.name, role="Restaurant Staff", is_default=is_default_flag)
@@ -759,9 +859,9 @@ def admin_onboard_restaurant_owner(restaurant_id, owner_name, owner_email):
 
         status_msg = "successfully onboarded" if is_new else "already exists and has been granted access"
         email_msg = "An email has been sent." if email_sent else f"Email could not be sent. Link: {onboard_link}"
-        
+
         full_msg = f"Owner {owner_email} {status_msg}. {email_msg}"
-        
+
         return {
             'success': True,
             'message': full_msg,
@@ -774,7 +874,7 @@ def admin_onboard_restaurant_owner(restaurant_id, owner_name, owner_email):
             }
         }
     except Exception as e:
-        frappe.log_error("Admin Onboarding Error", f"Error in admin_onboard_restaurant_owner: {str(e)}")
+        frappe.log_error("Admin Onboarding Error", f"Error in admin_onboard_restaurant_owner: {e!s}")
         frappe.db.rollback()
         return {'success': False, 'error': str(e)}
 
@@ -785,7 +885,7 @@ def send_onboarding_email(recipient, name, link):
     """
     site_url = "https://backend.flamezo_backend.com"
     subject = "Welcome to Flamezo"
-    
+
     html_content = f"""
     <div style="font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px; color: #1a1a1a; background-color: #f9fafb;">
         <div style="background-color: #ffffff; padding: 40px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);">
@@ -793,24 +893,24 @@ def send_onboarding_email(recipient, name, link):
                 <div style="width: 12px; height: 12px; background-color: #10b981; border-radius: 50%; margin-right: 12px;"></div>
                 <h1 style="font-size: 24px; font-weight: 700; margin: 0; color: #111827;">Welcome to Flamezo</h1>
             </div>
-            
+
             <p style="font-size: 16px; line-height: 24px; margin-bottom: 24px; color: #374151;">
                 Hello {name},
             </p>
-            
+
             <p style="font-size: 16px; line-height: 24px; margin-bottom: 16px; color: #374151;">
                 A new account has been created for you at <a href="{site_url}" style="color: #2563eb; text-decoration: none; font-weight: 500;">{site_url}</a>.
             </p>
-            
+
             <p style="font-size: 16px; line-height: 24px; margin-bottom: 32px; color: #374151;">
                 Your login id is: <strong style="color: #111827;">{recipient}</strong><br>
                 Click on the link below to complete your registration and set a new password.
             </p>
-            
+
             <div style="margin-bottom: 40px;">
                 <a href="{link}" style="display: inline-block; background-color: #111827; color: #ffffff; padding: 14px 28px; border-radius: 8px; font-size: 16px; font-weight: 600; text-decoration: none; text-align: center;">Complete Registration</a>
             </div>
-            
+
             <div style="padding-top: 32px; border-top: 1px solid #e5e7eb;">
                 <p style="font-size: 14px; line-height: 20px; color: #6b7280; margin-bottom: 8px;">
                     You can also copy-paste following link in your browser:
@@ -820,7 +920,7 @@ def send_onboarding_email(recipient, name, link):
                 </p>
             </div>
         </div>
-        
+
         <div style="text-align: center; margin-top: 24px;">
             <p style="font-size: 12px; color: #9ca3af;">
                 Sent via ERPNext
@@ -828,7 +928,7 @@ def send_onboarding_email(recipient, name, link):
         </div>
     </div>
     """
-    
+
     frappe.sendmail(
         recipients=[recipient],
         subject=subject,
@@ -862,7 +962,7 @@ def admin_create_wallet_payment_link(restaurant_id, tier):
             'error': (
                 f'No upgrade payment required for {tier} tier. '
                 f'Under the new business model GOLD onboarding is free — '
-                f'restaurants pay only the 1.5% commission plus the monthly floor.'
+                f'restaurants pay only the Success Share plus the monthly floor.'
             ),
         }
     except Exception as e:
@@ -876,7 +976,7 @@ def get_platform_settings():
     """
     if not is_global_admin() and not is_supervisor(frappe.session.user):
         return {'success': False, 'error': 'Unauthorized'}
-    
+
     settings = frappe.get_single("Flamezo Settings")
     return {
         'success': True,
@@ -884,7 +984,7 @@ def get_platform_settings():
             'charge_gst': bool(settings.charge_gst),
             'gst_percent': float(settings.gst_percent or 18.0),
             'gold_monthly_fee': float(settings.gold_monthly_fee or 399.0),
-            'gold_commission_percent': float(settings.gold_commission_percent or 1.5),
+            'gold_commission_percent': float(settings.gold_commission_percent or 3.0),
             # Retired under the single-tier model — kept in the response as
             # 0.0 so old admin UIs that read it don't break.
             'gold_upgrade_barrier': 0.0,
@@ -898,30 +998,30 @@ def update_platform_settings(settings):
     """
     if not is_global_admin():
         return {'success': False, 'error': 'Restricted to Global Administrators'}
-    
+
     if isinstance(settings, str):
         settings = json.loads(settings)
-    
+
     doc = frappe.get_doc("Flamezo Settings")
-    
+
     allowed_fields = [
-        'charge_gst', 
-        'gst_percent', 
-        'gold_monthly_fee', 
-        'gold_commission_percent', 
+        'charge_gst',
+        'gst_percent',
+        'gold_monthly_fee',
+        'gold_commission_percent',
         'gold_upgrade_barrier'
     ]
-    
+
     updated = []
     for field in allowed_fields:
         if field in settings:
             doc.set(field, settings[field])
             updated.append(field)
-    
+
     if updated:
         doc.save(ignore_permissions=True)
         frappe.db.commit()
-    
+
     return {'success': True, 'updated': updated}
 @frappe.whitelist()
 def admin_create_manual_recharge_link(restaurant_id, amount):
@@ -943,10 +1043,10 @@ def admin_create_manual_recharge_link(restaurant_id, amount):
         settings = frappe.get_single("Flamezo Settings")
         charge_gst = bool(settings.charge_gst)
         gst_rate = float(settings.gst_percent or 18.0) / 100.0 if charge_gst else 0.0
-        
+
         gst_amount = round(base_amount * gst_rate, 2)
         total_payable = base_amount + gst_amount
-        total_payable_paise = int(round(total_payable * 100))
+        total_payable_paise = round(total_payable * 100)
 
         # Get restaurant record
         try:
@@ -1000,5 +1100,5 @@ def admin_create_manual_recharge_link(restaurant_id, amount):
         }
 
     except Exception as e:
-        frappe.log_error(f"Manual recharge link failed: {str(e)}", "admin.manual_recharge_link")
+        frappe.log_error(f"Manual recharge link failed: {e!s}", "admin.manual_recharge_link")
         return {'success': False, 'error': str(e)}

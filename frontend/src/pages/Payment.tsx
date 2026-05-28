@@ -300,8 +300,23 @@ const Payment: React.FC = () => {
                       <span>₹{deliveryFee.toFixed(2)}</span>
                     </div>
                   )}
-                  <p>• Platform fee ({billingInfo?.plan_defaults?.gold_commission ?? 1.5}%): ₹{(totalAmount * ((billingInfo?.plan_defaults?.gold_commission ?? 1.5) / 100)).toFixed(2)}</p>
-                  <p>• Restaurant receives: ₹{(totalAmount * (1 - (billingInfo?.plan_defaults?.gold_commission ?? 1.5) / 100)).toFixed(2)}</p>
+                  {(() => {
+                    // Display this restaurant's actual rate (legacy = 1.5,
+                    // new = 3) — falls back to the global default, then 3.0.
+                    const rate = Number(
+                      billingInfo?.platform_fee_percent ||
+                      billingInfo?.plan_defaults?.gold_commission ||
+                      3.0
+                    )
+                    const share = totalAmount * (rate / 100)
+                    const restaurantNet = totalAmount - share
+                    return (
+                      <>
+                        <p>• Success Share ({rate}%): ₹{share.toFixed(2)}</p>
+                        <p>• Restaurant receives: ₹{restaurantNet.toFixed(2)}</p>
+                      </>
+                    )
+                  })()}
                 </div>
               </CardContent>
             </Card>
