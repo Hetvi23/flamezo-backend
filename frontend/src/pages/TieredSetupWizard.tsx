@@ -15,7 +15,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { useRestaurant } from '@/contexts/RestaurantContext'
 import { cn } from '@/lib/utils'
-import { getHiddenFields } from '@/config/setupWizardFields'
+import { getShownFields } from '@/config/setupWizardFields'
 
 interface WizardStep {
   id: string
@@ -308,10 +308,10 @@ export default function TieredSetupWizard() {
                   }}
                   triggerSave={triggerSave}
                   showSaveButton={false}
-                  hideFields={
+                  showOnlyFields={
                     (currentStep.id === 'restaurant' || currentStep.id === 'config')
-                      ? getHiddenFields(currentStep.id)
-                      : []
+                      ? getShownFields(currentStep.id)
+                      : undefined
                   }
                 />
               )}

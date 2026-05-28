@@ -50,6 +50,7 @@ interface DynamicFormProps {
   onFieldChange?: (fieldname: string, value: any) => void
   onChange?: (hasChanges: boolean) => void // Notify parent when form has changes
   hideFields?: string[] // Fields to hide from the form
+  showOnlyFields?: string[] // If set, ONLY these fields are shown (allowlist mode — overrides hideFields)
   readOnlyFields?: string[] // Fields to make read-only
   showSaveButton?: boolean // Control whether to show save button
   triggerSave?: number // Increment this to trigger save
@@ -91,6 +92,7 @@ export default function DynamicForm({
   onFieldChange,
   onChange,
   hideFields = [],
+  showOnlyFields,
   readOnlyFields = [],
   triggerSave,
   skipLoadingState = false
@@ -441,7 +443,7 @@ export default function DynamicForm({
     // Check required fields
     meta.fields.forEach(field => {
       // Skip validation if field is hidden in meta OR passed in hideFields prop
-      if (field.required && !field.hidden && !hideFields.includes(field.fieldname)) {
+      if (field.required && !field.hidden && !hideFields.includes(field.fieldname) && (!showOnlyFields || showOnlyFields.includes(field.fieldname))) {
         const value = formData[field.fieldname]
 
         // Special handling for Table fields
@@ -737,8 +739,8 @@ export default function DynamicForm({
               label={field.label}
               value={value || ''}
               onChange={(addr) => handleFieldChange('address', addr)}
-              onLocationSelect={({ address, latitude, longitude, city, state, zipCode }) => {
-                console.log('[DynamicForm] Address Selected:', { address, latitude, longitude, city, state, zipCode })
+              onLocationSelect={({ address, latitude, longitude, city, state, zipCode, googleMapUrl }) => {
+                console.log('[DynamicForm] Address Selected:', { address, latitude, longitude, city, state, zipCode, googleMapUrl })
                 handleFieldChange('address', address)
                 if (latitude !== null) {
                   handleFieldChange('latitude', latitude)
@@ -754,6 +756,9 @@ export default function DynamicForm({
                 }
                 if (zipCode) {
                   handleFieldChange('zip_code', zipCode)
+                }
+                if (googleMapUrl) {
+                  handleFieldChange('google_map_url', googleMapUrl)
                 }
                 // Lock address component fields since they were auto-filled from Google
                 setAddressComponentsLocked(true)
@@ -969,12 +974,20 @@ export default function DynamicForm({
       case 'Text':
       case 'Long Text': {
         const textLimit = (doctype && CHARACTER_LIMITS[doctype]) ? CHARACTER_LIMITS[doctype][field.fieldname] : undefined
+        const isAutoFilledField = doctype === 'Restaurant' && field.fieldname === 'google_map_url'
+        const isEffectivelyReadOnly = isReadOnly || (isAutoFilledField && addressComponentsLocked)
         return (
           <div key={field.fieldname} className="space-y-2">
             <div className="flex justify-between items-center">
-              <Label htmlFor={field.fieldname}>
+              <Label htmlFor={field.fieldname} className="flex items-center gap-1.5">
                 {field.label}
                 {field.required && <span className="text-destructive">*</span>}
+                {isAutoFilledField && addressComponentsLocked && (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-primary bg-primary/10 px-1.5 py-0.5 rounded-full">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-2.5 h-2.5"><rect width="18" height="11" x="3" y="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
+                    Auto-filled
+                  </span>
+                )}
               </Label>
               {textLimit && (
                 <span className={cn(
@@ -993,13 +1006,17 @@ export default function DynamicForm({
               id={field.fieldname}
               value={value}
               onChange={(e) => handleFieldChange(field.fieldname, e.target.value)}
-              readOnly={isReadOnly}
+              readOnly={isEffectivelyReadOnly}
               required={field.required}
               maxLength={textLimit}
               rows={4}
+              className={isAutoFilledField && addressComponentsLocked ? 'bg-muted opacity-70 cursor-not-allowed' : ''}
             />
             {field.description && (
               <p className="text-xs text-muted-foreground">{getEnhancedDescription(field, doctype)}</p>
+            )}
+            {isAutoFilledField && addressComponentsLocked && (
+              <p className="text-xs text-primary/70 mt-1">Auto-populated from the selected address. Select a different address to update.</p>
             )}
           </div>
         )
@@ -1545,7 +1562,7 @@ export default function DynamicForm({
 
   if (meta?.fields) {
     for (const field of meta.fields) {
-      if (field.hidden || hideFields.includes(field.fieldname)) {
+      if (field.hidden || hideFields.includes(field.fieldname) || (showOnlyFields && !showOnlyFields.includes(field.fieldname) && field.fieldtype !== 'Section Break' && field.fieldtype !== 'Column Break')) {
         continue
       }
 
@@ -1575,6 +1592,7 @@ export default function DynamicForm({
     const visibleFields = meta.fields.filter(f =>
       !f.hidden &&
       !hideFields.includes(f.fieldname) &&
+      (!showOnlyFields || showOnlyFields.includes(f.fieldname)) &&
       f.fieldtype !== 'Column Break' &&
       f.fieldtype !== 'Section Break'
     )

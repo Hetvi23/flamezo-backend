@@ -228,3 +228,7 @@ export const WIZARD_FIELD_GATE: Record<WizardStepId, StepFieldGate> = {
 export function getHiddenFields(stepId: WizardStepId): string[] {
   return WIZARD_FIELD_GATE[stepId].alwaysHidden
 }
+
+export function getShownFields(stepId: WizardStepId): string[] {
+  return WIZARD_FIELD_GATE[stepId].shown
+}
