@@ -15,6 +15,7 @@ interface AddressAutocompleteProps {
     city?: string
     state?: string
     zipCode?: string
+    googleMapUrl?: string
   }) => void
   label?: string
   required?: boolean
@@ -223,7 +224,7 @@ export default function AddressAutocomplete({
         service.getDetails(
           {
             placeId,
-            fields: ['formatted_address', 'geometry', 'address_components'],
+            fields: ['formatted_address', 'geometry', 'address_components', 'url'],
             sessionToken,
           },
           (place: any, status: any) => {
@@ -262,7 +263,8 @@ export default function AddressAutocomplete({
                 longitude: lng,
                 city: city,
                 state: state,
-                zipCode: zipCode
+                zipCode: zipCode,
+                googleMapUrl: place.url || `https://maps.google.com/?q=${encodeURIComponent(finalAddress)}`
               })
 
               // Refresh session token
