@@ -1,12 +1,14 @@
 /**
  * Feature Gate Utilities
- * 
- * Provides utilities for checking feature access based on subscription plans
+ *
+ * Under the single-tier (GOLD-only) model every restaurant has access to every
+ * feature on day one. These helpers are retained as no-op stubs for backwards
+ * compatibility with existing call sites and always report unlocked.
  */
 
 export interface FeatureAccess {
   hasAccess: boolean;
-  currentPlan: 'SILVER' | 'GOLD';
+  currentPlan: 'GOLD';
   requiredPlans: string[];
   feature: string;
 }
@@ -32,96 +34,22 @@ export const FEATURES = {
 
 export type FeatureKey = typeof FEATURES[keyof typeof FEATURES];
 
-/**
- * Check if a feature is accessible based on subscription plan
- */
 export async function checkFeatureAccess(
-  restaurantId: string,
-  feature: FeatureKey
+  _restaurantId: string,
+  feature: FeatureKey,
 ): Promise<FeatureAccess> {
-  try {
-    const response = await fetch('/api/method/flamezo_backend.api.subscription.check_access', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Frappe-CSRF-Token': (window as any).csrf_token || '',
-      },
-      body: JSON.stringify({
-        restaurant_id: restaurantId,
-        feature_name: feature,
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to check feature access');
-    }
-
-    const data = await response.json();
-    return data.message;
-  } catch (error) {
-    console.error('Error checking feature access:', error);
-    // Default to no access on error
-    return {
-      hasAccess: false,
-      currentPlan: 'SILVER',
-      requiredPlans: ['GOLD', 'GOLD'],
-      feature,
-    };
-  }
+  return {
+    hasAccess: true,
+    currentPlan: 'GOLD',
+    requiredPlans: ['GOLD'],
+    feature,
+  };
 }
 
-/**
- * Get restaurant plan information
- */
-export async function getRestaurantPlan(restaurantId: string) {
-  try {
-    const response = await fetch('/api/method/flamezo_backend.api.subscription.get_restaurant_plan', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Frappe-CSRF-Token': (window as any).csrf_token || '',
-      },
-      body: JSON.stringify({
-        restaurant_id: restaurantId,
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to get restaurant plan');
-    }
-
-    const data = await response.json();
-    return data.message;
-  } catch (error) {
-    console.error('Error getting restaurant plan:', error);
-    return null;
-  }
+export async function getRestaurantPlan(_restaurantId: string) {
+  return { plan_type: 'GOLD' };
 }
 
-/**
- * Get upgrade benefits for a restaurant
- */
-export async function getUpgradeBenefits(restaurantId: string) {
-  try {
-    const response = await fetch('/api/method/flamezo_backend.api.subscription.get_upgrade_benefits', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Frappe-CSRF-Token': (window as any).csrf_token || '',
-      },
-      body: JSON.stringify({
-        restaurant_id: restaurantId,
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to get upgrade benefits');
-    }
-
-    const data = await response.json();
-    return data.message;
-  } catch (error) {
-    console.error('Error getting upgrade benefits:', error);
-    return null;
-  }
+export async function getUpgradeBenefits(_restaurantId: string) {
+  return null;
 }

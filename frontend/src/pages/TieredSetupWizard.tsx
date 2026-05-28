@@ -10,7 +10,7 @@ import { Progress } from '@/components/ui/progress'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { Stepper } from '@/components/ui/stepper'
 import { Badge } from '@/components/ui/badge'
-import { ArrowLeft, ArrowRight, Check, Zap, Star, Loader2 } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Check, Zap, Loader2 } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { useRestaurant } from '@/contexts/RestaurantContext'
@@ -63,7 +63,7 @@ interface SetupProgressResponse {
 export default function TieredSetupWizard() {
   const { stepId: urlSlug } = useParams<{ stepId?: string }>()
   const navigate = useNavigate()
-  const { selectedRestaurant, setSelectedRestaurant, planType, isGold, isLoading: contextLoading, restaurants } = useRestaurant()
+  const { selectedRestaurant, setSelectedRestaurant, isLoading: contextLoading, restaurants } = useRestaurant()
 
   // Define All Possible Steps
   const allPotentialSteps: WizardStep[] = [
@@ -144,11 +144,11 @@ export default function TieredSetupWizard() {
 
   const progressPercentage = (completedCount / steps.length) * 100
 
-  // Plan Badge UI
-  const PlanBadge = () => {
-    if (isGold) return <Badge className="bg-gradient-to-r from-indigo-600 to-blue-600 text-white border-none shadow-lg gap-1 px-3 py-1"><Zap className="w-3.5 h-3.5" /> GOLD Growth</Badge>
-    return <Badge className="bg-gradient-to-r from-amber-500 to-orange-500 text-white border-none shadow-lg gap-1 px-3 py-1"><Star className="w-3.5 h-3.5" /> SILVER Foundation</Badge>
-  }
+  const PlanBadge = () => (
+    <Badge className="bg-gradient-to-r from-indigo-600 to-blue-600 text-white border-none shadow-lg gap-1 px-3 py-1">
+      <Zap className="w-3.5 h-3.5" /> Flamezo
+    </Badge>
+  )
 
   if (contextLoading || !steps.length || (restaurants.length > 0 && !selectedRestaurant)) {
     return (
@@ -184,7 +184,7 @@ export default function TieredSetupWizard() {
              <PlanBadge />
           </div>
           <p className="text-sm sm:text-base text-muted-foreground max-w-lg">
-            Let's get your {planType.toLowerCase()} experience ready. Follow these steps to unlock full potential.
+            Let's get your dashboard ready. Follow these steps to unlock full potential.
           </p>
         </div>
         
@@ -310,7 +310,7 @@ export default function TieredSetupWizard() {
                   showSaveButton={false}
                   hideFields={
                     (currentStep.id === 'restaurant' || currentStep.id === 'config')
-                      ? getHiddenFields(currentStep.id, planType)
+                      ? getHiddenFields(currentStep.id)
                       : []
                   }
                 />

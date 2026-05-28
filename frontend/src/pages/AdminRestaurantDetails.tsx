@@ -50,7 +50,7 @@ interface Restaurant {
   owner_phone?: string
   owner_name?: string
   is_active: number
-  plan_type: 'SILVER' | 'GOLD'
+  plan_type: 'GOLD'
   coins_balance: number
   platform_fee_percent: number
   monthly_minimum: number
@@ -62,7 +62,20 @@ interface Restaurant {
   billing_status: string
   mandate_status: string
   razorpay_account_id?: string
-  razorpay_kyc_status?: string
+  razorpay_kyc_status?: '' | 'under_review' | 'needs_clarification' | 'activated' | 'suspended' | 'rejected'
+  // ── Razorpay Route hybrid state (May 2026) ──
+  route_mode?: '' | 'flamezo_hold' | 'direct_split' | 'disabled'
+  outstanding_commission_paise?: number
+  cash_payments_disabled_until?: string | null
+  cash_sweep_failure_count?: number
+  last_cash_sweep_error?: string
+  // ── Route KYC fields submitted by the merchant ──
+  legal_name?: string
+  business_type?: string
+  pan_number?: string
+  bank_account_number?: string
+  bank_ifsc?: string
+  bank_holder_name?: string
   pos_provider?: string
   pos_enabled: number
   pos_app_key?: string
@@ -534,11 +547,31 @@ function AdminRestaurantDetailsPage() {
               <Zap className="h-24 w-24 text-primary" />
             </div>
             <CardContent className="p-5">
-              <p className="text-[10px] uppercase font-bold tracking-widest text-primary/60 mb-1">Subscription</p>
-              <div className="flex items-center gap-2">
-                <Shield className="h-4 w-4 text-primary" />
-                <span className="text-xl font-bold">{restaurant.plan_type}</span>
-              </div>
+              <p className="text-[10px] uppercase font-bold tracking-widest text-primary/60 mb-1">Success Share</p>
+              {(() => {
+                // Single-tier model: plan_type is always GOLD. The
+                // meaningful number for an admin is the actual rate this
+                // restaurant pays — legacy 1.5% vs new 3% vs custom.
+                const rate = Number(restaurant.platform_fee_percent ?? 0)
+                const isLegacy = Math.abs(rate - 1.5) < 0.001
+                return (
+                  <div className="flex items-center gap-2">
+                    <Shield className="h-4 w-4 text-primary" />
+                    <span className="text-xl font-bold">{rate}%</span>
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        'px-1.5 py-0 text-[9px] font-black uppercase tracking-wider h-4',
+                        isLegacy
+                          ? 'bg-amber-50 text-amber-700 border-amber-200'
+                          : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                      )}
+                    >
+                      {isLegacy ? 'Legacy' : 'New'}
+                    </Badge>
+                  </div>
+                )
+              })()}
             </CardContent>
           </Card>
           
@@ -717,7 +750,7 @@ function AdminRestaurantDetailsPage() {
                           <span className="font-medium">{formatDate(restaurant.modified)}</span>
                         </div>
                         <div className="flex justify-between items-center text-sm">
-                          <span className="text-muted-foreground">Commission Ratio</span>
+                          <span className="text-muted-foreground">Success Share Rate</span>
                           <Badge variant="outline" className="text-primary border-primary/20">{restaurant.platform_fee_percent}%</Badge>
                         </div>
                      </div>
@@ -778,44 +811,42 @@ function AdminRestaurantDetailsPage() {
           {/* Billing Tab */}
           <TabsContent value="billing">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* ── Plan & Billing (left) ── */}
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-lg">Subscription Configuration</CardTitle>
-                  <CardDescription>Manage tiers, commission and floors</CardDescription>
+                  <CardTitle className="text-lg">Plan & Billing</CardTitle>
+                  <CardDescription>Success Share rate, monthly floor, and admin billing state</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
                   <div className="space-y-2">
-                    <Label>Subscription Tier</Label>
-                    <Select 
-                      value={restaurant.plan_type} 
-                      onValueChange={(v: 'SILVER' | 'GOLD') => setRestaurant({...restaurant, plan_type: v})}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="SILVER"><div className="flex items-center gap-2"><Shield className="h-3 w-3 text-muted-foreground" /> SILVER (Basic)</div></SelectItem>
-                        <SelectItem value="GOLD"><div className="flex items-center gap-2"><Zap className="h-3 w-3 text-amber-500" /> GOLD (Full Automation)</div></SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <Label>Plan Tier</Label>
+                    <div className="flex items-center gap-2 p-3 rounded-xl border bg-muted/20">
+                      <Zap className="h-4 w-4 text-amber-500" />
+                      <span className="font-bold text-sm">Flamezo (Full Automation)</span>
+                      <Badge variant="outline" className="ml-auto text-[10px] font-mono">Single Tier</Badge>
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-6">
                     <div className="space-y-2">
-                      <Label>Platform Fee (%)</Label>
-                      <NumberInput 
-                        
-                        value={restaurant.platform_fee_percent} 
+                      <Label>Success Share (%)</Label>
+                      <NumberInput
+                        value={restaurant.platform_fee_percent}
                         onChange={(e) => setRestaurant({...restaurant, platform_fee_percent: parseFloat(e.target.value)})}
                       />
+                      <p className="text-[11px] text-muted-foreground">
+                        Default 3% for new restaurants, 1.5% grandfathered.
+                      </p>
                     </div>
                     <div className="space-y-2">
-                      <Label>Monthly Minimum (₹)</Label>
-                      <NumberInput 
-                         
-                        value={restaurant.monthly_minimum} 
+                      <Label>Monthly Floor (₹)</Label>
+                      <NumberInput
+                        value={restaurant.monthly_minimum}
                         onChange={(e) => setRestaurant({...restaurant, monthly_minimum: parseFloat(e.target.value)})}
                       />
+                      <p className="text-[11px] text-muted-foreground">
+                        Minimum billed per month if Success Share doesn't cover it.
+                      </p>
                     </div>
                   </div>
 
@@ -823,8 +854,8 @@ function AdminRestaurantDetailsPage() {
 
                   <div className="space-y-3">
                     <Label className="text-xs uppercase font-bold tracking-widest text-muted-foreground">Admin Billing Status</Label>
-                    <Select 
-                      value={restaurant.billing_status} 
+                    <Select
+                      value={restaurant.billing_status}
                       onValueChange={(v) => setRestaurant({...restaurant, billing_status: v})}
                     >
                       <SelectTrigger>
@@ -840,50 +871,156 @@ function AdminRestaurantDetailsPage() {
                 </CardContent>
               </Card>
 
+              {/* ── Payment Route & KYC (right) ── */}
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-lg">Razorpay Autopay & KYC</CardTitle>
-                  <CardDescription>Mandate status and payment connectivity</CardDescription>
+                  <CardTitle className="text-lg">Payment Route & KYC</CardTitle>
+                  <CardDescription>Razorpay Route settlement state + autopay mandate</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-6">
-                  <div className="space-y-4">
-                    <div className="p-4 rounded-xl border bg-muted/20 space-y-3">
-                      <div className="flex items-center justify-between">
-                        <Label className="text-sm font-bold">Mandate Status</Label>
-                        <Badge 
-                          variant={restaurant.mandate_status === 'active' ? 'default' : 'destructive'}
-                          className={restaurant.mandate_status === 'active' ? "bg-green-500/10 text-green-600" : ""}
-                        >
-                          {restaurant.mandate_status ? restaurant.mandate_status.toUpperCase() : 'UNKNOWN'}
-                        </Badge>
+                <CardContent className="space-y-5">
+                  {/* Settlement Mode + KYC Status — the two most important
+                      signals at a glance. */}
+                  {(() => {
+                    const routeMode = restaurant.route_mode || 'flamezo_hold'
+                    const kycStatus = restaurant.razorpay_kyc_status || ''
+                    const routeMap: Record<string, { label: string; cls: string; hint: string }> = {
+                      direct_split: { label: 'Direct Split', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200', hint: 'Payments split at capture; merchant gets bulk in T+2.' },
+                      flamezo_hold: { label: 'Flamezo Hold', cls: 'bg-stone-50 text-stone-700 border-stone-200', hint: 'Payments land in Flamezo; weekly NEFT to merchant.' },
+                      disabled: { label: 'Disabled', cls: 'bg-rose-50 text-rose-700 border-rose-200', hint: 'Compliance pause. Customer payments blocked.' },
+                    }
+                    const r = routeMap[routeMode] || routeMap.flamezo_hold
+                    const kycMap: Record<string, { label: string; cls: string }> = {
+                      activated: { label: 'Activated', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+                      under_review: { label: 'Under Review', cls: 'bg-blue-50 text-blue-700 border-blue-200' },
+                      needs_clarification: { label: 'Needs Info', cls: 'bg-amber-50 text-amber-700 border-amber-200' },
+                      rejected: { label: 'Rejected', cls: 'bg-rose-50 text-rose-700 border-rose-200' },
+                      suspended: { label: 'Suspended', cls: 'bg-rose-50 text-rose-700 border-rose-200' },
+                    }
+                    const k = kycMap[kycStatus] || { label: 'Not Started', cls: 'bg-stone-50 text-stone-600 border-stone-200' }
+                    return (
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="p-3 rounded-xl border bg-muted/20 space-y-1">
+                          <p className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground">Settlement Mode</p>
+                          <Badge variant="outline" className={cn('font-bold', r.cls)}>{r.label}</Badge>
+                          <p className="text-[10px] text-muted-foreground leading-snug">{r.hint}</p>
+                        </div>
+                        <div className="p-3 rounded-xl border bg-muted/20 space-y-1">
+                          <p className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground">KYC Status</p>
+                          <Badge variant="outline" className={cn('font-bold', k.cls)}>{k.label}</Badge>
+                          <p className="text-[10px] text-muted-foreground leading-snug">
+                            {kycStatus === 'activated' ? 'Direct payouts live.'
+                              : kycStatus === 'under_review' ? 'Razorpay reviewing 1–3 days.'
+                              : kycStatus === 'needs_clarification' ? 'Owner action required.'
+                              : kycStatus === 'rejected' ? 'Resubmit corrected details.'
+                              : kycStatus === 'suspended' ? 'Razorpay-side pause.'
+                              : 'Merchant has not submitted KYC.'}
+                          </p>
+                        </div>
                       </div>
-                      <div className="text-xs text-muted-foreground flex items-center gap-2">
-                        <ShieldCheck className="h-3 w-3" /> Tokenized Recurring Access Enabled
-                      </div>
-                    </div>
+                    )
+                  })()}
 
-                    <div className="grid grid-cols-1 gap-4">
-                      <div className="space-y-2">
-                        <Label>Razorpay Account ID</Label>
-                        <Input value={restaurant.razorpay_account_id || ''} disabled className="bg-muted/50 font-mono text-xs" />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>KYC Status</Label>
-                        <Input value={restaurant.razorpay_kyc_status || 'NOT INITIALIZED'} disabled className="bg-muted/50 font-bold text-xs" />
-                      </div>
-                    </div>
+                  {/* Razorpay Linked Account ID — read-only audit field. */}
+                  <div className="space-y-2">
+                    <Label>Razorpay Linked Account ID</Label>
+                    <Input
+                      value={restaurant.razorpay_account_id || ''}
+                      disabled
+                      className="bg-muted/50 font-mono text-xs"
+                      placeholder="— Not created yet —"
+                    />
                   </div>
 
+                  {/* Autopay Mandate — for monthly billing + cash sweep. */}
+                  <div className="p-3 rounded-xl border bg-muted/20 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs uppercase font-bold tracking-widest text-muted-foreground">Autopay Mandate</Label>
+                      <Badge
+                        variant={restaurant.mandate_status === 'active' ? 'default' : 'destructive'}
+                        className={restaurant.mandate_status === 'active' ? 'bg-emerald-500/10 text-emerald-600 border-emerald-200' : ''}
+                      >
+                        {restaurant.mandate_status ? restaurant.mandate_status.toUpperCase() : 'INACTIVE'}
+                      </Badge>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground leading-snug">
+                      Used for monthly floor billing + cash Success Share sweeps (Tier 2).
+                    </p>
+                  </div>
+
+                  {/* Outstanding cash Success Share — admin-visible debt. */}
+                  {(() => {
+                    const outstandingPaise = Number(restaurant.outstanding_commission_paise || 0)
+                    const throttledUntil = restaurant.cash_payments_disabled_until
+                    const isThrottled = throttledUntil
+                      ? new Date(throttledUntil) >= new Date(new Date().toDateString())
+                      : false
+                    const failureCount = Number(restaurant.cash_sweep_failure_count || 0)
+                    if (outstandingPaise === 0 && !isThrottled && failureCount === 0) return null
+                    return (
+                      <div className={cn(
+                        'p-3 rounded-xl border space-y-2',
+                        isThrottled ? 'border-rose-200 bg-rose-50/40' : 'border-amber-200 bg-amber-50/40'
+                      )}>
+                        <div className="flex items-center justify-between">
+                          <Label className="text-xs uppercase font-bold tracking-widest text-muted-foreground flex items-center gap-1">
+                            <ShieldAlert className={cn('h-3 w-3', isThrottled ? 'text-rose-600' : 'text-amber-600')} />
+                            Cash Success Share Engine
+                          </Label>
+                          {isThrottled && (
+                            <Badge variant="outline" className="bg-rose-100 text-rose-700 border-rose-200 text-[10px] font-black uppercase tracking-wider h-4 px-1.5">Throttled</Badge>
+                          )}
+                        </div>
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-muted-foreground">Outstanding</span>
+                          <span className={cn('font-mono font-bold', outstandingPaise > 0 ? 'text-amber-700' : 'text-muted-foreground')}>
+                            ₹{(outstandingPaise / 100).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                          </span>
+                        </div>
+                        {failureCount > 0 && (
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-muted-foreground">Sweep Failures</span>
+                            <span className="font-mono font-bold text-rose-700">{failureCount}</span>
+                          </div>
+                        )}
+                        {isThrottled && throttledUntil && (
+                          <p className="text-[10px] text-rose-700/80 leading-snug">
+                            Cash payments disabled until <span className="font-bold">{throttledUntil}</span> to drain debt via online net-off.
+                          </p>
+                        )}
+                        {restaurant.last_cash_sweep_error && (
+                          <p className="text-[10px] text-muted-foreground leading-snug truncate" title={restaurant.last_cash_sweep_error}>
+                            Last error: <span className="font-mono">{restaurant.last_cash_sweep_error}</span>
+                          </p>
+                        )}
+                      </div>
+                    )
+                  })()}
+
+                  {/* Submitted KYC details — only show if any field is on file. */}
+                  {(restaurant.legal_name || restaurant.pan_number || restaurant.bank_ifsc) && (
+                    <div className="space-y-3">
+                      <Label className="text-xs uppercase font-bold tracking-widest text-muted-foreground">Submitted KYC Details</Label>
+                      <div className="rounded-xl border divide-y divide-border/40 text-xs">
+                        <KycRow label="Legal Name" value={restaurant.legal_name} />
+                        <KycRow label="Business Type" value={restaurant.business_type} mono={false} />
+                        <KycRow label="PAN" value={restaurant.pan_number} mask={(v) => maskPan(v)} />
+                        <KycRow label="Bank Account" value={restaurant.bank_account_number} mask={(v) => maskAccount(v)} />
+                        <KycRow label="IFSC" value={restaurant.bank_ifsc} />
+                        <KycRow label="Account Holder" value={restaurant.bank_holder_name} mono={false} />
+                      </div>
+                    </div>
+                  )}
+
                   <Separator />
-                  
+
                   <div className="bg-indigo-500/5 border border-indigo-200/50 p-4 rounded-xl">
-                      <p className="text-xs font-bold text-indigo-700 mb-1 flex items-center gap-1.5 uppercase tracking-tighter">
-                        <ShieldAlert className="h-3 w-3" /> Billing Reconciliation
-                      </p>
-                      <p className="text-[10px] text-indigo-600/80 leading-relaxed">
-                        Total Commission Earned from this restaurant: <span className="font-bold">₹{(restaurant.commission_earned || 0).toLocaleString()}</span>. 
-                        Reconciled every 24 hours.
-                      </p>
+                    <p className="text-xs font-bold text-indigo-700 mb-1 flex items-center gap-1.5 uppercase tracking-tighter">
+                      <ShieldAlert className="h-3 w-3" /> Success Share Reconciliation
+                    </p>
+                    <p className="text-[10px] text-indigo-600/80 leading-relaxed">
+                      Total Success Share earned from this restaurant: <span className="font-bold">₹{(restaurant.commission_earned || 0).toLocaleString()}</span>.
+                      Reconciled every 24 hours.
+                    </p>
                   </div>
                 </CardContent>
               </Card>
@@ -1357,6 +1494,42 @@ function AdminRestaurantDetailsPage() {
       </Dialog>
     </div>
   )
+}
+
+// ── Helpers for the Payment Route & KYC card ────────────────────────
+// Kept inline at the bottom because they're tightly scoped to this
+// page; no value in pulling them into lib/utils.
+
+function KycRow({
+  label,
+  value,
+  mono = true,
+  mask,
+}: {
+  label: string
+  value?: string
+  mono?: boolean
+  mask?: (v: string) => string
+}) {
+  const display = value ? (mask ? mask(value) : value) : '—'
+  return (
+    <div className="flex items-center justify-between px-3 py-2">
+      <span className="text-muted-foreground">{label}</span>
+      <span className={mono ? 'font-mono font-bold' : 'font-medium'}>{display}</span>
+    </div>
+  )
+}
+
+// PAN: show first 5 + last 2, mask the middle 3. So ABCDE1234F → ABCDE***4F.
+function maskPan(pan: string): string {
+  if (!pan || pan.length < 7) return pan
+  return `${pan.slice(0, 5)}***${pan.slice(-2)}`
+}
+
+// Account number: show last 4 only, prefix with mask.
+function maskAccount(acct: string): string {
+  if (!acct || acct.length <= 4) return acct
+  return `••••${acct.slice(-4)}`
 }
 
 export default AdminRestaurantDetailsPage

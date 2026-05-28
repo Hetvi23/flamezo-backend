@@ -1,0 +1,221 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "format:CLE-{YYYY}-{MM}-{######}",
+ "creation": "2026-05-22 12:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "restaurant",
+  "order",
+  "accrual_source",
+  "column_break_1",
+  "status",
+  "accrued_at",
+  "settled_at",
+  "section_break_amounts",
+  "order_total_paise",
+  "platform_fee_percent",
+  "base_commission_paise",
+  "column_break_amounts",
+  "gst_percent",
+  "gst_paise",
+  "total_owed_paise",
+  "settled_paise",
+  "outstanding_paise",
+  "section_break_settlement",
+  "settlements",
+  "section_break_meta",
+  "notes",
+  "voided_reason"
+ ],
+ "fields": [
+  {
+   "fieldname": "restaurant",
+   "fieldtype": "Link",
+   "label": "Restaurant",
+   "options": "Restaurant",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "order",
+   "fieldtype": "Link",
+   "label": "Order",
+   "options": "Order",
+   "reqd": 1,
+   "unique": 1,
+   "in_list_view": 1,
+   "search_index": 1,
+   "description": "The cash/offline order that produced this commission liability. Unique — one ledger entry per order."
+  },
+  {
+   "fieldname": "accrual_source",
+   "fieldtype": "Select",
+   "label": "Accrual Source",
+   "options": "cash_order\npay_at_counter\nmanual_admin\npos_offline",
+   "default": "cash_order",
+   "description": "Why this commission was accrued"
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "outstanding\npartial\nsettled\nvoided",
+   "default": "outstanding",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "accrued_at",
+   "fieldtype": "Datetime",
+   "label": "Accrued At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "settled_at",
+   "fieldtype": "Datetime",
+   "label": "Fully Settled At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_amounts",
+   "fieldtype": "Section Break",
+   "label": "Amounts (Paise)"
+  },
+  {
+   "fieldname": "order_total_paise",
+   "fieldtype": "Int",
+   "label": "Order Total (Paise)",
+   "reqd": 1,
+   "description": "Order total in paise at time of accrual"
+  },
+  {
+   "fieldname": "platform_fee_percent",
+   "fieldtype": "Percent",
+   "label": "Success Share %",
+   "default": "3",
+   "precision": "2"
+  },
+  {
+   "fieldname": "base_commission_paise",
+   "fieldtype": "Int",
+   "label": "Base Success Share (Paise)",
+   "reqd": 1,
+   "description": "Restaurant's Success Share % of order_total_paise"
+  },
+  {
+   "fieldname": "column_break_amounts",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "gst_percent",
+   "fieldtype": "Percent",
+   "label": "GST %",
+   "default": "18",
+   "precision": "2"
+  },
+  {
+   "fieldname": "gst_paise",
+   "fieldtype": "Int",
+   "label": "GST (Paise)",
+   "description": "18% GST on base commission"
+  },
+  {
+   "fieldname": "total_owed_paise",
+   "fieldtype": "Int",
+   "label": "Total Owed (Paise)",
+   "reqd": 1,
+   "in_list_view": 1,
+   "description": "base + GST. The full liability."
+  },
+  {
+   "fieldname": "settled_paise",
+   "fieldtype": "Int",
+   "label": "Settled (Paise)",
+   "default": "0",
+   "read_only": 1,
+   "description": "Running total of settled amounts across all settlement records"
+  },
+  {
+   "fieldname": "outstanding_paise",
+   "fieldtype": "Int",
+   "label": "Outstanding (Paise)",
+   "read_only": 1,
+   "in_list_view": 1,
+   "description": "total_owed - settled. Decremented as settlements arrive."
+  },
+  {
+   "fieldname": "section_break_settlement",
+   "fieldtype": "Section Break",
+   "label": "Settlement History"
+  },
+  {
+   "fieldname": "settlements",
+   "fieldtype": "Table",
+   "label": "Settlement Lines",
+   "options": "Commission Settlement"
+  },
+  {
+   "fieldname": "section_break_meta",
+   "fieldtype": "Section Break",
+   "label": "Metadata"
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Small Text",
+   "label": "Notes"
+  },
+  {
+   "fieldname": "voided_reason",
+   "fieldtype": "Small Text",
+   "label": "Voided Reason",
+   "description": "Populated when status=voided (e.g., order cancelled or refunded)"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-05-22 12:00:00.000000",
+ "modified_by": "Administrator",
+ "label": "Success Share Ledger Entry",
+ "module": "Flamezo",
+ "name": "Commission Ledger Entry",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "read": 1,
+   "report": 1,
+   "role": "Flamezo Supervisor",
+   "export": 1
+  },
+  {
+   "read": 1,
+   "role": "Restaurant Admin"
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

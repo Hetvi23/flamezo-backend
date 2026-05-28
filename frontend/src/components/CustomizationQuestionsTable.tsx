@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from "@/components/ui/input"
 import { NumberInput } from "@/components/ui/number-input"
@@ -7,24 +7,30 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { 
-  Trash2, 
-  Plus, 
-  Edit2, 
-  Check, 
-  ChevronDown, 
-  GripVertical, 
-  Scale, 
-  Maximize2, 
-  Utensils, 
-  Pizza, 
-  Soup, 
-  MousePointer2 
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import {
+  Trash2,
+  Plus,
+  Edit2,
+  Check,
+  ChevronDown,
+  GripVertical,
+  Scale,
+  Maximize2,
+  Utensils,
+  Pizza,
+  Soup,
+  MousePointer2,
+  Copy,
+  Search,
+  Loader2
 } from 'lucide-react'
 
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { useCurrency } from '@/hooks/useCurrency'
+import { useRestaurant } from '@/contexts/RestaurantContext'
+import { useFrappeGetCall } from '@/lib/frappe'
 
 interface CustomizationOption {
   name?: string
@@ -64,18 +70,52 @@ const TEMPLATES = [
   { id: 'custom', title: 'Make your own', subtitle: "Define your own variation if you can't find a template above.", icon: Plus, highlight: true },
 ]
 
-export default function CustomizationQuestionsTable({ 
-  value = [], 
-  onChange, 
-  disabled 
+export default function CustomizationQuestionsTable({
+  value = [],
+  onChange,
+  disabled
 }: CustomizationQuestionsTableProps) {
 
   const { formatAmountNoDecimals } = useCurrency()
+  const { selectedRestaurant } = useRestaurant()
   const [expandedQuestions, setExpandedQuestions] = useState<Set<number>>(new Set())
   const [editingQuestion, setEditingQuestion] = useState<number | null>(null)
   const [editingOption, setEditingOption] = useState<{ questionIndex: number; optionIndex: number } | null>(null)
-  
+
+  // Copy from item dialog state
+  const [isCopyDialogOpen, setIsCopyDialogOpen] = useState(false)
+  const [copySearchQuery, setCopySearchQuery] = useState('')
+
+  // Fetch products with customizations for the copy dialog
+  const { data: allProductsData, isLoading: productsLoading } = useFrappeGetCall(
+    'flamezo_backend.flamezo.api.products.get_products',
+    { restaurant_id: selectedRestaurant, include_inactive: 1, limit: 500 },
+    isCopyDialogOpen && selectedRestaurant ? `copy-customizations-products-${selectedRestaurant}` : null
+  )
+
+  // Filter to only products that have customizations
+  const productsWithCustomizations = useMemo(() => {
+    const products = allProductsData?.message?.data?.products || []
+    return products.filter((p: any) =>
+      p.customizationQuestions && p.customizationQuestions.length > 0
+    )
+  }, [allProductsData])
+
+  // Search filter for copy dialog
+  const filteredCopyProducts = useMemo(() => {
+    if (!copySearchQuery.trim()) return productsWithCustomizations
+    const q = copySearchQuery.toLowerCase()
+    return productsWithCustomizations.filter((p: any) =>
+      (p.name || '').toLowerCase().includes(q) ||
+      (p.category || '').toLowerCase().includes(q)
+    )
+  }, [productsWithCustomizations, copySearchQuery])
+
   const currentValue = Array.isArray(value) ? value : []
+
+  const generateId = () => {
+    return `id_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+  }
 
   const toggleQuestion = (index: number) => {
     const newExpanded = new Set(expandedQuestions)
@@ -87,11 +127,49 @@ export default function CustomizationQuestionsTable({
     setExpandedQuestions(newExpanded)
   }
 
-  const generateId = () => {
-    return `id_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+  const handleCopyFromProduct = (product: any) => {
+    const sourceQuestions: CustomizationQuestion[] = (product.customizationQuestions || []).map(
+      (q: any, qIdx: number) => ({
+        question_id: generateId(),
+        title: q.title || q.question || '',
+        subtitle: q.subtitle || '',
+        question_type: q.type || q.question_type || 'multiple',
+        is_required: q.required ?? q.is_required ?? false,
+        display_order: currentValue.length + qIdx,
+        options: (q.options || []).map((opt: any, oIdx: number) => ({
+          option_id: generateId(),
+          label: opt.label || '',
+          price: opt.price || 0,
+          is_default: opt.isDefault ?? opt.is_default ?? false,
+          is_vegetarian: opt.isVegetarian ?? opt.is_vegetarian ?? false,
+          display_order: oIdx,
+        })),
+      })
+    )
+
+    if (sourceQuestions.length === 0) {
+      toast.error('No customizations found on this item')
+      return
+    }
+
+    const updated = [...currentValue, ...sourceQuestions]
+    onChange?.(updated)
+
+    // Expand newly added questions
+    const newExpanded = new Set(expandedQuestions)
+    sourceQuestions.forEach((_, i) => newExpanded.add(currentValue.length + i))
+    setExpandedQuestions(newExpanded)
+
+    setIsCopyDialogOpen(false)
+    setCopySearchQuery('')
+    toast.success(`Copied ${sourceQuestions.length} customization group${sourceQuestions.length > 1 ? 's' : ''} from "${product.name}"`)
   }
 
   const handleAddQuestion = (templateId?: string) => {
+    if (templateId === 'copy') {
+      setIsCopyDialogOpen(true)
+      return
+    }
     const template = TEMPLATES.find(t => t.id === templateId)
     const newQuestion: CustomizationQuestion = {
       question_id: generateId(),
@@ -209,9 +287,23 @@ export default function CustomizationQuestionsTable({
   return (
     <div className="space-y-8">
       <div className="space-y-4">
-        <div>
-          <h3 className="text-sm font-bold text-foreground/80 uppercase tracking-tight">Variants of this item</h3>
-          <p className="text-xs text-muted-foreground mt-1">You can create different variations of this item— like quantity, size, base/crust, etc.</p>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-bold text-foreground/80 uppercase tracking-tight">Variants of this item</h3>
+            <p className="text-xs text-muted-foreground mt-1">You can create different variations of this item— like quantity, size, base/crust, etc.</p>
+          </div>
+          {!disabled && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setIsCopyDialogOpen(true)}
+              className="shrink-0 gap-1.5 border-primary/30 text-primary hover:bg-primary/5 hover:border-primary/50"
+            >
+              <Copy className="h-3.5 w-3.5" />
+              Copy from Item
+            </Button>
+          )}
         </div>
         
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
@@ -515,6 +607,79 @@ export default function CustomizationQuestionsTable({
           </div>
         )}
       </div>
+
+      {/* Copy from Item Dialog */}
+      <Dialog open={isCopyDialogOpen} onOpenChange={(open) => { setIsCopyDialogOpen(open); if (!open) setCopySearchQuery('') }}>
+        <DialogContent className="sm:max-w-lg max-h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold">Copy Customizations from Item</DialogTitle>
+            <p className="text-xs text-muted-foreground">Select an item to copy all its customization groups and options.</p>
+          </DialogHeader>
+
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search items..."
+              value={copySearchQuery}
+              onChange={(e) => setCopySearchQuery(e.target.value)}
+              className="pl-9"
+              autoFocus
+            />
+          </div>
+
+          <div className="flex-1 overflow-y-auto min-h-0 -mx-6 px-6">
+            {productsLoading ? (
+              <div className="flex items-center justify-center py-12 gap-2 text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span className="text-sm">Loading items...</span>
+              </div>
+            ) : filteredCopyProducts.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-center gap-2">
+                <MousePointer2 className="h-6 w-6 text-muted-foreground/30" />
+                <p className="text-sm text-muted-foreground">
+                  {copySearchQuery ? 'No matching items found.' : 'No items with customizations yet.'}
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2 py-2">
+                {filteredCopyProducts.map((product: any) => {
+                  const questionCount = product.customizationQuestions?.length || 0
+                  const totalOptions = (product.customizationQuestions || []).reduce(
+                    (sum: number, q: any) => sum + (q.options?.length || 0), 0
+                  )
+                  return (
+                    <button
+                      key={product.docname || product.id}
+                      className="w-full text-left p-3 rounded-lg border border-border/40 hover:border-primary/50 hover:bg-primary/5 transition-all group"
+                      onClick={() => handleCopyFromProduct(product)}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            {product.is_vegetarian ? (
+                              <div className="h-2 w-2 rounded-full bg-green-500 shrink-0" />
+                            ) : (
+                              <div className="h-2 w-2 rounded-full bg-red-500 shrink-0" />
+                            )}
+                            <h4 className="text-sm font-semibold text-foreground truncate">{product.name}</h4>
+                          </div>
+                          <p className="text-[10px] text-muted-foreground mt-0.5 ml-4">{product.category}</p>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <Badge variant="outline" className="text-[9px] h-5 border-border/60 text-muted-foreground">
+                            {questionCount} group{questionCount !== 1 ? 's' : ''} · {totalOptions} option{totalOptions !== 1 ? 's' : ''}
+                          </Badge>
+                          <Copy className="h-3.5 w-3.5 text-muted-foreground/40 group-hover:text-primary transition-colors" />
+                        </div>
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

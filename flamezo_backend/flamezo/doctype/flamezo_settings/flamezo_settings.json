@@ -140,10 +140,10 @@
    "label": "GOLD Monthly Floor (Legacy)"
   },
   {
-   "default": "1.5",
+   "default": "3",
    "fieldname": "gold_commission_percent",
    "fieldtype": "Percent",
-   "label": "GOLD Commission Percent"
+   "label": "GOLD Success Share Percent"
   },
   {
    "default": "0",

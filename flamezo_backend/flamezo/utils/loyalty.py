@@ -94,7 +94,7 @@ def redeem_loyalty_coins(customer, restaurant, coins, reason="Redemption", ref_d
 	# We don't commit here to allow the caller to manage the transaction
 	return int(coins)
 
-def earn_loyalty_coins(customer, restaurant, amount_paid, reason="Order", ref_doctype=None, ref_name=None):
+def earn_loyalty_coins(customer, restaurant, amount_paid, reason="Order", ref_doctype=None, ref_name=None, payment_method=None):
 	"""
 	Calculate and credit loyalty coins using Flamezo platform-fixed rates.
 	All earn logic is centralized — restaurants cannot override these values.
@@ -105,6 +105,10 @@ def earn_loyalty_coins(customer, restaurant, amount_paid, reason="Order", ref_do
 	  - Max per order:    ₹1000
 	  - Expiry:           6 months
 
+	payment_method: when 'Order'-sourced, only credits coins when the order was
+	paid online. Cash-on-counter orders earn 0 (matches the cart UX rule that
+	cashback is locked behind verified + pay_online).
+
 	Sets is_settled=0 initially if reference is an Order (settled on completion).
 	"""
 	if not customer or not restaurant or not amount_paid or amount_paid <= 0:
@@ -112,6 +116,13 @@ def earn_loyalty_coins(customer, restaurant, amount_paid, reason="Order", ref_do
 
 	if not is_loyalty_enabled(restaurant):
 		return 0
+
+	# Order-sourced earning is online-only. Non-order earns (welcome bonus,
+	# referral, manual adjustment) bypass this — they don't have a payment.
+	if ref_doctype == "Order":
+		normalized_pm = (payment_method or "").strip().lower()
+		if normalized_pm != "pay_online":
+			return 0
 
 	# ── Platform-Constant Rates (no DB read for earn config) ──────────────────
 	plan_type    = frappe.db.get_value("Restaurant", restaurant, "plan_type") or "GOLD"

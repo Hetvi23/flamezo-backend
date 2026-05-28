@@ -8,7 +8,6 @@ import json
 import math
 from datetime import datetime
 from typing import cast
-from frappe import _
 from flamezo_backend.flamezo.utils.api_helpers import validate_restaurant_for_api
 from flamezo_backend.flamezo.utils.customer_helpers import (
 	require_verified_phone, 
@@ -19,6 +18,8 @@ from flamezo_backend.flamezo.utils.customer_helpers import (
 	get_customer_token
 )
 from flamezo_backend.flamezo.utils.razorpay_utils import get_razorpay_config, get_razorpay_client, get_or_create_razorpay_customer
+from flamezo_backend.flamezo.utils import razorpay_route as route_adapter
+from flamezo_backend.flamezo.utils import commission_engine
 
 def get_or_create_mandate_plan(client):
 	"""Get or create a high-limit registration plan for Autopay mandates."""
@@ -54,12 +55,19 @@ def get_or_create_mandate_plan(client):
 # (Local Razorpay helpers moved to utils.razorpay_utils)
 
 
-@frappe.whitelist(allow_guest=True)
-def create_linked_account(*args, **kwargs):
-	"""Legacy Route linked-account functionality removed.
-	This endpoint is deprecated and intentionally disabled in the SaaS billing implementation.
+@frappe.whitelist()
+def create_linked_account(restaurant_id):
+	"""Create or fetch the Razorpay Route Linked Account for a restaurant.
+
+	Idempotent — safe to call multiple times. The restaurant must have all
+	KYC fields populated (PAN, bank details, business_type, address). On
+	first successful call the Restaurant is flipped to `route_mode =
+	flamezo_hold` with `razorpay_kyc_status = under_review`; KYC outcome
+	arrives later via `account.*` webhook events which auto-promote the
+	restaurant to `direct_split` once activated.
 	"""
-	return {"success": False, "error": "create_linked_account is deprecated in SaaS billing mode"}
+	_restaurant_name = validate_restaurant_for_api(restaurant_id)
+	return route_adapter.ensure_linked_account(_restaurant_name)
 
 
 @frappe.whitelist(allow_guest=True)
@@ -121,7 +129,7 @@ def create_payment_order(restaurant_id, order_items, total_amount, subtotal=None
 		total_amount_paise = int(float(total_amount) * 100)
 
 		# Calculate platform fee (Dynamic % by restaurant config)
-		default_commission = float(frappe.db.get_single_value("Flamezo Settings", "gold_commission_percent") or 1.5)
+		default_commission = float(frappe.db.get_single_value("Flamezo Settings", "gold_commission_percent") or 3.0)
 		platform_fee_percent = float(restaurant.platform_fee_percent if restaurant.platform_fee_percent is not None else default_commission)  # type: ignore
 		platform_fee_paise = int(math.floor(total_amount_paise * (platform_fee_percent / 100.0)))  # type: ignore
 
@@ -301,25 +309,80 @@ def create_payment_order(restaurant_id, order_items, total_amount, subtotal=None
 
 		# Calculate Razorpay amount from final order total (in paise)
 		final_total_paise = int(float(order_doc.total) * 100)
-		
-		# Create Razorpay order (standard, no transfers)
-		# Prefer restaurant-specific merchant keys if configured (so customers pay the merchant)
+		# Recompute platform fee against the *final* total (it may differ from
+		# total_amount if loyalty/coupons were applied above) so split math
+		# is consistent with what's captured.
+		platform_fee_paise = int(math.floor(final_total_paise * (platform_fee_percent / 100.0)))
+
+		# ── Settlement-mode decision ────────────────────────────────────
+		# Two modes coexist under the May 2026 Route hybrid model:
+		#   • direct_split — Route Linked Account active: split (100% −
+		#                    Success Share − cash net-off) to restaurant,
+		#                    remainder to Flamezo at capture time.
+		#   • flamezo_hold — pre-KYC: full amount lands in Flamezo's
+		#                    account, weekly NEFT settlement to restaurant.
+		# (The legacy `merchant_direct` mode — restaurant uses their own
+		# Razorpay keys — is retired; `get_razorpay_config` always returns
+		# platform keys now.)
 		client = get_razorpay_client(restaurant_id)
-		razorpay_order_data = {
+
+		settlement_mode = "flamezo_hold"
+		netoff_paise = 0
+		transfer_payload = None
+		platform_keep_paise = platform_fee_paise
+
+		if True:
+			route_decision = route_adapter.decide_route_mode(restaurant)
+			if route_decision.mode == "direct_split" and route_decision.linked_account_id:
+				# Tier 1 net-off: pull outstanding cash commission into the
+				# platform's slice of this order so Flamezo recovers it
+				# automatically. Capped at 40% of the order (see engine).
+				netoff_paise = commission_engine.compute_netoff_for_online_order(
+					restaurant_id, final_total_paise
+				)
+				platform_keep_paise = platform_fee_paise + netoff_paise
+
+				# Safety: ensure merchant slice is non-negative
+				if platform_keep_paise >= final_total_paise:
+					platform_keep_paise = max(0, final_total_paise - 100)  # leave at least ₹1 to merchant
+					netoff_paise = max(0, platform_keep_paise - platform_fee_paise)
+
+				transfer_payload = route_adapter.build_transfer_payload(
+					linked_account_id=route_decision.linked_account_id,
+					total_paise=final_total_paise,
+					platform_keep_paise=platform_keep_paise,
+					order_name=order_doc.name or "",
+				)
+				settlement_mode = "route_split"
+
+		# Build the Razorpay order. Typed as a plain dict so we can attach
+		# `transfers` (Razorpay accepts it as a top-level key when Route is
+		# enabled).
+		razorpay_order_data: dict = {
 			"amount": final_total_paise,
 			"currency": "INR",
 			"payment_capture": 1,
 			"notes": {
 				"order_id": order_doc.name,
 				"restaurant_id": restaurant_id,
-				"platform_fee": platform_fee_paise
-			}
+				"platform_fee": platform_fee_paise,
+				"cash_netoff": netoff_paise,
+				"settlement_mode": settlement_mode,
+			},
 		}
+		if transfer_payload:
+			razorpay_order_data["transfers"] = transfer_payload
 
 		razorpay_order = client.order.create(razorpay_order_data)
 
-		# Update order with Razorpay order ID
+		# Persist settlement state on the order for webhook + audit + refund
 		order_doc.razorpay_order_id = razorpay_order["id"]
+		order_doc.settlement_mode = settlement_mode
+		order_doc.platform_fee_amount = platform_fee_paise
+		order_doc.cash_netoff_applied_paise = netoff_paise
+		if transfer_payload:
+			# merchant slice = total - platform_keep
+			order_doc.restaurant_transfer_amount = final_total_paise - platform_keep_paise
 		order_doc.save(ignore_permissions=True)
 
 		# Get public key for frontend.
@@ -483,13 +546,17 @@ def process_loyalty_and_coupons(order):
 			"transaction_type": "Earn"
 		})
 		if not already_earned:
+			# This callback runs only on confirmed Razorpay capture → payment is
+			# online by construction. Pass it explicitly so the loyalty gate
+			# (online-only) lets the earn through.
 			earn_loyalty_coins(
 				customer=platform_customer,
 				restaurant=restaurant_id,
 				amount_paid=order.total,
 				reason="Order",
 				ref_doctype="Order",
-				ref_name=order.name
+				ref_name=order.name,
+				payment_method="pay_online"
 			)
 			frappe.db.commit()
 	except Exception as e:
@@ -576,11 +643,7 @@ def get_restaurant_payment_stats(restaurant_id):
 				"mandate_status": restaurant.mandate_status,
 				"masked_customer_id": mask_identifier(restaurant.razorpay_customer_id),
 				"masked_token_id": mask_identifier(restaurant.razorpay_token_id),
-				"masked_key_id": mask_identifier(restaurant.razorpay_merchant_key_id, prefix_len=8),
 				"billing_status": restaurant.billing_status,
-				"razorpay_keys_updated_at": getattr(restaurant, "razorpay_keys_updated_at", None),
-				"razorpay_keys_updated_by": getattr(restaurant, "razorpay_keys_updated_by", None),
-				"merchant_key_configured": bool(getattr(restaurant, "razorpay_merchant_key_id", None))
 			}
 		}
 		
@@ -626,47 +689,6 @@ def create_razorpay_customer_and_token(restaurant_id, customer_name, customer_em
 		frappe.log_error(f"Failed to create Razorpay customer/token: {str(e)}", "razorpay.create_customer_token")
 		return {"success": False, "error": str(e)}
 
-@frappe.whitelist()
-def set_restaurant_razorpay_keys(restaurant_id, key_id, key_secret, webhook_secret=None):
-	"""Set per-restaurant Razorpay merchant credentials. Admin-only."""
-	try:
-		# Only allow System Managers
-		roles = frappe.get_roles(frappe.session.user)
-		if 'System Manager' not in roles and 'Administrator' not in roles:
-			frappe.throw(_("Not permitted"), frappe.PermissionError)
-
-		_restaurant_name = validate_restaurant_for_api(restaurant_id)
-		restaurant = frappe.get_doc("Restaurant", cast(str, _restaurant_name))
-		restaurant.razorpay_merchant_key_id = key_id
-		restaurant.razorpay_merchant_key_secret = key_secret
-		# optional webhook secret
-		if webhook_secret:
-			restaurant.razorpay_webhook_secret = webhook_secret
-		# Audit: record who updated keys and when
-		try:
-			restaurant.razorpay_keys_updated_at = frappe.utils.now_datetime()
-			restaurant.razorpay_keys_updated_by = frappe.session.user
-		except Exception:
-			# ignore if fields missing
-			pass
-		restaurant.save()
-		return {"success": True}
-	except Exception as e:
-		frappe.log_error(f"Failed to set restaurant razorpay keys: {str(e)}", "razorpay.set_keys")
-		return {"success": False, "error": str(e)}
-
-
-@frappe.whitelist()
-def can_set_merchant_keys():
-	"""Return whether current user can set merchant keys (System Manager or Administrator)."""
-	try:
-		user = frappe.session.user
-		roles = frappe.get_roles(user)
-		allowed = 'System Manager' in roles or 'Administrator' in roles
-		return {"success": True, "allowed": allowed, "user": user, "roles": roles}
-	except Exception as e:
-		return {"success": False, "error": str(e)}
-
 @frappe.whitelist(allow_guest=True)
 def create_tokenization_order(restaurant_id, customer_name=None, customer_email=None):
 	"""
@@ -694,11 +716,22 @@ def create_tokenization_order(restaurant_id, customer_name=None, customer_email=
 		attempt_doc.insert(ignore_permissions=True)
 		frappe.db.commit()
 
-		# Create Subscription
+		# Create Subscription.
+		#
+		# The mandate plan is `period: yearly, interval: 10` (set in
+		# get_or_create_mandate_plan above). Razorpay caps `total_count`
+		# at 10 for yearly subscriptions regardless of `interval`, so we
+		# can't ask for 120 — the API responds with
+		#   "Exceeds the maximum total_count (10) allowed for the given
+		#    period and interval".
+		# This is a tokenization-only subscription anyway: we cancel it
+		# immediately in `handle_subscription_event` once the token is
+		# captured, so the actual cycle count doesn't matter — it just
+		# needs to satisfy Razorpay's validator.
 		subscription_payload = {
 			"plan_id": plan_id,
 			"customer_id": customer_id,
-			"total_count": 120, # 10 years, will be cancelled after token capture
+			"total_count": 10,  # max allowed by Razorpay for yearly period
 			"quantity": 1,
 			"customer_notify": 0,
 			"notes": {
@@ -906,7 +939,7 @@ def schedule_monthly_billing():
 			total_paise = int(float(total) * 100)
 			# Fetch commission settings from Restaurant
 			res_doc = frappe.get_doc("Restaurant", r.name)
-			default_commission = float(frappe.db.get_single_value("Flamezo Settings", "gold_commission_percent") or 1.5)
+			default_commission = float(frappe.db.get_single_value("Flamezo Settings", "gold_commission_percent") or 3.0)
 			default_floor = float(frappe.db.get_single_value("Flamezo Settings", "gold_monthly_fee") or 399.0)
 			platform_fee_percent = float(res_doc.platform_fee_percent if res_doc.platform_fee_percent is not None else default_commission)  # type: ignore
 			monthly_min = float(res_doc.monthly_minimum if res_doc.monthly_minimum is not None else default_floor)  # type: ignore

@@ -18,7 +18,7 @@ import {
 } from '@/components/ui/select'
 import {
   UserPlus, Shield, User, Trash2, Power, PowerOff, Crown,
-  Zap, Star, Mail, AlertCircle, ChevronUp
+  Zap, Star, Mail, AlertCircle
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useRestaurant } from '@/contexts/RestaurantContext'
@@ -401,22 +401,6 @@ export default function StaffMembersList({ restaurantId, onAdd }: StaffMembersLi
           )}
         </CardContent>
       </Card>
-
-      {/* Upgrade CTA (SILVER plan) */}
-      {seatLimit === 0 && isAdmin && (
-        <div className="rounded-2xl border border-amber-200 dark:border-amber-800/40 bg-amber-50/60 dark:bg-amber-950/20 p-5 flex gap-3">
-          <div className="w-9 h-9 rounded-xl bg-amber-100 dark:bg-amber-900/40 flex items-center justify-center flex-shrink-0">
-            <ChevronUp className="w-5 h-5 text-amber-600" />
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">Upgrade to Add Staff</p>
-            <p className="text-xs text-amber-700 dark:text-amber-400 mt-0.5">
-              GOLD plan includes 6 staff seats.
-              Contact Flamezo to upgrade your plan.
-            </p>
-          </div>
-        </div>
-      )}
 
       {/* Invite Modal */}
       <Dialog open={showInviteModal} onOpenChange={setShowInviteModal}>

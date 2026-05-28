@@ -1,5 +1,7 @@
 # Flamezo: The Unified Restaurant OS & Growth Engine (2026)
 
+> **Last Updated:** 2026-05-23 — Reflects the current Flamezo platform model post-Razorpay Route migration.
+
 Flamezo is not just a digital menu; it is a **Unified Restaurant Operating System**. We bridge the gap between in-store dining excellence and digital marketing automation, providing restaurant owners with a single dashboard to manage every corner of their business.
 
 ---
@@ -15,7 +17,7 @@ We transform your static menu into a high-conversion digital experience.
 ---
 
 ## 2. Marketing Studio: Turning Customers into Fans
-Our "Gold" suite provides tools that were previously only available to global chains.
+Our full marketing suite — unlocked from day 1 for every Flamezo restaurant — provides tools that were previously only available to global chains.
 
 - **Automated Marketing Flows**: Set up "Set & Forget" campaigns. Automatically send a "We Miss You" WhatsApp message if a customer hasn't visited in 30 days.
 - **Customer Segmentation**: Filter your audience by "High Spenders," "First Timers," or "Weekend Regulars" for laser-targeted promotions.
@@ -54,13 +56,12 @@ Dining is an experience; we help you make it memorable.
 
 ---
 
-## 6. The Ecosystem: Unified Wallet & Success Tiers
+## 6. The Ecosystem: Unified Wallet & Success Share
 Flamezo grows with you.
 
 - **Unified Wallet**: A single pool of "Coins" (₹1 = 1 Coin) to pay for SMS, WhatsApp campaigns, AI generations, and logistics. No multiple invoices.
-- **Tiered Flexibility**:
-    - **SILVER**: The essentials, absolutely free. Includes ordering and loyalty.
-    - **GOLD**: The full Growth Success Partner model—full automation, marketing, CRM. We only win when you win.
+- **Free Onboarding, Full Suite**: Every new restaurant gets the complete platform from day 1 — ordering, loyalty, marketing, POS, AI, analytics. No unlock fee, no prepayment, no tier paywall.
+- **Success Share Model**: We earn a small **3% Success Share** on the orders that flow through Flamezo (1.5% grandfathered for legacy restaurants), with an ₹199/month floor as a backstop. **We only win when you win.**
 
 ---
 

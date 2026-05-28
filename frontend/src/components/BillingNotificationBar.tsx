@@ -1,26 +1,15 @@
 import React, { useState, useEffect } from 'react'
-import { AlertCircle, ArrowRight, Wallet, Calendar, ShieldAlert, Loader2, X } from 'lucide-react'
+import { AlertCircle, ArrowRight, Wallet, Calendar, ShieldAlert, Loader2, X, Landmark } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useNavigate } from 'react-router-dom'
 import { format } from 'date-fns'
+import { useRestaurant } from '@/contexts/RestaurantContext'
 
 /**
  * BillingNotificationBar
  *
  * Top-of-page alert ribbon that surfaces wallet / autopay / mandate /
- * suspension state for the currently selected restaurant.
- *
- * May 2026 single-tier model
- * -------------------------
- * Every onboarded restaurant is on the only available plan (Flamezo, ₹399/mo
- * floor + 1.5% commission). The legacy two-tier copy ("upgrade to GOLD",
- * "SILVER features may be disabled", `${planType} requires mandate", etc.)
- * has been replaced with neutral language that doesn't expose internal tier
- * names. The `planType` and `isPremium` flags are gone — every account is
- * treated as the live tier.
- *
- * The component still receives `planType` in its props because dozens of
- * call sites pass it. We accept it for backwards-compatibility and ignore it.
+ * suspension / Route KYC state for the currently selected restaurant.
  */
 
 const SUPPORT_EMAIL = 'hello@onomatrix.com'
@@ -30,13 +19,7 @@ const SUSPENSION_COPY =
 interface BillingNotificationBarProps {
   billingInfo: {
     coins_balance: number
-    /**
-     * Retained for backwards compatibility. Under the single-tier model the
-     * only legitimate deferred change is no-op SILVER→GOLD migration which
-     * the patch handles; future scheduled changes won't write a tier label
-     * we want to surface to the merchant.
-     */
-    deferred_plan_type?: 'SILVER' | 'GOLD' | null
+    deferred_plan_type?: 'GOLD' | null
     plan_change_date?: string | null
     mandate_active: boolean
     auto_recharge_enabled: boolean
@@ -48,17 +31,15 @@ interface BillingNotificationBarProps {
     onboarding_date?: string | null
     last_auto_recharge_date?: string | null
   } | null
-  /** Accepted for legacy callers; not read under the single-tier model. */
-  planType?: 'SILVER' | 'GOLD'
   isActive?: boolean
 }
 
 export const BillingNotificationBar: React.FC<BillingNotificationBarProps> = ({
   billingInfo,
-  planType: _planType,
   isActive = true,
 }) => {
   const navigate = useNavigate()
+  const { payments } = useRestaurant()
   const [isDismissed, setIsDismissed] = useState(false)
 
   // Check for dismissal on mount (sticky for 24h via localStorage)
@@ -145,13 +126,6 @@ export const BillingNotificationBar: React.FC<BillingNotificationBarProps> = ({
     })
   }
 
-  // 2. Scheduled Plan Change
-  //
-  // Under the single-tier model `deferred_plan_type` is no longer used for
-  // legitimate switches (admins can still set it from the desk for ops
-  // reasons). We surface the banner if it's present but no longer name a
-  // tier in the message — the only thing the owner cares about is that a
-  // change is pending and when it takes effect.
   if (billingInfo.deferred_plan_type) {
     const formattedDate = billingInfo.plan_change_date
       ? format(new Date(billingInfo.plan_change_date), 'do MMMM')
@@ -201,7 +175,7 @@ export const BillingNotificationBar: React.FC<BillingNotificationBarProps> = ({
   // 5. Low Balance Alert
   //
   // Single-tier model: every restaurant gets the same warning ladder. We
-  // describe the failure mode in plain terms ("commission deductions may
+  // describe the failure mode in plain terms ("Success Share recovery may
   // pause and AI / messaging features may be interrupted") instead of
   // referencing a tier name.
   if (billingInfo.coins_balance >= 0 && billingInfo.coins_balance < 300) {
@@ -212,7 +186,7 @@ export const BillingNotificationBar: React.FC<BillingNotificationBarProps> = ({
 
     const message = isAutopayComing
       ? `Low wallet balance (₹${billingInfo.coins_balance.toLocaleString()}). An automatic top-up of ₹${billingInfo.auto_recharge_amount.toLocaleString()} will be triggered shortly.`
-      : `Wallet balance is critically low (₹${billingInfo.coins_balance.toLocaleString()}). Commission deductions, AI tools, and messaging may be paused soon.`
+      : `Wallet balance is critically low (₹${billingInfo.coins_balance.toLocaleString()}). Success Share recovery, AI tools, and messaging may be paused soon.`
 
     notifications.push({
       id: 'low-balance',
@@ -239,7 +213,7 @@ export const BillingNotificationBar: React.FC<BillingNotificationBarProps> = ({
   // 6. Mandate / Autopay Setup
   //
   // Every restaurant under the single-tier model needs an active Razorpay
-  // mandate for monthly floor recovery + commission settlement. We surface
+  // mandate for monthly floor recovery + Success Share sweeps. We surface
   // it as a generic billing requirement, not as a "tier requirement".
   if (!billingInfo.mandate_active) {
     notifications.push({
@@ -256,6 +230,28 @@ export const BillingNotificationBar: React.FC<BillingNotificationBarProps> = ({
       icon: <ShieldAlert className="h-4 w-4" />,
       message: 'Mandate active. Enable Autopay to avoid manual top-ups when your balance runs low.',
       action: { label: 'Enable', onClick: () => navigate('/autopay-setup') },
+    })
+  }
+
+  // ── Route KYC nudge ────────────────────────────────────────────────
+  // Soft, low-priority info banner shown when the restaurant is still on
+  // the `flamezo_hold` settlement path (customer payments land in
+  // Flamezo's account, settled to them weekly via NEFT) AND they haven't
+  // submitted Route KYC yet. Activating Route gives them direct T+2
+  // payouts. We deliberately don't show this once KYC is `under_review`
+  // / `activated` / etc. — those states are already surfaced on the KYC
+  // page hero, no need to clutter the banner.
+  if (
+    payments &&
+    payments.routeMode === 'flamezo_hold' &&
+    !payments.razorpayKycStatus
+  ) {
+    notifications.push({
+      id: 'route-kyc-nudge',
+      type: 'info',
+      icon: <Landmark className="h-4 w-4" />,
+      message: 'Want your customer payments to land in your bank directly? Set up Direct Bank Payouts.',
+      action: { label: 'Set Up', onClick: () => navigate('/route-kyc') },
     })
   }
 

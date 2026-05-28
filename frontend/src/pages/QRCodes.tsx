@@ -253,9 +253,9 @@ export default function QRCodes() {
       try {
         const settingsRes: any = await getAppSettings({})
         const globalBaseUrl = settingsRes?.message?.app_base_url
-        setBaseUrl(globalBaseUrl || restaurantDoc.base_url || 'https://backend.flamezo.in/')
+        setBaseUrl(globalBaseUrl || restaurantDoc.base_url || 'https://app.flamezo.in/')
       } catch {
-        setBaseUrl(restaurantDoc.base_url || 'https://backend.flamezo.in/')
+        setBaseUrl(restaurantDoc.base_url || 'https://app.flamezo.in/')
       }
       setTables(restaurantDoc.tables || 0)
       if (restaurantDoc.qr_codes_pdf_url) {
@@ -640,7 +640,7 @@ export default function QRCodes() {
                 </div>
                 <p className="text-xs text-muted-foreground">
                   QR codes encode: <code className="bg-muted px-1 rounded">
-                    {(baseUrl || 'https://backend.flamezo.in').replace(/\/$/, '')}/restaurant-id
+                    {(baseUrl || 'https://app.flamezo.in').replace(/\/$/, '')}/restaurant-id
                     {qrMode === 'dine_in' ? '?table_no=N' : '?order_type=takeaway|delivery'}
                   </code>
                 </p>
@@ -788,7 +788,6 @@ export default function QRCodes() {
                     )}
                     <li><strong>2×2 grid PDF</strong> fits 4 cards per landscape A4 — recommended for mass printing</li>
                     <li>Use the <strong>Assets</strong> tab (above) to download individual codes as PNG / SVG</li>
-                    <li>SILVER plan shows Flamezo branding; GOLD shows your logo</li>
                   </ul>
                 </div>
               </div>

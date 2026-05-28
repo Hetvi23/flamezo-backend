@@ -8,7 +8,7 @@ import { Trash2, Edit, Eye, CheckCircle2 } from 'lucide-react'
 import { uploadToR2 } from '@/lib/r2Upload'
 
 export default function HomeFeaturesManager() {
-  const { selectedRestaurant, isSilver, refreshConfig } = useRestaurant()
+  const { selectedRestaurant, refreshConfig } = useRestaurant()
   const [features, setFeatures] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [editing, setEditing] = useState<any | null>(null)
@@ -17,14 +17,9 @@ export default function HomeFeaturesManager() {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
   const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // Filter features based on membership tier
-  const filteredFeatures = isSilver 
-    ? features.filter(f => f.id === 'menu' || f.id === 'legacy') 
-    : features.filter(f => {
-        // Shared features for GOLD
-        const sharedFeatures = ['menu', 'legacy', 'dine-play', 'offers-events', 'book-table']
-        return sharedFeatures.includes(f.id)
-      })
+  const filteredFeatures = features.filter(f =>
+    ['menu', 'legacy', 'dine-play', 'offers-events', 'book-table'].includes(f.id)
+  )
 
   const fetchFeatures = useCallback(async (): Promise<any[] | null> => {
     if (!selectedRestaurant) return null
@@ -244,10 +239,7 @@ export default function HomeFeaturesManager() {
 
   return (
     <div className="p-4">
-      <h2 className="text-2xl font-semibold mb-4">
-        Home Features 
-        {isSilver && <span className="ml-2 text-sm text-muted-foreground">(Silver Plan - Limited Features)</span>}
-      </h2>
+      <h2 className="text-2xl font-semibold mb-4">Home Features</h2>
       {!selectedRestaurant && <div className="text-sm text-muted-foreground">Select a restaurant first</div>}
 
       {/* Save success toast */}
@@ -257,16 +249,8 @@ export default function HomeFeaturesManager() {
           <span>Feature saved successfully! Image will appear once processing completes.</span>
         </div>
       )}
-      
-      {isSilver && (
-        <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-          <p className="text-sm text-blue-800">
-            <strong>Silver Plan:</strong> Only "Explore our Menu" and "The Place & Legacy" features are available. 
-            Upgrade to <strong>Gold</strong> to unlock engagement features like Dine & Play and Events.
-          </p>
-        </div>
-      )}
-      
+
+
       <div className="flex items-start justify-between mb-4">
         <div className="flex items-center gap-2">
           <Button onClick={() => setViewMode('grid')} variant={viewMode==='grid' ? 'default' : 'ghost'}>Grid</Button>
@@ -288,7 +272,7 @@ export default function HomeFeaturesManager() {
                 <div className="flex gap-2">
                   <Button onClick={() => openEdit(f)}><Edit className="h-4 w-4" /></Button>
                   <a className="inline-flex items-center px-3 py-1 rounded border text-sm" target="_blank" rel="noreferrer" href={`/app/home-feature/${encodeURIComponent(f.name)}`}><Eye className="h-4 w-4" /></a>
-                  {!isSilver && <Button variant="destructive" onClick={() => handleDelete(f.name)}><Trash2 className="h-4 w-4" /></Button>}
+                  <Button variant="destructive" onClick={() => handleDelete(f.name)}><Trash2 className="h-4 w-4" /></Button>
                 </div>
               </div>
             ))}
@@ -316,7 +300,7 @@ export default function HomeFeaturesManager() {
                       <div className="flex gap-2">
                         <Button onClick={() => openEdit(f)}><Edit className="h-4 w-4" /></Button>
                         <a className="inline-flex items-center px-3 py-1 rounded border text-sm" target="_blank" rel="noreferrer" href={`/app/home-feature/${encodeURIComponent(f.name)}`}><Eye className="h-4 w-4" /></a>
-                        {!isSilver && <Button variant="destructive" onClick={() => handleDelete(f.name)}><Trash2 className="h-4 w-4" /></Button>}
+                        <Button variant="destructive" onClick={() => handleDelete(f.name)}><Trash2 className="h-4 w-4" /></Button>
                       </div>
                     </td>
                   </tr>

@@ -1,5 +1,7 @@
 # 🎁 Flamezo Offers & Coupons — Complete Guide
 
+> **Last Updated:** 2026-05-23 — Reflects the current Flamezo platform model post-Razorpay Route migration.
+>
 > **Your restaurant's most powerful growth lever.** Offers and coupons drive repeat visits, unlock new customers, and boost average order value — all from one place.
 
 ---
@@ -681,4 +683,4 @@ LUNCH (Auto)  →  ₹25 flat, 12:00–15:00, weekdays only
 
 ---
 
-*Flamezo Offers & Coupons Guide — Updated May 2026 (v2 — Combo Deals with Fixed Bundle, BOGO, Build Your Own)*
+*Flamezo Offers & Coupons Guide — Last Updated 2026-05-23 (v2 — Combo Deals with Fixed Bundle, BOGO, Build Your Own)*

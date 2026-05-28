@@ -9,6 +9,8 @@ import hashlib
 from frappe import _
 from datetime import datetime
 from flamezo_backend.flamezo.utils.razorpay_utils import get_razorpay_config, get_razorpay_client
+from flamezo_backend.flamezo.utils import commission_engine
+from flamezo_backend.flamezo.utils import razorpay_route as route_adapter
 
 
 def verify_razorpay_signature(body, signature, webhook_secret):
@@ -34,34 +36,11 @@ def razorpay_webhook():
 		body = request.get_data()
 		signature = request.headers.get("X-Razorpay-Signature", "")
 		
-		# Get webhook secret from config
-		# Try to identify merchant-specific webhook secret (opt-in)
-		payload_preview = None
-		try:
-			payload_preview = json.loads(body.decode('utf-8'))
-		except Exception:
-			payload_preview = {}
-
-		# Account id may be present at top level
-		account_id = payload_preview.get("account_id")
-		merchant_restaurant = None
-		if account_id:
-			merchant_restaurant = frappe.db.get_value("Restaurant", {"razorpay_account_id": account_id})
-
-		# Fallback: check notes.restaurant_id in payload
-		if not merchant_restaurant:
-			try:
-				restaurant_note = payload_preview.get("payload", {}).get("payment", {}).get("entity", {}).get("notes", {}).get("restaurant_id")
-				if not restaurant_note:
-					restaurant_note = payload_preview.get("payload", {}).get("order", {}).get("entity", {}).get("notes", {}).get("restaurant_id")
-					
-				if restaurant_note and frappe.db.exists("Restaurant", restaurant_note):
-					merchant_restaurant = restaurant_note
-			except Exception:
-				pass
-
-		# Determine which secret to use via central utility (Respects merchant override)
-		cfg = get_razorpay_config(merchant_restaurant)
+		# Webhook secret: under the May 2026 Route hybrid model, there are
+		# no per-restaurant Razorpay keys — every webhook is signed by
+		# Flamezo's platform secret. `get_razorpay_config()` returns the
+		# platform live/test secret based on `razorpay_live_mode`.
+		cfg = get_razorpay_config()
 		webhook_secret = cfg.get("webhook_secret")
 
 		# Verify signature
@@ -230,22 +209,83 @@ def handle_payment_captured(payload):
 				frappe.log_error(f"Monthly bill webhook failed: {str(e)}", "razorpay.webhook.monthly_bill")
 				return {"error": str(e)}
 
+		# Handle Cash Commission Sweep (Tier 2 autopay) — distribute captured
+		# amount across open ledgers FIFO, reset failure counter.
+		if request_type == "cash_sweep":
+			try:
+				restaurant = restaurant_from_notes or notes.get("restaurant")
+				amount_paise = int(payment_data.get("amount") or notes.get("outstanding_paise") or 0)
+				if restaurant and amount_paise > 0:
+					applied = commission_engine.apply_autopay_sweep_capture(
+						restaurant=restaurant,
+						amount_paise=amount_paise,
+						razorpay_payment_id=payment_id,
+					)
+					return {"success": True, "cash_sweep_applied_paise": applied, "restaurant": restaurant}
+			except Exception as e:
+				frappe.log_error(f"Cash sweep webhook failed: {str(e)}", "razorpay.webhook.cash_sweep")
+				return {"error": str(e)}
+
 		# Handle Standard Order Payment
 		if order_id:
-			orders = frappe.get_all("Order", filters={"razorpay_order_id": order_id}, fields=["name", "restaurant", "total", "platform_fee_amount"])
+			orders = frappe.get_all(
+				"Order",
+				filters={"razorpay_order_id": order_id},
+				fields=["name", "restaurant", "total", "platform_fee_amount",
+				        "cash_netoff_applied_paise", "settlement_mode"],
+			)
 			if orders:
-				order_name = orders[0].name
-				frappe.db.set_value("Order", order_name, {
+				order_row = orders[0]
+				order_name = order_row.name
+
+				# Persist Route transfer_id (if any) so refunds can reverse
+				# the merchant slice. Razorpay surfaces it under
+				# payload.payment.entity.transfers[0].id once the split runs.
+				transfer_id = None
+				try:
+					transfer_entities = (
+						payment_data.get("transfers") or
+						payload.get("payload", {}).get("transfer", {}).get("entity", {}) or {}
+					)
+					if isinstance(transfer_entities, list) and transfer_entities:
+						transfer_id = transfer_entities[0].get("id")
+					elif isinstance(transfer_entities, dict):
+						transfer_id = transfer_entities.get("id")
+				except Exception:
+					transfer_id = None
+
+				order_update = {
 					"razorpay_payment_id": payment_id,
 					"transaction_id": payment_id,
 					"payment_status": "completed",
-					"status": "Auto Accepted"
-				})
+					"status": "Auto Accepted",
+				}
+				if transfer_id:
+					order_update["razorpay_transfer_id"] = transfer_id
+				frappe.db.set_value("Order", order_name, order_update)
 				frappe.db.commit()
-				
+
+				# Tier 1 net-off: record settlement against open Commission
+				# Ledger Entries for the portion of the platform-side capture
+				# that was earmarked for cash debt recovery.
+				netoff_paise = int(order_row.get("cash_netoff_applied_paise") or 0)
+				if netoff_paise > 0:
+					try:
+						commission_engine.apply_online_netoff(
+							restaurant=order_row.restaurant,
+							online_order_name=order_name,
+							netoff_amount_paise=netoff_paise,
+							razorpay_payment_id=payment_id,
+						)
+					except Exception as e:
+						frappe.log_error(
+							f"Tier 1 net-off settlement failed for order {order_name}: {e}",
+							"commission_engine.tier1.webhook",
+						)
+
 				# Update monthly ledger
-				update_monthly_ledger(orders[0].restaurant, orders[0].total, orders[0].platform_fee_amount)
-				return {"success": True, "order_updated": order_name}
+				update_monthly_ledger(order_row.restaurant, order_row.total, order_row.platform_fee_amount)
+				return {"success": True, "order_updated": order_name, "netoff_applied_paise": netoff_paise}
 
 		return {"success": True, "message": "Event processed but no specific action taken"}
 		
@@ -255,31 +295,141 @@ def handle_payment_captured(payload):
 
 
 def handle_refund_processed(payload):
-	"""Handle refund.processed and refund.created events"""
+	"""Handle refund.processed and refund.created events.
+
+	For Route direct_split orders, Razorpay's `reverse_all=1` flag on the
+	refund auto-claws back the merchant portion — we don't need to call the
+	reversal API here. If the refund was initiated without reverse_all, the
+	platform eats the merchant slice (a deliberate ops choice).
+
+	For cash orders that somehow received a Razorpay refund (shouldn't happen
+	normally — cash refunds go cash-out), we void the Commission Ledger
+	Entry. This is the safety net.
+	"""
 	try:
 		refund_data = payload.get("payload", {}).get("refund", {}).get("entity", {})
 		payment_id = refund_data.get("payment_id")
-		refund_amount = refund_data.get("amount")
-		
-		orders = frappe.get_all("Order", filters={"razorpay_payment_id": payment_id}, fields=["name", "restaurant", "total", "platform_fee_amount"])
-		
+		refund_amount = refund_data.get("amount") or 0
+
+		orders = frappe.get_all(
+			"Order",
+			filters={"razorpay_payment_id": payment_id},
+			fields=["name", "restaurant", "total", "platform_fee_amount", "settlement_mode"],
+		)
+
 		if orders:
 			order = frappe.get_doc("Order", orders[0].name)
 			total_amount_paise = int(order.total * 100)
-			refund_ratio = refund_amount / total_amount_paise
+			refund_ratio = (refund_amount / total_amount_paise) if total_amount_paise else 0
 			platform_fee_refund = int((order.platform_fee_amount or 0) * refund_ratio)
-			
-			if refund_amount == total_amount_paise:
+
+			full_refund = refund_amount >= total_amount_paise
+			if full_refund:
 				frappe.db.set_value("Order", order.name, {"payment_status": "refunded", "status": "cancelled"})
 			else:
 				frappe.db.set_value("Order", order.name, "payment_status", "partially_refunded")
-			
+
 			frappe.db.commit()
 			reverse_monthly_ledger(order.restaurant, refund_amount, platform_fee_refund)
-		
+
+			# If this order had a cash ledger entry (extremely rare — implies
+			# a cash order that was later upgraded to online refund), void it
+			# on full refund only.
+			if full_refund:
+				try:
+					commission_engine.void_for_order(order.name, reason="Order fully refunded via Razorpay")
+				except Exception as e:
+					frappe.log_error(
+						f"Failed to void commission ledger on refund for {order.name}: {e}",
+						"commission_engine.refund_void",
+					)
+
 		return {"success": True, "refund_processed": True}
 	except Exception as e:
 		frappe.log_error(f"Refund handler failed: {str(e)}", "razorpay.webhook.refund")
+		return {"error": str(e)}
+
+
+def handle_account_status(payload):
+	"""Handle `account.*` events from Razorpay Route Linked Account onboarding.
+
+	Razorpay emits these as the KYC team reviews submitted documents.
+	Statuses we care about: `under_review`, `needs_clarification`,
+	`activated`, `rejected`, `suspended`.
+
+	The Route adapter owns the status mapping + side effects (e.g. promoting
+	the restaurant from flamezo_hold → direct_split on activation). We just
+	dispatch.
+	"""
+	try:
+		event = payload.get("event") or ""
+		entity = (
+			payload.get("payload", {}).get("account", {}).get("entity")
+			or payload.get("payload", {}).get("account_v2", {}).get("entity")
+			or {}
+		)
+		account_id = entity.get("id") or payload.get("account_id")
+		# Status may live under `status` or be derived from the event suffix
+		# (e.g. account.activated → activated).
+		status = (entity.get("status") or "").lower()
+		if not status and "." in event:
+			status = event.split(".", 1)[1]
+
+		if not account_id:
+			return {"success": False, "error": "no_account_id"}
+
+		route_adapter.update_kyc_status(account_id, status, raw_event=payload)
+		return {"success": True, "account_id": account_id, "status": status}
+	except Exception as e:
+		frappe.log_error(f"Account status handler failed: {str(e)}", "razorpay.webhook.account")
+		return {"error": str(e)}
+
+
+def handle_transfer_event(payload):
+	"""Handle `transfer.*` events.
+
+	The Route split itself is processed automatically by Razorpay; we mainly
+	use these for audit + to record the `transfer_id` against the order
+	(also captured on payment.captured as a belt-and-suspenders fallback).
+	`transfer.failed` is the interesting one — it means the split couldn't
+	be completed, the full amount stayed in Flamezo's account, and we need
+	to flag the order for manual settlement.
+	"""
+	try:
+		event = payload.get("event") or ""
+		entity = payload.get("payload", {}).get("transfer", {}).get("entity", {})
+		transfer_id = entity.get("id")
+		source_order_id = entity.get("source")  # Razorpay order id
+		notes = entity.get("notes") or {}
+
+		# Lookup our internal Order by Razorpay order id
+		order_name = notes.get("order") or frappe.db.get_value(
+			"Order", {"razorpay_order_id": source_order_id}, "name"
+		)
+		if not order_name:
+			return {"success": True, "message": "transfer event for unknown order"}
+
+		update = {}
+		if transfer_id:
+			update["razorpay_transfer_id"] = transfer_id
+
+		if event == "transfer.failed":
+			# Bail out of split — order now sits in flamezo_hold for manual
+			# settlement. The amount Flamezo collected won't increase, but
+			# it also means we don't owe a transfer that was never sent.
+			update["settlement_mode"] = "flamezo_hold"
+			frappe.log_error(
+				f"Transfer.failed for order {order_name}: {entity!r}",
+				"razorpay.webhook.transfer_failed",
+			)
+
+		if update:
+			frappe.db.set_value("Order", order_name, update)
+			frappe.db.commit()
+
+		return {"success": True, "event": event, "order": order_name}
+	except Exception as e:
+		frappe.log_error(f"Transfer handler failed: {str(e)}", "razorpay.webhook.transfer")
 		return {"error": str(e)}
 
 

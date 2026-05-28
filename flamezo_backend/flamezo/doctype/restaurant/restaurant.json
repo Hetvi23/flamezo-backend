@@ -55,6 +55,7 @@
   "section_break_razorpay",
   "razorpay_account_id",
   "razorpay_kyc_status",
+  "route_mode",
   "column_break_razorpay",
   "platform_fee_percent",
   "monthly_minimum",
@@ -62,6 +63,19 @@
   "razorpay_token_id",
   "mandate_status",
   "billing_status",
+  "section_break_route_kyc",
+  "legal_name",
+  "business_type",
+  "pan_number",
+  "column_break_route_kyc",
+  "bank_account_number",
+  "bank_ifsc",
+  "bank_holder_name",
+  "section_break_commission_state",
+  "outstanding_commission_paise",
+  "cash_sweep_failure_count",
+  "cash_payments_disabled_until",
+  "last_cash_sweep_error",
   "section_break_subscription",
   "plan_type",
   "plan_activated_on",
@@ -432,16 +446,24 @@
    "description": "KYC verification status for Razorpay account"
   },
   {
+   "fieldname": "route_mode",
+   "fieldtype": "Select",
+   "label": "Route Settlement Mode",
+   "options": "\nflamezo_hold\ndirect_split\ndisabled",
+   "default": "flamezo_hold",
+   "description": "How online order payments are routed. flamezo_hold = all to Flamezo (pre-KYC, manual settlement). direct_split = Route split (98.5% to restaurant linked account, 1.5% to Flamezo). disabled = compliance pause."
+  },
+  {
    "fieldname": "column_break_razorpay",
    "fieldtype": "Column Break"
   },
   {
    "fieldname": "platform_fee_percent",
    "fieldtype": "Percent",
-   "label": "Platform Fee Percent",
-   "default": "1.5",
+   "label": "Success Share %",
+   "default": "3",
    "precision": 2,
-   "description": "Platform fee percentage (default: 1.5%)"
+   "description": "Flamezo's Success Share percentage (default: 3% for new restaurants; legacy restaurants are grandfathered at 1.5%) — applied to every order GMV"
   },
   {
    "fieldname": "monthly_minimum",
@@ -456,40 +478,6 @@
    "label": "Razorpay Customer ID",
    "read_only": 1,
    "description": "Razorpay customer id used for tokenized recurring charges"
-  },
-  {
-   "fieldname": "razorpay_merchant_key_id",
-   "fieldtype": "Data",
-   "label": "Razorpay Merchant Key ID",
-   "description": "Merchant Razorpay Key ID for accepting customer payments (stored per-restaurant). Visible to admins only."
-  },
-  {
-   "fieldname": "razorpay_merchant_key_secret",
-   "fieldtype": "Password",
-   "label": "Razorpay Merchant Key Secret",
-   "description": "Merchant Razorpay Key Secret (encrypted). Only System Managers may set or view.",
-   "hidden": 1
-  },
-  {
-   "fieldname": "razorpay_keys_updated_at",
-   "fieldtype": "Datetime",
-   "label": "Razorpay Keys Updated At",
-   "read_only": 1,
-   "description": "Timestamp when merchant Razorpay keys were last updated"
-  },
-  {
-   "fieldname": "razorpay_keys_updated_by",
-   "fieldtype": "Data",
-   "label": "Razorpay Keys Updated By",
-   "read_only": 1,
-   "description": "User who last updated merchant Razorpay keys"
-  },
-  {
-   "fieldname": "razorpay_webhook_secret",
-   "fieldtype": "Password",
-   "label": "Razorpay Webhook Secret",
-   "description": "Optional merchant webhook secret for per-merchant webhook signature verification (store encrypted).",
-   "hidden": 1
   },
   {
    "fieldname": "razorpay_token_id",
@@ -513,6 +501,88 @@
    "options": "\nactive\noverdue\nsuspended",
    "default": "active",
    "description": "Subscription billing status for the restaurant"
+  },
+  {
+   "fieldname": "section_break_route_kyc",
+   "fieldtype": "Section Break",
+   "label": "Route KYC (for direct_split mode)",
+   "description": "Bank + PAN + business details required to create a Razorpay Route Linked Account. Restaurant operates in flamezo_hold until KYC is activated."
+  },
+  {
+   "fieldname": "legal_name",
+   "fieldtype": "Data",
+   "label": "Legal Business Name",
+   "description": "Full registered business name as on PAN (defaults to restaurant_name if blank)"
+  },
+  {
+   "fieldname": "business_type",
+   "fieldtype": "Select",
+   "label": "Business Type",
+   "options": "\nproprietorship\npartnership\nprivate_limited\npublic_limited\nllp\nindividual",
+   "description": "Required for Route KYC submission"
+  },
+  {
+   "fieldname": "pan_number",
+   "fieldtype": "Data",
+   "label": "PAN Number",
+   "description": "10-character PAN (encrypted at rest in production)"
+  },
+  {
+   "fieldname": "column_break_route_kyc",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "bank_account_number",
+   "fieldtype": "Data",
+   "label": "Bank Account Number",
+   "description": "Restaurant settlement account number"
+  },
+  {
+   "fieldname": "bank_ifsc",
+   "fieldtype": "Data",
+   "label": "Bank IFSC",
+   "description": "11-character IFSC code"
+  },
+  {
+   "fieldname": "bank_holder_name",
+   "fieldtype": "Data",
+   "label": "Bank Account Holder Name",
+   "description": "As per bank records — must match PAN for KYC clearance"
+  },
+  {
+   "fieldname": "section_break_commission_state",
+   "fieldtype": "Section Break",
+   "label": "Cash Success Share Engine"
+  },
+  {
+   "fieldname": "outstanding_commission_paise",
+   "fieldtype": "Int",
+   "label": "Outstanding Success Share (Paise)",
+   "default": "0",
+   "read_only": 1,
+   "in_list_view": 0,
+   "description": "Denormalised sum of open Success Share ledger outstanding_paise. Decremented atomically by the engine. Source of truth is the ledger itself."
+  },
+  {
+   "fieldname": "cash_sweep_failure_count",
+   "fieldtype": "Int",
+   "label": "Consecutive Autopay Sweep Failures",
+   "default": "0",
+   "read_only": 1,
+   "description": "Tier 3 throttle counter. Reset to 0 on next successful sweep."
+  },
+  {
+   "fieldname": "cash_payments_disabled_until",
+   "fieldtype": "Date",
+   "label": "Cash Payments Disabled Until",
+   "read_only": 1,
+   "description": "When set, the customer-facing checkout hides pay-at-counter so Tier 1 net-off can drain the outstanding balance."
+  },
+  {
+   "fieldname": "last_cash_sweep_error",
+   "fieldtype": "Data",
+   "label": "Last Autopay Sweep Error",
+   "read_only": 1
   },
   {
    "fieldname": "section_break_subscription",
@@ -597,10 +667,10 @@
   {
    "fieldname": "commission_earned",
    "fieldtype": "Currency",
-   "label": "Commission Earned",
+   "label": "Success Share Earned",
    "default": "0",
    "read_only": 1,
-   "description": "Total commission earned by platform (1.5% of revenue)"
+   "description": "Total Success Share earned by platform (1.5% of revenue)"
   },
   {
    "fieldname": "deferred_plan_type",

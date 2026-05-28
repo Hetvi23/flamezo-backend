@@ -2,52 +2,27 @@
  * SETUP WIZARD FIELD GATE — Single source of truth.
  *
  * Rules:
- *  1. EVERY field on a wizard step doctype must appear in exactly one of:
- *     - alwaysHidden   → never shown to any plan
- *     - silverOnly     → shown to Silver, hidden from Gold  (rare)
- *     - goldOnly       → shown to Gold, hidden from Silver
- *     - shown          → shown to ALL plans
- *
+ *  1. Every field on a wizard step doctype must appear in exactly one of:
+ *     - alwaysHidden — never shown
+ *     - shown        — surfaced to the merchant
  *  2. When a new field is added to Restaurant or Restaurant Config,
  *     add it here explicitly before it appears in the wizard.
- *     Nothing flows through automatically.
- *
- *  3. "shown" is the source of truth for what we WANT users to fill in.
- *     The DynamicForm will hide everything in alwaysHidden + plan-filtered lists.
- *
- * To add a new field:
- *   a) Decide which step it belongs to ('restaurant' | 'config')
- *   b) Decide the plan visibility (alwaysHidden / goldOnly / silverOnly / shown)
- *   c) Add it to that list below — DO NOT leave it unlisted.
  */
 
 export type WizardStepId = 'restaurant' | 'config'
 
 interface StepFieldGate {
-  /** Fields to hide for ALL plans — system/billing/internal fields */
   alwaysHidden: string[]
-  /** Fields shown to Silver only (hidden from Gold) */
-  silverOnly: string[]
-  /** Fields shown to Gold only (hidden from Silver) */
-  goldOnly: string[]
-  /** Fields shown to all plans */
   shown: string[]
 }
 
 export const WIZARD_FIELD_GATE: Record<WizardStepId, StepFieldGate> = {
-
-  // ─────────────────────────────────────────────────────────────
-  // STEP: restaurant  (doctype: Restaurant)
-  // ─────────────────────────────────────────────────────────────
   restaurant: {
-
     shown: [
-      // Identity
       'restaurant_name',
       'owner_name',
       'owner_email',
       'owner_phone',
-      // Location
       'address',
       'city',
       'state',
@@ -57,14 +32,9 @@ export const WIZARD_FIELD_GATE: Record<WizardStepId, StepFieldGate> = {
       'longitude',
       'timezone',
       'google_map_url',
-      // Operations
       'tables',
       'enable_dine_in',
     ],
-
-    silverOnly: [],
-
-    goldOnly: [],
 
     alwaysHidden: [
       // System / internal IDs
@@ -91,7 +61,6 @@ export const WIZARD_FIELD_GATE: Record<WizardStepId, StepFieldGate> = {
       'deferred_plan_type',
       'plan_change_date',
       'plan_change_history',
-      'max_images_silver',
       'max_images_lite',
 
       // Revenue / stats
@@ -123,11 +92,6 @@ export const WIZARD_FIELD_GATE: Record<WizardStepId, StepFieldGate> = {
       'razorpay_kyc_status',
       'razorpay_customer_id',
       'razorpay_token_id',
-      'razorpay_merchant_key_id',
-      'razorpay_merchant_key_secret',
-      'razorpay_keys_updated_at',
-      'razorpay_keys_updated_by',
-      'razorpay_webhook_secret',
 
       // POS
       'pos_provider',
@@ -139,7 +103,6 @@ export const WIZARD_FIELD_GATE: Record<WizardStepId, StepFieldGate> = {
       'pos_last_sync_at',
       'pos_sync_status',
 
-      // Loyalty (managed via Restaurant Config)
       'enable_loyalty',
 
       // Ordering / delivery (managed via dedicated settings page, not wizard)
@@ -181,11 +144,7 @@ export const WIZARD_FIELD_GATE: Record<WizardStepId, StepFieldGate> = {
     ],
   },
 
-  // ─────────────────────────────────────────────────────────────
-  // STEP: config  (doctype: Restaurant Config)
-  // ─────────────────────────────────────────────────────────────
   config: {
-
     shown: [
       // Branding
       'tagline',
@@ -208,35 +167,24 @@ export const WIZARD_FIELD_GATE: Record<WizardStepId, StepFieldGate> = {
       // Layout
       'menu_layout',
 
-      // Feature toggles — BOTH plans
-      // Source of truth: feature_gate.py FEATURE_PLAN_MAP + config.py features response
-      'enable_loyalty',         // loyalty: ['SILVER', 'GOLD']
+      // Feature toggles
+      'enable_loyalty',
+      'enable_table_booking',
+      'enable_banquet_booking',
+      'enable_events',
+      'enable_offers',
+      'enable_coupons',
+      'enable_experience_lounge',
+      'enable_cart_milestones',
+      'cart_milestones',
 
-      // Social / contact — both plans
+      // Social / contact
       'google_review_link',
       'instagram_profile_link',
       'facebook_profile_link',
       'whatsapp_phone_number',
       'swiggy_link',
       'zomato_link',
-    ],
-
-    silverOnly: [],
-
-    goldOnly: [
-      // All transactional feature toggles are GOLD-only.
-      // Backend proof:
-      //   • feature_gate.py: table_booking → ['GOLD'], events/offers/experience_lounge not
-      //     in FEATURE_PLAN_MAP but config.py explicitly gates them as plan_type == "GOLD"
-      //   • restaurant.py on_submit: sets all these to 0 for SILVER, 1 for GOLD
-      'enable_table_booking',       // tableBooking: plan_type == 'GOLD'
-      'enable_banquet_booking',     // no API flag but defaults 0 for SILVER
-      'enable_events',              // events: plan_type == 'GOLD'
-      'enable_offers',              // offers: plan_type == 'GOLD'
-      'enable_coupons',             // coupons: ['GOLD'] in FEATURE_PLAN_MAP
-      'enable_experience_lounge',   // experience_lounge: plan_type == 'GOLD'
-      'enable_cart_milestones',     // enableCartMilestones: plan_type == 'GOLD' (tied to coupons)
-      'cart_milestones',            // same — cart milestone data is GOLD-only
     ],
 
     alwaysHidden: [
@@ -277,16 +225,6 @@ export const WIZARD_FIELD_GATE: Record<WizardStepId, StepFieldGate> = {
   },
 }
 
-/**
- * Returns the list of fields to pass to DynamicForm's hideFields prop.
- *
- * Under the May 2026 single-tier model every restaurant is on GOLD, so the
- * SILVER-side filtering is dead — `silverOnly` fields are always hidden
- * (their SILVER-specific UI controls are no longer relevant) and `goldOnly`
- * fields are always shown. The `planType` parameter is retained for the
- * existing call-site signature but is no longer consulted.
- */
-export function getHiddenFields(stepId: WizardStepId, _planType: 'SILVER' | 'GOLD'): string[] {
-  const gate = WIZARD_FIELD_GATE[stepId]
-  return [...gate.alwaysHidden, ...gate.silverOnly]
+export function getHiddenFields(stepId: WizardStepId): string[] {
+  return WIZARD_FIELD_GATE[stepId].alwaysHidden
 }

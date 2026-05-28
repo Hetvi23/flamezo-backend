@@ -48,14 +48,38 @@ interface Restaurant {
   restaurant_id: string
   restaurant_name: string
   owner_email?: string
+  owner_phone?: string
   is_active: number
-  plan_type: 'SILVER' | 'GOLD'
+  plan_type: 'GOLD'
   coins_balance: number
   platform_fee_percent: number
   monthly_minimum: number
   enable_floor_recovery: number
   creation: string
   modified: string
+  // Razorpay Route hybrid state (May 2026)
+  mandate_status?: '' | 'inactive' | 'active' | 'failed'
+  outstanding_commission_paise?: number
+  cash_payments_disabled_until?: string | null
+  cash_sweep_failure_count?: number
+  razorpay_kyc_status?: '' | 'under_review' | 'needs_clarification' | 'activated' | 'suspended' | 'rejected'
+  route_mode?: '' | 'flamezo_hold' | 'direct_split' | 'disabled'
+}
+
+interface AdminStats {
+  total: number
+  active: number
+  inactive: number
+  mandate_active: number
+  mandate_missing: number
+  kyc_activated: number
+  kyc_pending: number
+  kyc_blocked: number
+  throttled: number
+  owing: number
+  total_outstanding_paise: number
+  total_outstanding_rupees: number
+  total_coins: number
 }
 
 export default function AdminRestaurantManagement() {
@@ -95,7 +119,7 @@ export default function AdminRestaurantManagement() {
     charge_gst: false,
     gst_percent: 18,
     gold_monthly_fee: 399,
-    gold_commission_percent: 1.5,
+    gold_commission_percent: 3.0,
     gold_upgrade_barrier: 1299
   })
 
@@ -186,13 +210,23 @@ export default function AdminRestaurantManagement() {
     'flamezo_backend.flamezo.api.admin.update_platform_settings'
   )
 
+  // Fleet-wide stats for the strip at the top. Refetches every time the
+  // table mutates so KPIs reflect the freshest state after coin grants,
+  // status toggles, etc.
+  const { data: rawAdminStats, mutate: loadAdminStats } = useFrappeGetCall<{ message?: { success: boolean; data?: AdminStats } }>(
+    'flamezo_backend.flamezo.api.admin.get_admin_restaurants_stats',
+    {},
+    'admin-restaurants-stats'
+  )
+  const adminStats: AdminStats | undefined = rawAdminStats?.message?.data
+
   useEffect(() => {
     if (rawPlatformSettings?.message?.data) {
       setPlatformSettings(rawPlatformSettings.message.data)
     }
   }, [rawPlatformSettings])
 
-  const handlePlanChange = async (restaurantName: string, newPlan: 'SILVER' | 'GOLD') => {
+  const handlePlanChange = async (restaurantName: string, newPlan: 'GOLD') => {
     try {
       setUpdating(restaurantName)
       const result = await updateRestaurantPlan({ restaurant_id: restaurantName, plan_type: newPlan }) as any
@@ -456,66 +490,278 @@ export default function AdminRestaurantManagement() {
         </div>
       </div>
 
-      <Card>
-        <CardHeader>
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
-              <div className="relative w-full sm:w-64">
-                <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  placeholder="Search restaurants..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-8 h-9"
-                />
-              </div>
-              <Button
-                variant="outline"
-                size="icon"
-                className="h-9 w-9 shrink-0"
-                onClick={() => loadRestaurants()}
-              >
-                <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
-              </Button>
-            </div>
-            <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
-              <Select value={pageSize.toString()} onValueChange={(v) => setPageSize(parseInt(v))}>
-                <SelectTrigger className="h-9 w-[120px]">
-                  <SelectValue placeholder="Page Size" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="20">20 Rows</SelectItem>
-                  <SelectItem value="50">50 Rows</SelectItem>
-                  <SelectItem value="100">100 Rows</SelectItem>
-                </SelectContent>
-              </Select>
+      {/* Fleet-wide stats strip. Single read of get_admin_restaurants_stats;
+          refreshes alongside the table. Each card is clickable to apply the
+          matching filter so the admin can drill from KPI → row set in one
+          click. */}
+      {adminStats && (() => {
+        // Fields a stat-card can own. Clicking a card sets ITS filter and
+        // clears any OTHER stat-card filters that might be sticky from a
+        // prior click — that way "Total" actually resets the slice and you
+        // can switch between cards cleanly. Non-card filters (Search,
+        // Recovery, Floor Recovery select, Success Share tier select) are
+        // preserved across stat-card clicks.
+        const STAT_FILTER_FIELDS = ['is_active', 'has_outstanding', 'throttled', 'razorpay_kyc_status', 'mandate_status']
+        const applyStatFilter = (fieldname: string | null, value: any) => {
+          const next = filters.filter((f: any) => !STAT_FILTER_FIELDS.includes(f.fieldname))
+          if (fieldname !== null) next.push({ fieldname, operator: '=', value })
+          setFilters(next)
+        }
+        // True if the given (fieldname, value) is the currently active stat
+        // filter — used to highlight the selected card.
+        const isStatActive = (fieldname: string | null, value?: any) => {
+          if (fieldname === null) return !filters.some((f: any) => STAT_FILTER_FIELDS.includes(f.fieldname))
+          return filters.some((f: any) => f.fieldname === fieldname && f.value === value)
+        }
+        const ring = (on: boolean) => on ? ' ring-2 ring-offset-1' : ''
+        return (
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2 mb-3">
+            <button
+              type="button"
+              className={cn(
+                'text-left rounded-xl border bg-card p-3 hover:border-primary/40 hover:shadow-sm transition',
+                isStatActive(null) ? 'ring-2 ring-primary/30 ring-offset-1' : ''
+              )}
+              onClick={() => applyStatFilter(null, null)}
+              title="Show all restaurants (clears stat-card filters)"
+            >
+              <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Total</p>
+              <p className="text-2xl font-black tracking-tight">{adminStats.total}</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">{adminStats.active} online · {adminStats.inactive} offline</p>
+            </button>
+            <button
+              type="button"
+              className={cn(
+                'text-left rounded-xl border bg-emerald-50/50 dark:bg-emerald-500/5 p-3 hover:border-emerald-300 hover:shadow-sm transition border-emerald-200/60 dark:border-emerald-500/20',
+                'ring-emerald-300' + ring(isStatActive('is_active', 1))
+              )}
+              onClick={() => applyStatFilter('is_active', 1)}
+              title="Show only active restaurants"
+            >
+              <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-700 dark:text-emerald-400">Active</p>
+              <p className="text-2xl font-black tracking-tight text-emerald-700 dark:text-emerald-300">{adminStats.active}</p>
+              <p className="text-[10px] text-emerald-700/70 dark:text-emerald-400/70 mt-0.5">Live + receiving orders</p>
+            </button>
+            <button
+              type="button"
+              className={cn(
+                'text-left rounded-xl border bg-amber-50/50 dark:bg-amber-500/5 p-3 hover:border-amber-300 hover:shadow-sm transition border-amber-200/60 dark:border-amber-500/20',
+                'ring-amber-300' + ring(isStatActive('has_outstanding', 'yes'))
+              )}
+              onClick={() => applyStatFilter('has_outstanding', 'yes')}
+              title="Show only restaurants with outstanding Success Share"
+            >
+              <p className="text-[10px] font-bold uppercase tracking-widest text-amber-700 dark:text-amber-400">Owing</p>
+              <p className="text-2xl font-black tracking-tight text-amber-700 dark:text-amber-300">₹{adminStats.total_outstanding_rupees.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</p>
+              <p className="text-[10px] text-amber-700/70 dark:text-amber-400/70 mt-0.5">{adminStats.owing} restaurants</p>
+            </button>
+            <button
+              type="button"
+              className={cn(
+                'text-left rounded-xl border bg-rose-50/50 dark:bg-rose-500/5 p-3 hover:border-rose-300 hover:shadow-sm transition border-rose-200/60 dark:border-rose-500/20',
+                'ring-rose-300' + ring(isStatActive('throttled', 'yes'))
+              )}
+              onClick={() => applyStatFilter('throttled', 'yes')}
+              title="Show only restaurants currently in cash-payment throttle"
+            >
+              <p className="text-[10px] font-bold uppercase tracking-widest text-rose-700 dark:text-rose-400">Throttled</p>
+              <p className="text-2xl font-black tracking-tight text-rose-700 dark:text-rose-300">{adminStats.throttled}</p>
+              <p className="text-[10px] text-rose-700/70 dark:text-rose-400/70 mt-0.5">Cash paused (Tier 3)</p>
+            </button>
+            <button
+              type="button"
+              className={cn(
+                'text-left rounded-xl border bg-blue-50/50 dark:bg-blue-500/5 p-3 hover:border-blue-300 hover:shadow-sm transition border-blue-200/60 dark:border-blue-500/20',
+                'ring-blue-300' + ring(isStatActive('razorpay_kyc_status', 'under_review'))
+              )}
+              onClick={() => applyStatFilter('razorpay_kyc_status', 'under_review')}
+              title="Show only restaurants whose Route KYC is under review"
+            >
+              <p className="text-[10px] font-bold uppercase tracking-widest text-blue-700 dark:text-blue-400">KYC Pending</p>
+              <p className="text-2xl font-black tracking-tight text-blue-700 dark:text-blue-300">{adminStats.kyc_pending}</p>
+              <p className="text-[10px] text-blue-700/70 dark:text-blue-400/70 mt-0.5">{adminStats.kyc_activated} activated · {adminStats.kyc_blocked} blocked</p>
+            </button>
+            <button
+              type="button"
+              className={cn(
+                'text-left rounded-xl border bg-violet-50/50 dark:bg-violet-500/5 p-3 hover:border-violet-300 hover:shadow-sm transition border-violet-200/60 dark:border-violet-500/20',
+                'ring-violet-300' + ring(isStatActive('mandate_status', 'active'))
+              )}
+              onClick={() => applyStatFilter('mandate_status', 'active')}
+              title="Show only restaurants with an active autopay mandate"
+            >
+              <p className="text-[10px] font-bold uppercase tracking-widest text-violet-700 dark:text-violet-400">Mandate Active</p>
+              <p className="text-2xl font-black tracking-tight text-violet-700 dark:text-violet-300">{adminStats.mandate_active}</p>
+              <p className="text-[10px] text-violet-700/70 dark:text-violet-400/70 mt-0.5">{adminStats.mandate_missing} missing</p>
+            </button>
+          </div>
+        )
+      })()}
 
-              <Select
-                value={(() => {
-                  const f = filters.find(f => f.fieldname === 'enable_floor_recovery')
-                  if (!f) return 'all'
-                  return f.value === 1 ? 'enabled' : 'disabled'
-                })()}
-                onValueChange={(v) => {
-                  if (v === 'all') {
-                    setFilters(filters.filter(f => f.fieldname !== 'enable_floor_recovery'))
-                  } else {
-                    const newFilters = filters.filter(f => f.fieldname !== 'enable_floor_recovery')
-                    newFilters.push({ fieldname: 'enable_floor_recovery', operator: '=', value: v === 'enabled' ? 1 : 0 })
-                    setFilters(newFilters)
-                  }
-                }}
-              >
-                <SelectTrigger className="h-9 w-[150px]">
-                  <SelectValue placeholder="Floor Recovery" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Recovery: All</SelectItem>
-                  <SelectItem value="enabled">Recovery: Enabled</SelectItem>
-                  <SelectItem value="disabled">Recovery: Disabled</SelectItem>
-                </SelectContent>
-              </Select>
+      <Card>
+        {/* Compact single-line filter bar. The dropdown trigger reads
+            "<Field>: <selected>" so we don't need per-item prefixes. Smaller
+            h-8 + tighter widths + reduced padding keeps everything on one
+            row up to ~1280px and frees vertical space for the table. */}
+        <CardHeader className="py-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative flex-1 min-w-[180px] max-w-[260px]">
+              <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Search restaurants..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-7 h-8 text-xs"
+              />
             </div>
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8 shrink-0"
+              onClick={() => { loadRestaurants(); loadAdminStats() }}
+              title="Refresh"
+            >
+              <RefreshCw className={cn("h-3.5 w-3.5", isLoading && "animate-spin")} />
+            </Button>
+
+            <div className="h-5 w-px bg-border mx-1" />
+
+            {/* Page size */}
+            <Select value={pageSize.toString()} onValueChange={(v) => setPageSize(parseInt(v))}>
+              <SelectTrigger className="h-8 w-[78px] text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="20">20</SelectItem>
+                <SelectItem value="50">50</SelectItem>
+                <SelectItem value="100">100</SelectItem>
+              </SelectContent>
+            </Select>
+
+            {/* Status */}
+            <Select
+              value={(() => {
+                const f = filters.find(f => f.fieldname === 'is_active')
+                if (!f) return 'all'
+                return f.value === 1 ? 'active' : 'inactive'
+              })()}
+              onValueChange={(v) => {
+                const next = filters.filter(f => f.fieldname !== 'is_active')
+                if (v !== 'all') next.push({ fieldname: 'is_active', operator: '=', value: v === 'active' ? 1 : 0 })
+                setFilters(next)
+              }}
+            >
+              <SelectTrigger className="h-8 w-[112px] text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Status: All</SelectItem>
+                <SelectItem value="active">Status: Online</SelectItem>
+                <SelectItem value="inactive">Status: Offline</SelectItem>
+              </SelectContent>
+            </Select>
+
+            {/* Success Share Tier */}
+            <Select
+              value={(filters.find(f => f.fieldname === 'success_share_tier')?.value as string) || 'all'}
+              onValueChange={(v) => {
+                const next = filters.filter(f => f.fieldname !== 'success_share_tier')
+                if (v !== 'all') next.push({ fieldname: 'success_share_tier', operator: '=', value: v })
+                setFilters(next)
+              }}
+            >
+              <SelectTrigger className="h-8 w-[124px] text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Share: All</SelectItem>
+                <SelectItem value="new">Share: New</SelectItem>
+                <SelectItem value="legacy">Share: Legacy 1.5%</SelectItem>
+                <SelectItem value="custom">Share: Custom</SelectItem>
+              </SelectContent>
+            </Select>
+
+            {/* Mandate */}
+            <Select
+              value={(filters.find(f => f.fieldname === 'mandate_status')?.value as string) || 'all'}
+              onValueChange={(v) => {
+                const next = filters.filter(f => f.fieldname !== 'mandate_status')
+                if (v !== 'all') next.push({ fieldname: 'mandate_status', operator: '=', value: v })
+                setFilters(next)
+              }}
+            >
+              <SelectTrigger className="h-8 w-[128px] text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Mandate: All</SelectItem>
+                <SelectItem value="active">Mandate: Active</SelectItem>
+                <SelectItem value="inactive">Mandate: Inactive</SelectItem>
+                <SelectItem value="failed">Mandate: Failed</SelectItem>
+              </SelectContent>
+            </Select>
+
+            {/* Route KYC */}
+            <Select
+              value={(filters.find(f => f.fieldname === 'razorpay_kyc_status')?.value as string) || 'all'}
+              onValueChange={(v) => {
+                const next = filters.filter(f => f.fieldname !== 'razorpay_kyc_status')
+                if (v !== 'all') next.push({ fieldname: 'razorpay_kyc_status', operator: '=', value: v })
+                setFilters(next)
+              }}
+            >
+              <SelectTrigger className="h-8 w-[120px] text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">KYC: All</SelectItem>
+                <SelectItem value="activated">KYC: Activated</SelectItem>
+                <SelectItem value="under_review">KYC: Review</SelectItem>
+                <SelectItem value="needs_clarification">KYC: Needs Info</SelectItem>
+                <SelectItem value="rejected">KYC: Rejected</SelectItem>
+                <SelectItem value="suspended">KYC: Suspended</SelectItem>
+              </SelectContent>
+            </Select>
+
+            {/* Throttle */}
+            <Select
+              value={(filters.find(f => f.fieldname === 'throttled')?.value as string) || 'all'}
+              onValueChange={(v) => {
+                const next = filters.filter(f => f.fieldname !== 'throttled')
+                if (v !== 'all') next.push({ fieldname: 'throttled', operator: '=', value: v })
+                setFilters(next)
+              }}
+            >
+              <SelectTrigger className="h-8 w-[112px] text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Throttle: All</SelectItem>
+                <SelectItem value="yes">Throttle: On</SelectItem>
+                <SelectItem value="no">Throttle: Off</SelectItem>
+              </SelectContent>
+            </Select>
+
+            {/* Floor Recovery */}
+            <Select
+              value={(() => {
+                const f = filters.find(f => f.fieldname === 'enable_floor_recovery')
+                if (!f) return 'all'
+                return f.value === 1 ? 'enabled' : 'disabled'
+              })()}
+              onValueChange={(v) => {
+                const next = filters.filter(f => f.fieldname !== 'enable_floor_recovery')
+                if (v !== 'all') next.push({ fieldname: 'enable_floor_recovery', operator: '=', value: v === 'enabled' ? 1 : 0 })
+                setFilters(next)
+              }}
+            >
+              <SelectTrigger className="h-8 w-[124px] text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Recovery: All</SelectItem>
+                <SelectItem value="enabled">Recovery: On</SelectItem>
+                <SelectItem value="disabled">Recovery: Off</SelectItem>
+              </SelectContent>
+            </Select>
+
+            {/* Clear-all chip — only when any filter is applied. */}
+            {filters.length > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 text-xs px-2 text-rose-600 hover:text-rose-700 hover:bg-rose-50 ml-auto"
+                onClick={() => setFilters([])}
+              >
+                Clear ({filters.length})
+              </Button>
+            )}
           </div>
         </CardHeader>
         <CardContent>
@@ -533,8 +779,10 @@ export default function AdminRestaurantManagement() {
                     <TableRow>
                       <TableHead>Restaurant</TableHead>
                       <TableHead>ID</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Plan</TableHead>
+                      <TableHead>Success Share</TableHead>
+                      <TableHead className="text-right">Outstanding</TableHead>
+                      <TableHead>Mandate</TableHead>
+                      <TableHead>Route KYC</TableHead>
                       <TableHead className="text-right">Coins</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
@@ -543,25 +791,97 @@ export default function AdminRestaurantManagement() {
                     {restaurants.map((restaurant: any) => (
                       <TableRow key={restaurant.name}>
                         <TableCell>
-                          <div className="flex flex-col">
-                            <span className="font-bold">{restaurant.restaurant_name}</span>
-                            <span className="text-xs text-muted-foreground">{restaurant.owner_email}</span>
+                          <div className="flex items-center gap-2">
+                            {/* Status dot — green = Online (is_active=1),
+                                red = Offline. Pulses subtly on Online to
+                                signal "live + receiving orders". */}
+                            <span
+                              className={cn(
+                                "h-2 w-2 rounded-full shrink-0",
+                                restaurant.is_active
+                                  ? "bg-emerald-500 ring-2 ring-emerald-500/20 animate-pulse"
+                                  : "bg-rose-400 ring-2 ring-rose-400/20"
+                              )}
+                              title={restaurant.is_active ? "Online — live + receiving orders" : "Offline"}
+                              aria-label={restaurant.is_active ? "Online" : "Offline"}
+                            />
+                            <div className="flex flex-col min-w-0">
+                              <span className="font-bold truncate">{restaurant.restaurant_name}</span>
+                              <span className="text-xs text-muted-foreground truncate">{restaurant.owner_email}</span>
+                            </div>
                           </div>
                         </TableCell>
                         <TableCell>
                           <code className="text-[10px] bg-muted px-1 rounded">{restaurant.restaurant_id}</code>
                         </TableCell>
                         <TableCell>
-                          {restaurant.is_active ? (
-                            <Badge variant="outline" className="bg-green-50 text-green-600 border-green-200">Online</Badge>
-                          ) : (
-                            <Badge variant="secondary">Offline</Badge>
-                          )}
+                          {(() => {
+                            // Show the restaurant's actual Success Share %. Most
+                            // are 3% (new default); legacy ones grandfathered at
+                            // 1.5% appear distinct so ops can spot them.
+                            const rate = Number(restaurant.platform_fee_percent ?? 0)
+                            const isLegacy = Math.abs(rate - 1.5) < 0.001
+                            return (
+                              <Badge
+                                variant="outline"
+                                className={isLegacy
+                                  ? 'bg-amber-50 text-amber-700 border-amber-200 font-mono'
+                                  : 'bg-emerald-50 text-emerald-700 border-emerald-200 font-mono'}
+                                title={isLegacy ? 'Grandfathered legacy rate' : 'Current default rate'}
+                              >
+                                {rate}%
+                              </Badge>
+                            )
+                          })()}
+                        </TableCell>
+                        {/* Outstanding cash Success Share (paise → rupees).
+                            Show in red when in cash-payment throttle window. */}
+                        <TableCell className="text-right font-mono">
+                          {(() => {
+                            const paise = Number(restaurant.outstanding_commission_paise || 0)
+                            const isThrottled = restaurant.cash_payments_disabled_until
+                              ? new Date(restaurant.cash_payments_disabled_until) >= new Date(new Date().toDateString())
+                              : false
+                            if (paise === 0) {
+                              return <span className="text-muted-foreground">₹0</span>
+                            }
+                            return (
+                              <span
+                                className={isThrottled ? 'text-rose-600 font-bold' : 'text-amber-600 font-semibold'}
+                                title={isThrottled
+                                  ? `Throttled — cash disabled until ${restaurant.cash_payments_disabled_until}`
+                                  : 'Outstanding cash Success Share'}
+                              >
+                                ₹{(paise / 100).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                              </span>
+                            )
+                          })()}
                         </TableCell>
                         <TableCell>
-                          <Badge variant={restaurant.plan_type === 'GOLD' ? 'default' : 'outline'}>
-                            {restaurant.plan_type}
-                          </Badge>
+                          {(() => {
+                            const s = restaurant.mandate_status || ''
+                            const map: Record<string, { label: string; cls: string }> = {
+                              active:   { label: 'Active',   cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+                              inactive: { label: 'Inactive', cls: 'bg-stone-50 text-stone-600 border-stone-200' },
+                              failed:   { label: 'Failed',   cls: 'bg-rose-50 text-rose-700 border-rose-200' },
+                            }
+                            const m = map[s] || { label: s || '—', cls: 'bg-stone-50 text-stone-500 border-stone-200' }
+                            return <Badge variant="outline" className={m.cls}>{m.label}</Badge>
+                          })()}
+                        </TableCell>
+                        <TableCell>
+                          {(() => {
+                            const k = restaurant.razorpay_kyc_status || ''
+                            const map: Record<string, { label: string; cls: string }> = {
+                              activated:           { label: 'Activated',     cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+                              under_review:        { label: 'Under Review',  cls: 'bg-blue-50 text-blue-700 border-blue-200' },
+                              needs_clarification: { label: 'Needs Info',    cls: 'bg-amber-50 text-amber-700 border-amber-200' },
+                              rejected:            { label: 'Rejected',      cls: 'bg-rose-50 text-rose-700 border-rose-200' },
+                              suspended:           { label: 'Suspended',     cls: 'bg-rose-50 text-rose-700 border-rose-200' },
+                            }
+                            const m = map[k] || { label: k || 'Not started', cls: 'bg-stone-50 text-stone-500 border-stone-200' }
+                            return <Badge variant="outline" className={m.cls}>{m.label}</Badge>
+                          })()}
                         </TableCell>
                         <TableCell className="text-right font-mono">
                           {restaurant.coins_balance.toLocaleString()}
@@ -837,16 +1157,12 @@ export default function AdminRestaurantManagement() {
                 </SelectTrigger>
                 <SelectContent className="rounded-2xl p-1 shadow-2xl border-none">
                   {[
-                    // Single-tier model: only GOLD is selectable. The legacy
-                    // SILVER tier is retained in the doctype schema for
-                    // historical rows only — admins can't reassign to it from
-                    // here.
                     {
                       id: 'GOLD',
                       label: 'Flamezo Plan',
                       icon: Trophy,
                       color: 'text-amber-500',
-                      desc: `Free onboarding · ₹${platformSettings.gold_monthly_fee}/mo floor + ${platformSettings.gold_commission_percent}% commission`,
+                      desc: `Free onboarding · ₹${platformSettings.gold_monthly_fee}/mo floor + ${platformSettings.gold_commission_percent}% Success Share`,
                     },
                   ].map((tier) => (
                     <SelectItem
@@ -1211,7 +1527,7 @@ export default function AdminRestaurantManagement() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-sm font-bold ml-1 text-amber-600">Gold Commission (%)</Label>
+                  <Label className="text-sm font-bold ml-1 text-amber-600">Gold Success Share (%)</Label>
                   <NumberInput
                     value={platformSettings.gold_commission_percent}
                     onChange={(e) => setPlatformSettings(prev => ({ ...prev, gold_commission_percent: parseFloat(e.target.value || '0') }))}

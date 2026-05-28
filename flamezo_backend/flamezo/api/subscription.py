@@ -7,8 +7,9 @@ Subscription API Endpoints
 Provides API endpoints for subscription plan management and feature access checks.
 
 New model (May 2026): GOLD is the only active tier. Every onboarded restaurant
-gets the full feature set on day 1 — free onboarding, ₹399/mo floor, 1.5%
-commission on online orders. The legacy SILVER tier is retained in the doctype
+gets the full feature set on day 1 — free onboarding, ₹399/mo floor, plus
+Success Share on online orders (default 3% for new restaurants, 1.5%
+grandfathered for ones onboarded before May 2026). The legacy SILVER tier is retained in the doctype
 schema for historical records only; no new restaurant should land on SILVER.
 """
 
@@ -80,7 +81,7 @@ def get_plan_comparison(restaurant_id=None):
     still includes a `GOLD` block so existing frontends keep rendering; the
     SILVER block is now empty/None to signal the tier is retired.
     """
-    default_rate = frappe.db.get_single_value("Flamezo Settings", "gold_commission_percent") or 1.5
+    default_rate = frappe.db.get_single_value("Flamezo Settings", "gold_commission_percent") or 3.0
     commission_rate = f"{float(default_rate)}%"
     if restaurant_id:
         try:
@@ -158,7 +159,7 @@ def get_upgrade_benefits(restaurant_id):
                     'Marketing campaigns via SMS, WhatsApp, Email',
                     'Event-based automation (e.g. 7 days no visit → send offer)',
                     'Coupons & targeted discount offers',
-                    f'Just {float(restaurant.platform_fee_percent or frappe.db.get_single_value("Flamezo Settings", "gold_commission_percent") or 1.5)}% commission — only pay when you earn',
+                    f'Just {float(restaurant.platform_fee_percent or frappe.db.get_single_value("Flamezo Settings", "gold_commission_percent") or 3.0)}% Success Share — only pay when you earn',
                 ]
             },
             {

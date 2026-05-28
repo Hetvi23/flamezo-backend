@@ -1,5 +1,7 @@
 # Razorpay Setup Guide for Restaurants (Flamezo)
 
+> **Last Updated:** 2026-05-23 — Reflects the current Flamezo platform model post-Razorpay Route migration.
+
 This guide will help you create your Razorpay account and start accepting payments in the easiest way possible.
 
 No technical knowledge required 👍

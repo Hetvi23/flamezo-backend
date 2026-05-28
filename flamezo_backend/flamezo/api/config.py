@@ -252,7 +252,14 @@ def get_restaurant_config(restaurant_id):
 				"enableOffers": bool(config.get("enable_offers")),
 				"enableCoupons": bool(config.get("enable_coupons")),
 				"enableExperienceLounge": bool(config.get("enable_experience_lounge")),
-				"verifyMyUser": bool(config.get("verify_my_user")) if plan_type == "GOLD" else False,
+				# Verification is now backend-controlled (no per-restaurant toggle).
+				# Always reported as True so the frontend uniformly treats the Savings
+				# Corner (offers + coupons + Flamezo Cash) as gated. The Restaurant
+				# Config field is kept for backwards-compat with older clients but
+				# is no longer honored by the API gates.
+				"verifyMyUser": True,
+				"savingsCornerGated": True,
+				"loyaltyRequiresOnlinePayment": True,
 				"enableLoyalty": bool(restaurant_doc.get("enable_loyalty")),
 				"defaultDeliveryFee": flt(restaurant_doc.get("default_delivery_fee", 0)),
 				"googleMapsApiKey": frappe.conf.get("google_maps_api_key") or frappe.db.get_single_value("Flamezo Settings", "google_maps_api_key"),
@@ -299,7 +306,7 @@ def get_restaurant_config(restaurant_id):
 				"platform_fee_percent": float(restaurant_doc.platform_fee_percent or 0),
 				"plan_defaults": {
 					"gold_floor": float(frappe.db.get_single_value("Flamezo Settings", "gold_monthly_fee") or 399.0),
-					"gold_commission": float(frappe.db.get_single_value("Flamezo Settings", "gold_commission_percent") or 1.5),
+					"gold_commission": float(frappe.db.get_single_value("Flamezo Settings", "gold_commission_percent") or 3.0),
 					# Retired in the single-tier model — no GOLD unlock barrier.
 					# Kept in the response as `0.0` for client backwards compat.
 					"gold_barrier": 0.0,
@@ -329,6 +336,25 @@ def get_restaurant_config(restaurant_id):
 					"aiRecommendations": True,
 					"customBranding": True,
 				}
+			},
+			# Razorpay Route hybrid settlement state. Read by the merchant
+			# dashboard for billing/KYC views and by the consumer apps for
+			# any future payment-method gating. Kept as raw, unopinionated
+			# values — frontends decide how (or whether) to use them.
+			"payments": {
+				"routeMode": restaurant_doc.get("route_mode") or "flamezo_hold",
+				"razorpayKycStatus": restaurant_doc.get("razorpay_kyc_status") or "",
+				"outstandingSuccessSharePaise": int(restaurant_doc.get("outstanding_commission_paise") or 0),
+				# When set to a future date the merchant has hit Tier 3 throttle
+				# (3+ consecutive autopay sweep failures). Consumer apps may
+				# use this to hide pay-at-counter; today we leave cash always
+				# available and surface this purely for dashboard visibility.
+				"cashPaymentsDisabledUntil": (
+					str(restaurant_doc.get("cash_payments_disabled_until"))
+					if restaurant_doc.get("cash_payments_disabled_until") else None
+				),
+				"cashSweepFailureCount": int(restaurant_doc.get("cash_sweep_failure_count") or 0),
+				"lastCashSweepError": restaurant_doc.get("last_cash_sweep_error") or "",
 			},
 			# placeholder for feature cards (will be populated below)
 			"homeFeatures": []

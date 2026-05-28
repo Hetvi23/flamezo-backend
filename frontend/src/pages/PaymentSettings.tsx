@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 import { useFrappePostCall } from '@/lib/frappe'
 import { useRestaurant } from '@/contexts/RestaurantContext'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -31,7 +31,6 @@ import {
   CreditCard,
   Loader2,
   RefreshCcw,
-  Settings,
   Search,
   History,
   Download,
@@ -63,7 +62,6 @@ type FilterPreset = 'today' | 'yesterday' | '7d' | '30d' | 'custom'
 
 export default function PaymentSettings() {
   const { restaurantId } = useParams()
-  const navigate = useNavigate()
   const { selectedRestaurant } = useRestaurant()
   const activeRestaurantId = restaurantId || selectedRestaurant
 
@@ -223,13 +221,6 @@ export default function PaymentSettings() {
           >
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
             Refresh
-          </Button>
-          <Button 
-            className="rounded-full bg-primary hover:bg-primary/90 text-white shadow-lg shadow-primary/20 transition-all gap-2"
-            onClick={() => navigate(restaurantId ? `/restaurant/${restaurantId}/billing/configure` : '/billing/configure')}
-          >
-            <Settings className="h-4 w-4" />
-            Configure Payment
           </Button>
         </div>
       </div>

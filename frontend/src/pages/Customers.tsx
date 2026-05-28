@@ -17,7 +17,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Users, Loader2, CheckCircle, ChevronDown, ChevronRight, Eye, Star, Search, UserCheck, Upload, Import, Lock, Unlock, Coins } from 'lucide-react'
+import { Users, Loader2, CheckCircle, ChevronDown, ChevronRight, Eye, Star, Search, UserCheck, Upload, Import, Lock, Unlock } from 'lucide-react'
 import CustomerImportModal from '@/components/CustomerImportModal'
 import { toast } from 'sonner'
 import { useDataTable } from '@/hooks/useDataTable'
@@ -105,29 +105,10 @@ export default function Customers() {
     return fetchedCustomers || []
   }, [fetchedCustomers])
 
-  const { restaurantConfig, refreshConfig, isSilver, planType } = useRestaurant()
+  const { restaurantConfig, refreshConfig } = useRestaurant()
   const isVerifyEnabled = restaurantConfig?.settings?.verifyMyUser ?? false
 
   const { call: setValue } = useFrappePostCall('frappe.client.set_value')
-  const { call: unlockCustomerApi } = useFrappePostCall('flamezo_backend.flamezo.api.customers.unlock_customer_data')
-
-  const handleUnlockCustomer = async (customerId: string) => {
-    try {
-      const res = await unlockCustomerApi({
-        restaurant_id: selectedRestaurant,
-        customer_id: customerId
-      })
-      const body = (res as any)?.message || res
-      if (body.success) {
-        toast.success(body.message || 'Profile unlocked!')
-        refreshCustomers()
-      } else {
-        toast.error(body.error || 'Failed to unlock profile')
-      }
-    } catch (err) {
-      toast.error('Internal error occurred')
-    }
-  }
 
   const handleToggleVerify = async (checked: boolean) => {
     if (!selectedRestaurant) return
@@ -228,18 +209,16 @@ export default function Customers() {
               </CardDescription>
             </div>
             <div className="flex flex-col sm:flex-row items-center gap-4">
-              {!isSilver && (
-                <div className="flex items-center gap-2 bg-muted/30 px-3 py-1.5 rounded-xl border border-border/50">
-                  <Switch
-                    id="verify-user-card"
-                    checked={isVerifyEnabled}
-                    onCheckedChange={handleToggleVerify}
-                    disabled={isUpdatingVerify}
-                    className="scale-90"
-                  />
-                  <Label htmlFor="verify-user-card" className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mr-1 cursor-pointer">Verify Users</Label>
-                </div>
-              )}
+              <div className="flex items-center gap-2 bg-muted/30 px-3 py-1.5 rounded-xl border border-border/50">
+                <Switch
+                  id="verify-user-card"
+                  checked={isVerifyEnabled}
+                  onCheckedChange={handleToggleVerify}
+                  disabled={isUpdatingVerify}
+                  className="scale-90"
+                />
+                <Label htmlFor="verify-user-card" className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mr-1 cursor-pointer">Verify Users</Label>
+              </div>
               <div className="relative w-full sm:w-64">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/60" />
                 <Input
@@ -298,7 +277,7 @@ export default function Customers() {
                             </TableCell>
                             <TableCell className="font-medium">
                               <div className="flex items-center gap-2">
-                                <div className={!c.is_unlocked && isSilver ? "select-none opacity-40 brightness-50" : ""}>
+                                <div>
                                   {c.customerName || '—'}
                                 </div>
                                 {c.isImported && (
@@ -315,9 +294,7 @@ export default function Customers() {
                               </div>
                             </TableCell>
                             <TableCell>
-                              <div className={!c.is_unlocked && isSilver ? "select-none opacity-40 brightness-50" : ""}>
-                                {c.phone || '—'}
-                              </div>
+                              <div>{c.phone || '—'}</div>
                             </TableCell>
                             <TableCell className="text-muted-foreground">
                               {c.lastVisited ? formatDate(c.lastVisited) : '—'}
@@ -331,23 +308,11 @@ export default function Customers() {
                             </TableCell>
                             <TableCell className="text-right">
                               <div className="flex items-center justify-end gap-2">
-                                {!c.is_unlocked && isSilver && (
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => handleUnlockCustomer(c.id)}
-                                    className="h-8 rounded-lg bg-primary/5 hover:bg-primary/10 border-primary/20 text-primary font-bold transition-all hover:scale-[1.02] active:scale-[0.98] group"
-                                  >
-                                    <Coins className="h-3.5 w-3.5 mr-1.5 group-hover:rotate-12 transition-transform" />
-                                    5 Credits
-                                  </Button>
-                                )}
                                 <Button
                                   variant="ghost"
                                   size="sm"
                                   onClick={() => handleViewFullProfile(c.id)}
                                   className="h-8"
-                                  disabled={!c.is_unlocked && isSilver}
                                 >
                                   <Eye className="h-4 w-4 mr-2" />
                                   Profile

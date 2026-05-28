@@ -20,14 +20,14 @@ class MonthlyBillingLedger(Document):
             total_gmv = int(self.total_gmv or 0)
             
             # Fetch commission settings and plan type from Restaurant
-            platform_fee_percent = 1.5
+            platform_fee_percent = 3.0
             monthly_min = 399
             plan_type = "GOLD"
             if self.restaurant:
-                res_info = frappe.db.get_value("Restaurant", self.restaurant, 
+                res_info = frappe.db.get_value("Restaurant", self.restaurant,
                     ["platform_fee_percent", "monthly_minimum", "plan_type"], as_dict=True)
                 if res_info:
-                    platform_fee_percent = float(res_info.platform_fee_percent if res_info.platform_fee_percent is not None else 1.5)
+                    platform_fee_percent = float(res_info.platform_fee_percent if res_info.platform_fee_percent is not None else 3.0)
                     monthly_min = float(res_info.monthly_minimum if res_info.monthly_minimum is not None else 399)
                     plan_type = res_info.plan_type or "GOLD"
 

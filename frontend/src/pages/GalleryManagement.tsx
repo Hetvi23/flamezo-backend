@@ -40,7 +40,8 @@ import {
   Utensils,
   Calendar,
   Zap,
-  Crown
+  Crown,
+  Upload as UploadIcon
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { Progress } from '@/components/ui/progress'
@@ -49,7 +50,6 @@ import { toast } from 'sonner'
 import { cn, getFrappeError } from '@/lib/utils'
 import { useDataTable } from '@/hooks/useDataTable'
 import { uploadToR2, getMediaType } from '@/lib/r2Upload'
-import SilverMediaUpload from '@/components/SilverMediaUpload'
 
 export default function GalleryManagement() {
   const navigate = useNavigate()
@@ -647,17 +647,30 @@ export default function GalleryManagement() {
             {/* Main Content Area */}
             <div className="flex-1 flex flex-col">
               <div className="p-8 flex-1 flex flex-col justify-center">
-                <SilverMediaUpload 
-                  variant="compact"
-                  onUpload={handleUpload}
-                  onUpgrade={() => {
-                    setIsUploadDialogOpen(false);
-                    navigate('/autopay-setup');
-                  }}
-                  currentImageCount={selectedCount}
-                  maxImages={25}
-                  className="border-2 border-dashed border-border/60 hover:border-primary/30 transition-all p-8 rounded-2xl bg-muted/5"
-                />
+                <label
+                  htmlFor="gallery-file-input"
+                  className="border-2 border-dashed border-border/60 hover:border-primary/30 transition-all p-8 rounded-2xl bg-muted/5 flex flex-col items-center justify-center text-center cursor-pointer"
+                >
+                  <input
+                    id="gallery-file-input"
+                    type="file"
+                    accept="image/*,video/*"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => {
+                      const files = e.target.files ? Array.from(e.target.files) : []
+                      if (files.length) {
+                        handleUpload(files)
+                      }
+                      e.target.value = ''
+                    }}
+                  />
+                  <UploadIcon className="h-8 w-8 text-muted-foreground mb-3" />
+                  <p className="text-sm font-bold">Click to choose files</p>
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    {selectedCount}/25 used — images or videos up to 25 items total
+                  </p>
+                </label>
               </div>
               
               <div className="px-8 py-4 bg-muted/5 border-t border-border flex items-center justify-between">
