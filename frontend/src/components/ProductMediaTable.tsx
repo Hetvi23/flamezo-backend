@@ -184,33 +184,47 @@ export default function ProductMediaTable({ value = [], onChange, required, disa
     }
 
     try {
-      const uploadPromises = Array.from(files).map(async (file, index) => {
+      // Sequential upload for mobile reliability (Promise.all overwhelms mobile bandwidth)
+      const uploadedItems = []
+      let failedCount = 0
+
+      for (let index = 0; index < files.length; index++) {
+        const file = files[index]
         const mediaType = getMediaType(file)
         const mediaRole = mediaType === 'video' ? 'product_video' : 'product_image'
 
-        // Upload to R2
-        const result = await uploadToR2({
-          ownerDoctype: 'Menu Product',
-          ownerName: productName,
-          mediaRole,
-          file,
-          displayOrder: currentValue.length + index + 1,
-        })
+        try {
+          // Upload to R2 (compression handled inside uploadToR2 for images)
+          const result = await uploadToR2({
+            ownerDoctype: 'Menu Product',
+            ownerName: productName,
+            mediaRole,
+            file,
+            displayOrder: currentValue.length + index + 1,
+          })
 
-        return {
-          media_asset: result.name,
-          media_url: result.primary_url || '',
-          media_type: mediaType,
-          display_order: currentValue.length + index + 1,
-          alt_text: '',
-          caption: ''
+          uploadedItems.push({
+            media_asset: result.name,
+            media_url: result.primary_url || '',
+            media_type: mediaType,
+            display_order: currentValue.length + index + 1,
+            alt_text: '',
+            caption: ''
+          })
+        } catch (fileError: any) {
+          console.error(`Upload failed for ${file.name}:`, fileError)
+          failedCount++
         }
-      })
+      }
 
-      const uploadedItems = await Promise.all(uploadPromises)
-      const newItems = [...currentValue, ...uploadedItems]
-      onChange?.(newItems)
-      toast.success(`${uploadedItems.length} media file(s) uploaded successfully`)
+      if (uploadedItems.length > 0) {
+        const newItems = [...currentValue, ...uploadedItems]
+        onChange?.(newItems)
+        toast.success(`${uploadedItems.length} media file(s) uploaded successfully`)
+      }
+      if (failedCount > 0) {
+        toast.error(`${failedCount} file(s) failed to upload. Please try again.`)
+      }
     } catch (error: any) {
       toast.error('Failed to upload media files', { description: getFrappeError(error) })
     } finally {

@@ -6,6 +6,7 @@ import { Trash2, Upload, Plus, Image as ImageIcon, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { uploadToR2 } from '@/lib/r2Upload'
+import { compressImage } from '@/lib/imageCompression'
 
 interface MenuImageItem {
   name?: string
@@ -60,38 +61,62 @@ export default function MenuImagesTable({
 
     try {
       const uploadedItems = []
-      // We use a sequential loop for production stability (avoiding BrokenPipe on dev server)
+      let failedCount = 0
+      // Sequential loop for stability (avoids BrokenPipe + better for mobile bandwidth)
       for (const file of Array.from(files)) {
-        // Validate file type
-        if (!file.type.startsWith('image/')) {
+        // Validate file type — accept HEIC/HEIF and empty types (mobile browsers)
+        const ext = file.name.split('.').pop()?.toLowerCase() || ''
+        const imageExtensions = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'heic', 'heif', 'bmp', 'tiff']
+        const isImage = file.type.startsWith('image/') || imageExtensions.includes(ext)
+        if (!isImage) {
           toast.error(`${file.name} is not an image file`)
           continue
         }
 
-        // Upload to R2 (Direct, production-ready path)
-        const result = await uploadToR2({
-          ownerDoctype: ownerDoctype,
-          ownerName: ownerName,
-          mediaRole: 'category_image',
-          file,
-        })
+        try {
+          // Compress image: normalizes HEIC→JPEG, reduces size for mobile uploads
+          let processedFile = file
+          try {
+            processedFile = await compressImage(file)
+          } catch {
+            // If compression fails, try uploading the original
+          }
 
-        uploadedItems.push({
-          media_asset: result.name, // Link to the Media Asset record
-          menu_image: result.primary_url || ''
-        })
+          // Upload to R2 (Direct, production-ready path)
+          const result = await uploadToR2({
+            ownerDoctype: ownerDoctype,
+            ownerName: ownerName,
+            mediaRole: 'category_image',
+            file: processedFile,
+            skipCompression: true, // already compressed above
+          })
+
+          uploadedItems.push({
+            media_asset: result.name,
+            menu_image: result.primary_url || ''
+          })
+        } catch (fileError: any) {
+          console.error(`Upload failed for ${file.name}:`, fileError)
+          failedCount++
+          // Continue with remaining files instead of stopping
+        }
       }
 
       // Update local state immediately for snappy UI
       const newItems = [...currentValue, ...uploadedItems]
       setLocalItems(newItems)
-      
+
       // Notify parent to sync with backend
       if (onChange) {
         await onChange(newItems)
       }
-      
-      toast.success(`${uploadedItems.length} image(s) uploaded successfully`)
+
+      if (uploadedItems.length > 0) {
+        toast.success(`${uploadedItems.length} image(s) uploaded successfully`)
+      }
+      if (failedCount > 0) {
+        toast.error(`${failedCount} image(s) failed to upload. Please try again.`)
+      }
     } catch (error: any) {
       console.error('Upload Error:', error)
       toast.error(error?.message || 'Failed to upload images')
