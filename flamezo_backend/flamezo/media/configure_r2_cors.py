@@ -28,15 +28,33 @@ def configure_cors():
 	account_id = config["r2_account_id"]
 	bucket_name = config["r2_bucket_name"]
 	
+	# Build allowed origins: production domains + site URL + dev origins
+	site_url = frappe.utils.get_url()
+	allowed_origins = [
+		"http://localhost:8000",
+		"http://localhost:3000",
+		"http://localhost:3001",
+		"https://backend.flamezo.in",
+		"https://dev.flamezo.in",
+		"https://app.flamezo.in",
+		"https://flamezo.in",
+		"https://www.flamezo.in",
+	]
+	# Add the current site URL if not already included
+	if site_url and site_url not in allowed_origins:
+		allowed_origins.append(site_url)
+
+	# Also pull any origins from site config allow_cors
+	config_origins = frappe.conf.get("allow_cors", [])
+	if isinstance(config_origins, list):
+		for origin in config_origins:
+			if origin not in allowed_origins:
+				allowed_origins.append(origin)
+
 	# CORS configuration
 	cors_rules = [
 		{
-			"AllowedOrigins": [
-				"http://localhost:8000",
-				"http://localhost:3000",
-				"https://*.flamezo_backend.com",
-				frappe.utils.get_url()
-			],
+			"AllowedOrigins": allowed_origins,
 			"AllowedMethods": [
 				"GET",
 				"PUT",
