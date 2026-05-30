@@ -340,10 +340,16 @@ def validate_media_role_for_doctype(owner_doctype, media_role):
 
 def get_media_kind_from_mime(content_type):
 	"""Determine media kind from MIME type"""
+	if not content_type:
+		# Mobile browsers sometimes send empty content type — default to image
+		return "image"
 	if content_type.startswith("image/"):
 		return "image"
 	elif content_type.startswith("video/"):
 		return "video"
+	elif content_type == "application/octet-stream":
+		# Some Android browsers send this for camera photos
+		return "image"
 	else:
 		frappe.throw(_(f"Unsupported content type: {content_type}"))
 
