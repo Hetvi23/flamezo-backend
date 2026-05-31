@@ -413,7 +413,7 @@ def get_restaurant_config(restaurant_id):
 						rows = frappe.get_all(
 							"Menu Product",
 							filters={"product_id": ["in", ids], "restaurant": restaurant_doc.name},
-							fields=["product_id", "product_name", "price", "image"],
+							fields=["product_id", "product_name", "price"],
 						)
 						lookup = {r.product_id: r for r in rows}
 						return [
@@ -421,7 +421,7 @@ def get_restaurant_config(restaurant_id):
 								"dishId": pid,
 								"name": lookup[pid].product_name if pid in lookup else pid,
 								"price": flt(lookup[pid].price) if pid in lookup else 0,
-								"image": lookup[pid].image if pid in lookup else None,
+								"image": None,
 							}
 							for pid in ids
 						]
